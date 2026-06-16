@@ -40,7 +40,8 @@ const (
 	asyncTaskStatusTimeout   = "timeout"
 	asyncTaskPlatformOpenAI  = constant.TaskPlatform("openai-async")
 
-	asyncTaskHTTPTimeout = 90 * time.Second
+	asyncTaskHTTPTimeout               = 90 * time.Second
+	asyncTaskDefaultInlineContentLimit = 20 << 20
 )
 
 type asyncTaskRequest struct {
@@ -225,7 +226,7 @@ func GetAsyncTaskContent(c *gin.Context) {
 			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"message": "failed to fetch async task content"}})
 			return
 		}
-		c.Data(http.StatusOK, firstAsyncNonEmpty(data.Outputs[index].MimeType, mimeType, "application/octet-stream"), content)
+		c.Data(http.StatusOK, firstAsyncNonEmpty(mimeType, data.Outputs[index].MimeType, "application/octet-stream"), content)
 		return
 	}
 	content, err := base64.StdEncoding.DecodeString(data.Outputs[index].Content)
@@ -370,7 +371,8 @@ var (
 		registerAsyncTaskCancel(taskID, cancel)
 		go executeAsyncTaskInBackground(taskID, channelID, execution)
 	}
-	asyncTaskHTTPClient = &http.Client{Timeout: asyncTaskHTTPTimeout}
+	asyncTaskHTTPClient         = &http.Client{Timeout: asyncTaskHTTPTimeout}
+	asyncTaskInlineContentLimit = asyncTaskDefaultInlineContentLimit
 
 	asyncTaskCancelMu sync.Mutex
 	asyncTaskCancels  = map[string]context.CancelFunc{}
@@ -385,6 +387,14 @@ func setAsyncTaskRunnerForTest(runner func(taskID string, channelID int, executi
 		asyncTaskRunnerMu.Lock()
 		asyncTaskRunner = previous
 		asyncTaskRunnerMu.Unlock()
+	}
+}
+
+func setAsyncTaskInlineContentLimitForTest(limit int) func() {
+	previous := asyncTaskInlineContentLimit
+	asyncTaskInlineContentLimit = limit
+	return func() {
+		asyncTaskInlineContentLimit = previous
 	}
 }
 
@@ -576,7 +586,7 @@ func executeAsyncImageGeneration(parentCtx context.Context, channel *model.Chann
 	}
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
-	return doAsyncImageRequest(upstreamReq)
+	return doAsyncImageRequest(upstreamReq, asyncImageOutputMimeType(request.Parameters))
 }
 
 func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
@@ -588,7 +598,8 @@ func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, ex
 	writer := multipart.NewWriter(&body)
 	_ = writer.WriteField("model", request.Model)
 	_ = writer.WriteField("prompt", request.Input.Prompt)
-	for _, field := range []string{"n", "quality", "size", "response_format", "output_format"} {
+	_ = writer.WriteField("response_format", "url")
+	for _, field := range []string{"n", "quality", "size", "output_format"} {
 		if value := asyncParamString(request.Parameters, field); value != "" {
 			_ = writer.WriteField(field, value)
 		}
@@ -617,7 +628,7 @@ func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, ex
 	}
 	upstreamReq.Header.Set("Content-Type", writer.FormDataContentType())
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
-	return doAsyncImageRequest(upstreamReq)
+	return doAsyncImageRequest(upstreamReq, asyncImageOutputMimeType(request.Parameters))
 }
 
 func asyncImageGenerationPayload(request asyncTaskRequest) map[string]interface{} {
@@ -625,7 +636,7 @@ func asyncImageGenerationPayload(request asyncTaskRequest) map[string]interface{
 		"model":           request.Model,
 		"prompt":          request.Input.Prompt,
 		"n":               asyncParamIntValue(request.Parameters, "n", 1),
-		"response_format": firstAsyncNonEmpty(asyncParamString(request.Parameters, "response_format"), "url"),
+		"response_format": "url",
 	}
 	for _, field := range []string{"quality", "size", "output_format"} {
 		if value, ok := request.Parameters[field]; ok && strings.TrimSpace(fmt.Sprint(value)) != "" {
@@ -635,7 +646,18 @@ func asyncImageGenerationPayload(request asyncTaskRequest) map[string]interface{
 	return payload
 }
 
-func doAsyncImageRequest(request *http.Request) ([]asyncTaskStoredOutput, error) {
+func asyncImageOutputMimeType(parameters map[string]interface{}) string {
+	switch strings.ToLower(strings.TrimSpace(asyncParamString(parameters, "output_format"))) {
+	case "jpeg", "jpg":
+		return "image/jpeg"
+	case "webp":
+		return "image/webp"
+	default:
+		return "image/png"
+	}
+}
+
+func doAsyncImageRequest(request *http.Request, defaultMimeType string) ([]asyncTaskStoredOutput, error) {
 	response, err := asyncTaskHTTPClient.Do(request)
 	if err != nil {
 		return nil, err
@@ -663,11 +685,18 @@ func doAsyncImageRequest(request *http.Request) ([]asyncTaskStoredOutput, error)
 	outputs := make([]asyncTaskStoredOutput, 0, len(payload.Data))
 	for _, item := range payload.Data {
 		if strings.TrimSpace(item.URL) != "" {
-			outputs = append(outputs, asyncTaskStoredOutput{MimeType: "image/png", URL: item.URL})
+			outputs = append(outputs, asyncTaskStoredOutput{MimeType: defaultMimeType, URL: item.URL})
 			continue
 		}
-		if strings.TrimSpace(item.B64JSON) != "" {
-			return nil, errors.New("upstream image task returned base64 content; configure upstream response_format=url")
+		if encoded := strings.TrimSpace(item.B64JSON); encoded != "" {
+			content, err := base64.StdEncoding.DecodeString(encoded)
+			if err != nil {
+				return nil, errors.New("upstream image task returned invalid base64 image content")
+			}
+			if asyncTaskInlineContentLimit > 0 && len(content) > asyncTaskInlineContentLimit {
+				return nil, errors.New("upstream inline base64 image is too large; configure upstream response_format=url or object storage")
+			}
+			outputs = append(outputs, asyncTaskStoredOutput{MimeType: defaultMimeType, Content: encoded, Size: len(content)})
 		}
 	}
 	if len(outputs) == 0 {
@@ -696,8 +725,11 @@ func asyncTaskModelToResponse(task *model.Task) asyncTaskResponse {
 	outputs := make([]asyncTaskOutput, 0, len(data.Outputs))
 	for index, output := range data.Outputs {
 		size := output.Size
-		if decoded, err := base64.StdEncoding.DecodeString(output.Content); err == nil {
-			size = len(decoded)
+		if size == 0 && strings.TrimSpace(output.Content) != "" {
+			decoded, err := base64.StdEncoding.DecodeString(output.Content)
+			if err == nil {
+				size = len(decoded)
+			}
 		}
 		outputs = append(outputs, asyncTaskOutput{Index: index, MimeType: output.MimeType, Size: size, URL: output.URL})
 	}
