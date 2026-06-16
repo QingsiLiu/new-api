@@ -423,6 +423,55 @@ func TestAsyncImageGenerationAcceptsBase64OutputAndServesContent(t *testing.T) {
 	require.Equal(t, "img-bytes", contentRecorder.Body.String())
 }
 
+func TestAsyncImageGenerationTreatsDataURLAsInlineContent(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"url":"data:image/webp;base64,aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, upstream.URL, "gpt-image-2")
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"draw a studio"},
+		"parameters":{"quality":"high","size":"1024x1024","n":1,"output_format":"webp"}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+
+	statusRecorder := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+created.ID, nil)
+	statusRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(statusRecorder, statusRequest)
+	require.Equal(t, http.StatusOK, statusRecorder.Code, statusRecorder.Body.String())
+	require.NotContains(t, statusRecorder.Body.String(), "data:image")
+	require.NotContains(t, statusRecorder.Body.String(), "aW1nLWJ5dGVz")
+	require.Contains(t, statusRecorder.Body.String(), `"mimeType":"image/webp"`)
+	require.Contains(t, statusRecorder.Body.String(), `"size":9`)
+
+	contentRecorder := httptest.NewRecorder()
+	contentRequest := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+created.ID+"/content", nil)
+	contentRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(contentRecorder, contentRequest)
+	require.Equal(t, http.StatusOK, contentRecorder.Code, contentRecorder.Body.String())
+	require.Equal(t, "image/webp", contentRecorder.Header().Get("Content-Type"))
+	require.Equal(t, "img-bytes", contentRecorder.Body.String())
+}
+
 func TestAsyncImageGenerationRejectsOversizedBase64Output(t *testing.T) {
 	restoreLimit := setAsyncTaskInlineContentLimitForTest(4)
 	defer restoreLimit()

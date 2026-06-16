@@ -684,17 +684,21 @@ func doAsyncImageRequest(request *http.Request, defaultMimeType string) ([]async
 	}
 	outputs := make([]asyncTaskStoredOutput, 0, len(payload.Data))
 	for _, item := range payload.Data {
-		if strings.TrimSpace(item.URL) != "" {
-			outputs = append(outputs, asyncTaskStoredOutput{MimeType: defaultMimeType, URL: item.URL})
+		if url := strings.TrimSpace(item.URL); url != "" {
+			if output, ok, err := asyncStoredOutputFromDataURL(url, defaultMimeType); ok || err != nil {
+				if err != nil {
+					return nil, err
+				}
+				outputs = append(outputs, output)
+				continue
+			}
+			outputs = append(outputs, asyncTaskStoredOutput{MimeType: defaultMimeType, URL: url})
 			continue
 		}
 		if encoded := strings.TrimSpace(item.B64JSON); encoded != "" {
-			content, err := base64.StdEncoding.DecodeString(encoded)
+			content, err := decodeAsyncInlineBase64(encoded)
 			if err != nil {
-				return nil, errors.New("upstream image task returned invalid base64 image content")
-			}
-			if asyncTaskInlineContentLimit > 0 && len(content) > asyncTaskInlineContentLimit {
-				return nil, errors.New("upstream inline base64 image is too large; configure upstream response_format=url or object storage")
+				return nil, err
 			}
 			outputs = append(outputs, asyncTaskStoredOutput{MimeType: defaultMimeType, Content: encoded, Size: len(content)})
 		}
@@ -703,6 +707,44 @@ func doAsyncImageRequest(request *http.Request, defaultMimeType string) ([]async
 		return nil, errors.New("upstream image task returned no image")
 	}
 	return outputs, nil
+}
+
+func asyncStoredOutputFromDataURL(value string, fallbackMimeType string) (asyncTaskStoredOutput, bool, error) {
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(value)), "data:") {
+		return asyncTaskStoredOutput{}, false, nil
+	}
+	prefix, encoded, ok := strings.Cut(value, ",")
+	if !ok {
+		return asyncTaskStoredOutput{}, true, errors.New("upstream image task returned invalid data URL image content")
+	}
+	mimeType := fallbackMimeType
+	if contentType, _, ok := strings.Cut(strings.TrimPrefix(prefix, "data:"), ";"); ok && strings.TrimSpace(contentType) != "" {
+		mimeType = strings.TrimSpace(contentType)
+	}
+	encoded = strings.TrimSpace(encoded)
+	content, err := decodeAsyncInlineBase64(encoded)
+	if err != nil {
+		return asyncTaskStoredOutput{}, true, err
+	}
+	return asyncTaskStoredOutput{MimeType: firstAsyncNonEmpty(mimeType, fallbackMimeType, "application/octet-stream"), Content: encoded, Size: len(content)}, true, nil
+}
+
+func decodeAsyncInlineBase64(encoded string) ([]byte, error) {
+	content, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, errors.New("upstream image task returned invalid base64 image content")
+	}
+	if err := validateAsyncInlineContentSize(len(content)); err != nil {
+		return nil, err
+	}
+	return content, nil
+}
+
+func validateAsyncInlineContentSize(size int) error {
+	if asyncTaskInlineContentLimit > 0 && size > asyncTaskInlineContentLimit {
+		return errors.New("upstream inline base64 image is too large; configure upstream response_format=url or object storage")
+	}
+	return nil
 }
 
 func getUserAsyncTask(c *gin.Context) (*model.Task, bool) {
