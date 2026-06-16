@@ -274,6 +274,46 @@ func TestAsyncImageGenerationUsesMappedUpstreamModel(t *testing.T) {
 	require.Equal(t, "upstream-image-real", task.Properties.UpstreamModelName)
 }
 
+func TestAsyncImageGenerationRejectsBase64OutputWithoutPersistingContent(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, upstream.URL, "gpt-image-2")
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"draw a studio"},
+		"parameters":{"quality":"high","size":"1024x1024","n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusFailure
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Contains(t, task.FailReason, "base64")
+	require.NotContains(t, string(task.Data), "aW1nLWJ5dGVz")
+
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+}
+
 func TestAsyncTaskFailureRefundsPreConsumedQuotaOnce(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":{"message":"upstream exploded"}}`, http.StatusBadGateway)
@@ -380,6 +420,72 @@ func TestAsyncTaskCancelPreventsSuccessOverwrite(t *testing.T) {
 	require.Contains(t, statusRecorder.Body.String(), `"status":"canceled"`)
 }
 
+func TestAsyncTaskCancelAbortsInFlightUpstreamRequest(t *testing.T) {
+	requestCanceled := make(chan struct{})
+	requestStarted := make(chan struct{})
+	releaseRequest := make(chan struct{})
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		close(requestStarted)
+		select {
+		case <-req.Context().Done():
+			close(requestCanceled)
+			return nil, req.Context().Err()
+		case <-releaseRequest:
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":[{"url":"https://example.test/result.png"}]}`)),
+				Request:    req,
+			}, nil
+		}
+	})})
+	defer func() {
+		close(releaseRequest)
+		restoreClient()
+	}()
+
+	engine, token := setupAsyncTaskRouterTest(t, "https://upstream.example", "gpt-image-2")
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"draw a studio"},
+		"parameters":{"quality":"high","size":"1024x1024","n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-requestStarted:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+
+	cancelRecorder := httptest.NewRecorder()
+	cancelRequest := httptest.NewRequest(http.MethodPost, "/v1/async/tasks/"+created.ID+"/cancel", nil)
+	cancelRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(cancelRecorder, cancelRequest)
+	require.Equal(t, http.StatusOK, cancelRecorder.Code, cancelRecorder.Body.String())
+	require.Contains(t, cancelRecorder.Body.String(), `"status":"canceled"`)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-requestCanceled:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
 func TestAsyncTimedOutTaskIsFailedAndRefunded(t *testing.T) {
 	db := setupAsyncTaskTestDB(t)
 	task := &model.Task{
@@ -474,6 +580,20 @@ func optionalStringPointer(value string) *string {
 		return nil
 	}
 	return &value
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func setAsyncTaskHTTPClientForTest(client *http.Client) func() {
+	previous := asyncTaskHTTPClient
+	asyncTaskHTTPClient = client
+	return func() {
+		asyncTaskHTTPClient = previous
+	}
 }
 
 func setupAsyncTaskTestDB(t *testing.T) *gorm.DB {

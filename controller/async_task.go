@@ -97,6 +97,7 @@ type asyncTaskExecution struct {
 	Multipart    *multipart.Form
 	MultipartErr error
 	RelayInfo    *relaycommon.RelayInfo
+	Context      context.Context
 }
 
 func CreateAsyncTask(c *gin.Context) {
@@ -163,6 +164,8 @@ func CreateAsyncTask(c *gin.Context) {
 	}
 	task.SetData(asyncTaskData{Kind: request.Kind, Action: request.Action, Model: request.Model})
 	if err := model.DB.Create(&task).Error; err != nil {
+		// Task is not persisted yet, so background/sweeper paths cannot see it;
+		// after persistence, refunds must go through task CAS + RefundTaskQuota.
 		if relayInfo != nil && relayInfo.Billing != nil {
 			relayInfo.Billing.Refund(c)
 		}
@@ -362,9 +365,15 @@ func startAsyncTaskExecution(taskID string, channelID int, execution asyncTaskEx
 var (
 	asyncTaskRunnerMu sync.Mutex
 	asyncTaskRunner   = func(taskID string, channelID int, execution asyncTaskExecution) {
+		ctx, cancel := context.WithCancel(context.Background())
+		execution.Context = ctx
+		registerAsyncTaskCancel(taskID, cancel)
 		go executeAsyncTaskInBackground(taskID, channelID, execution)
 	}
 	asyncTaskHTTPClient = &http.Client{Timeout: asyncTaskHTTPTimeout}
+
+	asyncTaskCancelMu sync.Mutex
+	asyncTaskCancels  = map[string]context.CancelFunc{}
 )
 
 func setAsyncTaskRunnerForTest(runner func(taskID string, channelID int, execution asyncTaskExecution)) func() {
@@ -380,6 +389,7 @@ func setAsyncTaskRunnerForTest(runner func(taskID string, channelID int, executi
 }
 
 func executeAsyncTaskInBackground(taskID string, channelID int, execution asyncTaskExecution) {
+	defer unregisterAsyncTaskCancel(taskID)
 	task, exists, err := model.GetByOnlyTaskId(taskID)
 	if err != nil || !exists {
 		return
@@ -443,8 +453,33 @@ func cancelAsyncTask(task *model.Task) bool {
 	if err != nil || !won {
 		return false
 	}
+	cancelAsyncTaskExecution(task.TaskID)
 	service.RefundTaskQuota(context.Background(), task, asyncTaskStatusCanceled)
 	return true
+}
+
+func registerAsyncTaskCancel(taskID string, cancel context.CancelFunc) {
+	if taskID == "" || cancel == nil {
+		return
+	}
+	asyncTaskCancelMu.Lock()
+	asyncTaskCancels[taskID] = cancel
+	asyncTaskCancelMu.Unlock()
+}
+
+func cancelAsyncTaskExecution(taskID string) {
+	asyncTaskCancelMu.Lock()
+	cancel := asyncTaskCancels[taskID]
+	asyncTaskCancelMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func unregisterAsyncTaskCancel(taskID string) {
+	asyncTaskCancelMu.Lock()
+	delete(asyncTaskCancels, taskID)
+	asyncTaskCancelMu.Unlock()
 }
 
 func asyncTaskIsTerminal(status model.TaskStatus) bool {
@@ -495,6 +530,7 @@ func sweepAsyncTimedOutTasks(ctx context.Context, cutoffUnix int64, limit int) i
 		if err != nil || !won {
 			continue
 		}
+		cancelAsyncTaskExecution(task.TaskID)
 		count++
 		service.RefundTaskQuota(ctx, task, reason)
 	}
@@ -503,11 +539,15 @@ func sweepAsyncTimedOutTasks(ctx context.Context, cutoffUnix int64, limit int) i
 
 func executeAsyncImageTask(channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
 	execution.Request.Model = asyncTaskUpstreamModel(execution)
+	ctx := execution.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	switch execution.Request.Action {
 	case asyncTaskActionEdit:
-		return executeAsyncImageEdit(channel, execution)
+		return executeAsyncImageEdit(ctx, channel, execution)
 	case asyncTaskActionGenerate:
-		return executeAsyncImageGeneration(channel, execution.Request)
+		return executeAsyncImageGeneration(ctx, channel, execution.Request)
 	default:
 		return nil, fmt.Errorf("unsupported image action %s", execution.Request.Action)
 	}
@@ -520,12 +560,12 @@ func asyncTaskUpstreamModel(execution asyncTaskExecution) string {
 	return execution.Request.Model
 }
 
-func executeAsyncImageGeneration(channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
+func executeAsyncImageGeneration(parentCtx context.Context, channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
 	body, err := common.Marshal(asyncImageGenerationPayload(request))
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), asyncTaskHTTPTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeout)
 	defer cancel()
 	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, asyncChannelURL(channel, "/v1/images/generations"), bytes.NewReader(body))
 	if err != nil {
@@ -536,7 +576,7 @@ func executeAsyncImageGeneration(channel *model.Channel, request asyncTaskReques
 	return doAsyncImageRequest(upstreamReq)
 }
 
-func executeAsyncImageEdit(channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
+func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
 	if execution.MultipartErr != nil {
 		return nil, execution.MultipartErr
 	}
@@ -566,7 +606,7 @@ func executeAsyncImageEdit(channel *model.Channel, execution asyncTaskExecution)
 	if err := writer.Close(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), asyncTaskHTTPTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeout)
 	defer cancel()
 	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, asyncChannelURL(channel, "/v1/images/edits"), &body)
 	if err != nil {
