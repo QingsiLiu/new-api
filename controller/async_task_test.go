@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -314,6 +315,68 @@ func TestAsyncImageGenerationRejectsBase64OutputWithoutPersistingContent(t *test
 	require.Equal(t, 1000000, user.Quota)
 }
 
+func TestAsyncTaskContentProxyUsesAsyncHTTPClient(t *testing.T) {
+	db := setupAsyncTaskTestDB(t)
+	contentFetched := make(chan struct{}, 1)
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		require.Equal(t, "https://example.test/result.png", req.URL.String())
+		require.NotNil(t, req.Context())
+		contentFetched <- struct{}{}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"image/png"}},
+			Body:       io.NopCloser(strings.NewReader("img-bytes")),
+			Request:    req,
+		}, nil
+	})})
+	defer restoreClient()
+
+	task := &model.Task{
+		TaskID:     "task_content_proxy",
+		UserId:     2001,
+		Group:      "default",
+		ChannelId:  4001,
+		Platform:   constant.TaskPlatform("openai-async"),
+		Action:     asyncTaskActionGenerate,
+		Status:     model.TaskStatusSuccess,
+		Progress:   "100%",
+		SubmitTime: time.Now().Unix(),
+		CreatedAt:  time.Now().Unix(),
+		UpdatedAt:  time.Now().Unix(),
+		FinishTime: time.Now().Unix(),
+		Properties: model.Properties{OriginModelName: "gpt-image-2"},
+	}
+	task.SetData(asyncTaskData{
+		Kind:   asyncTaskKindImage,
+		Action: asyncTaskActionGenerate,
+		Model:  "gpt-image-2",
+		Outputs: []asyncTaskStoredOutput{{
+			MimeType: "image/png",
+			URL:      "https://example.test/result.png",
+		}},
+	})
+	require.NoError(t, db.Create(task).Error)
+
+	engine := gin.New()
+	asyncRouter := engine.Group("/v1/async")
+	asyncRouter.Use(middleware.TokenAuth())
+	asyncRouter.GET("/tasks/:id/content", GetAsyncTaskContent)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+task.TaskID+"/content", nil)
+	request.Header.Set("Authorization", "Bearer sk-cavas")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, "img-bytes", recorder.Body.String())
+	require.Equal(t, "image/png", recorder.Header().Get("Content-Type"))
+	select {
+	case <-contentFetched:
+	default:
+		t.Fatal("content proxy did not use asyncTaskHTTPClient")
+	}
+}
+
 func TestAsyncTaskFailureRefundsPreConsumedQuotaOnce(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":{"message":"upstream exploded"}}`, http.StatusBadGateway)
@@ -484,6 +547,64 @@ func TestAsyncTaskCancelAbortsInFlightUpstreamRequest(t *testing.T) {
 			return false
 		}
 	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestAsyncTaskExecutorSkipsCanceledTaskBeforeCallingUpstream(t *testing.T) {
+	db := setupAsyncTaskTestDB(t)
+	upstreamCalled := make(chan struct{}, 1)
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		upstreamCalled <- struct{}{}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"url":"https://example.test/result.png"}]}`)),
+			Request:    req,
+		}, nil
+	})})
+	defer restoreClient()
+
+	upstreamURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      4001,
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "sk-upstream",
+		Status:  common.ChannelStatusEnabled,
+		Name:    "CPA OpenAI Compatible",
+		BaseURL: &upstreamURL,
+		Models:  "gpt-image-2",
+		Group:   "default",
+	}).Error)
+	model.InitChannelCache()
+
+	task := &model.Task{
+		TaskID:     "task_canceled_before_execute",
+		UserId:     2001,
+		Group:      "default",
+		ChannelId:  4001,
+		Quota:      2500,
+		Platform:   constant.TaskPlatform("openai-async"),
+		Action:     asyncTaskActionGenerate,
+		Status:     model.TaskStatusFailure,
+		Progress:   "100%",
+		FailReason: asyncTaskStatusCanceled,
+		SubmitTime: time.Now().Unix(),
+		CreatedAt:  time.Now().Unix(),
+		UpdatedAt:  time.Now().Unix(),
+		Properties: model.Properties{OriginModelName: "gpt-image-2"},
+	}
+	task.SetData(asyncTaskData{Kind: asyncTaskKindImage, Action: asyncTaskActionGenerate, Model: "gpt-image-2"})
+	require.NoError(t, db.Create(task).Error)
+
+	executeAsyncTaskInBackground(task.TaskID, 4001, asyncTaskExecution{
+		Request: asyncTaskRequest{Kind: asyncTaskKindImage, Action: asyncTaskActionGenerate, Model: "gpt-image-2", Input: asyncTaskInput{Prompt: "draw a studio"}},
+		Context: context.Background(),
+	})
+
+	select {
+	case <-upstreamCalled:
+		t.Fatal("executor called upstream for a canceled task")
+	default:
+	}
 }
 
 func TestAsyncTimedOutTaskIsFailedAndRefunded(t *testing.T) {

@@ -394,6 +394,9 @@ func executeAsyncTaskInBackground(taskID string, channelID int, execution asyncT
 	if err != nil || !exists {
 		return
 	}
+	if asyncTaskIsTerminal(task.Status) {
+		return
+	}
 	channel, err := model.CacheGetChannel(channelID)
 	if err != nil || channel == nil {
 		completeAsyncTaskFailure(task, execution.Request, "channel not found")
