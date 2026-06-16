@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -837,12 +838,37 @@ func copyAsyncMultipartFile(writer *multipart.Writer, field string, header *mult
 		return err
 	}
 	defer file.Close()
-	part, err := writer.CreateFormFile(field, filepath.Base(header.Filename))
+	content, err := io.ReadAll(file)
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(part, file)
+	partHeader := make(textproto.MIMEHeader)
+	partHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, escapeAsyncMultipartQuote(field), escapeAsyncMultipartQuote(filepath.Base(header.Filename))))
+	partHeader.Set("Content-Type", asyncMultipartFileContentType(header, content))
+	part, err := writer.CreatePart(partHeader)
+	if err != nil {
+		return err
+	}
+	_, err = part.Write(content)
 	return err
+}
+
+func asyncMultipartFileContentType(header *multipart.FileHeader, content []byte) string {
+	contentType := strings.TrimSpace(header.Header.Get("Content-Type"))
+	if contentType != "" && contentType != "application/octet-stream" {
+		return contentType
+	}
+	if len(content) > 0 {
+		detected := http.DetectContentType(content)
+		if detected != "" && detected != "application/octet-stream" {
+			return detected
+		}
+	}
+	return "application/octet-stream"
+}
+
+func escapeAsyncMultipartQuote(value string) string {
+	return strings.NewReplacer("\\", "\\\\", `"`, "\\\"").Replace(value)
 }
 
 func firstAsyncFileHeader(headers []*multipart.FileHeader) *multipart.FileHeader {

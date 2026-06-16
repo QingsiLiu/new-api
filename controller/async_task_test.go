@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"strings"
 	"testing"
 	"time"
@@ -102,6 +103,7 @@ func TestAsyncImageEditForwardsReferenceFiles(t *testing.T) {
 		require.Equal(t, "gpt-image-2", r.FormValue("model"))
 		require.Equal(t, "edit this", r.FormValue("prompt"))
 		require.Len(t, r.MultipartForm.File["image"], 1)
+		require.Equal(t, "image/png", r.MultipartForm.File["image"][0].Header.Get("Content-Type"))
 		file, err := r.MultipartForm.File["image"][0].Open()
 		require.NoError(t, err)
 		defer file.Close()
@@ -121,7 +123,10 @@ func TestAsyncImageEditForwardsReferenceFiles(t *testing.T) {
 	require.NoError(t, writer.WriteField("action", "edit"))
 	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
 	require.NoError(t, writer.WriteField("prompt", "edit this"))
-	part, err := writer.CreateFormFile("image", "reference.png")
+	partHeader := make(textproto.MIMEHeader)
+	partHeader.Set("Content-Disposition", `form-data; name="image"; filename="reference.png"`)
+	partHeader.Set("Content-Type", "image/png")
+	part, err := writer.CreatePart(partHeader)
 	require.NoError(t, err)
 	_, err = part.Write([]byte("reference-image"))
 	require.NoError(t, err)
@@ -161,6 +166,15 @@ func TestAsyncImageEditForwardsReferenceFiles(t *testing.T) {
 	engine.ServeHTTP(contentRecorder, contentRequest)
 	require.Equal(t, http.StatusOK, contentRecorder.Code, contentRecorder.Body.String())
 	require.Equal(t, "edit-bytes", contentRecorder.Body.String())
+}
+
+func TestAsyncMultipartFileContentTypeSniffsImageWhenHeaderUnknown(t *testing.T) {
+	header := &multipart.FileHeader{
+		Header: textproto.MIMEHeader{"Content-Type": []string{"application/octet-stream"}},
+	}
+	pngBytes := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+	require.Equal(t, "image/png", asyncMultipartFileContentType(header, pngBytes))
 }
 
 func TestAsyncImageGenerationForcesURLResponseFormat(t *testing.T) {
