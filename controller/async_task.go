@@ -41,7 +41,8 @@ const (
 	asyncTaskStatusTimeout   = "timeout"
 	asyncTaskPlatformOpenAI  = constant.TaskPlatform("openai-async")
 
-	asyncTaskHTTPTimeout               = 90 * time.Second
+	asyncTaskHTTPTimeoutEnv            = "ASYNC_TASK_HTTP_TIMEOUT_SECONDS"
+	asyncTaskDefaultHTTPTimeoutSeconds = 300
 	asyncTaskDefaultInlineContentLimit = 20 << 20
 )
 
@@ -372,12 +373,24 @@ var (
 		registerAsyncTaskCancel(taskID, cancel)
 		go executeAsyncTaskInBackground(taskID, channelID, execution)
 	}
-	asyncTaskHTTPClient         = &http.Client{Timeout: asyncTaskHTTPTimeout}
+	asyncTaskHTTPClient         = newAsyncTaskHTTPClient()
 	asyncTaskInlineContentLimit = asyncTaskDefaultInlineContentLimit
 
 	asyncTaskCancelMu sync.Mutex
 	asyncTaskCancels  = map[string]context.CancelFunc{}
 )
+
+func newAsyncTaskHTTPClient() *http.Client {
+	return &http.Client{Timeout: asyncTaskHTTPTimeoutDuration()}
+}
+
+func asyncTaskHTTPTimeoutDuration() time.Duration {
+	seconds := common.GetEnvOrDefault(asyncTaskHTTPTimeoutEnv, asyncTaskDefaultHTTPTimeoutSeconds)
+	if seconds <= 0 {
+		seconds = asyncTaskDefaultHTTPTimeoutSeconds
+	}
+	return time.Duration(seconds) * time.Second
+}
 
 func setAsyncTaskRunnerForTest(runner func(taskID string, channelID int, execution asyncTaskExecution)) func() {
 	asyncTaskRunnerMu.Lock()
@@ -579,7 +592,7 @@ func executeAsyncImageGeneration(parentCtx context.Context, channel *model.Chann
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeoutDuration())
 	defer cancel()
 	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, asyncChannelURL(channel, "/v1/images/generations"), bytes.NewReader(body))
 	if err != nil {
@@ -621,7 +634,7 @@ func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, ex
 	if err := writer.Close(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeoutDuration())
 	defer cancel()
 	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, asyncChannelURL(channel, "/v1/images/edits"), &body)
 	if err != nil {
@@ -972,7 +985,7 @@ func safeAsyncTaskError(err error) string {
 }
 
 func downloadAsyncOutputURL(url string) ([]byte, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), asyncTaskHTTPTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), asyncTaskHTTPTimeoutDuration())
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

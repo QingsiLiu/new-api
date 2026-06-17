@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +25,57 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestAsyncTaskHTTPClientDefaultsToFiveMinutes(t *testing.T) {
+	if os.Getenv("ASYNC_TASK_HTTP_TIMEOUT_SECONDS") != "" {
+		t.Skip("default timeout assertion requires ASYNC_TASK_HTTP_TIMEOUT_SECONDS to be unset")
+	}
+	require.Equal(t, 300*time.Second, asyncTaskHTTPClient.Timeout)
+}
+
+func TestAsyncTaskHTTPClientUsesConfiguredTimeoutFromEnv(t *testing.T) {
+	if os.Getenv("ASYNC_TASK_HTTP_TIMEOUT_SUBPROCESS") == "1" {
+		require.Equal(t, 420*time.Second, asyncTaskHTTPClient.Timeout)
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run", "^TestAsyncTaskHTTPClientUsesConfiguredTimeoutFromEnv$")
+	cmd.Env = append(os.Environ(), "ASYNC_TASK_HTTP_TIMEOUT_SUBPROCESS=1", "ASYNC_TASK_HTTP_TIMEOUT_SECONDS=420")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(output))
+}
+
+func TestAsyncImageRequestsUseConfiguredTimeoutDeadline(t *testing.T) {
+	t.Setenv("ASYNC_TASK_HTTP_TIMEOUT_SECONDS", "240")
+	baseURL := "https://upstream.example"
+	channel := &model.Channel{Key: "sk-upstream", BaseURL: &baseURL}
+	requestsSeen := 0
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestsSeen++
+		assertAsyncRequestDeadline(t, req, 240*time.Second)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`)),
+			Request:    req,
+		}, nil
+	})})
+	defer restoreClient()
+
+	_, err := executeAsyncImageGeneration(context.Background(), channel, asyncTaskRequest{
+		Kind:       asyncTaskKindImage,
+		Action:     asyncTaskActionGenerate,
+		Model:      "gpt-image-2",
+		Input:      asyncTaskInput{Prompt: "draw a studio"},
+		Parameters: map[string]interface{}{"n": 1},
+	})
+	require.NoError(t, err)
+
+	editExecution := newAsyncEditExecutionForTimeoutTest(t)
+	_, err = executeAsyncImageEdit(context.Background(), channel, editExecution)
+	require.NoError(t, err)
+	require.Equal(t, 2, requestsSeen)
+}
 
 func TestAsyncImageGenerationWrapsSynchronousOpenAIChannel(t *testing.T) {
 	upstreamCalled := make(chan struct{}, 1)
@@ -530,10 +583,12 @@ func TestAsyncImageGenerationRejectsOversizedBase64Output(t *testing.T) {
 
 func TestAsyncTaskContentProxyUsesAsyncHTTPClient(t *testing.T) {
 	db := setupAsyncTaskTestDB(t)
+	t.Setenv("ASYNC_TASK_HTTP_TIMEOUT_SECONDS", "240")
 	contentFetched := make(chan struct{}, 1)
 	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		require.Equal(t, "https://example.test/result.png", req.URL.String())
 		require.NotNil(t, req.Context())
+		assertAsyncRequestDeadline(t, req, 240*time.Second)
 		contentFetched <- struct{}{}
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -920,6 +975,49 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return fn(request)
+}
+
+func assertAsyncRequestDeadline(t *testing.T, req *http.Request, expected time.Duration) {
+	t.Helper()
+	deadline, ok := req.Context().Deadline()
+	require.True(t, ok, "async request should have a context deadline")
+	remaining := time.Until(deadline)
+	require.GreaterOrEqual(t, remaining, expected-5*time.Second)
+	require.LessOrEqual(t, remaining, expected)
+}
+
+func newAsyncEditExecutionForTimeoutTest(t *testing.T) asyncTaskExecution {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	require.NoError(t, writer.WriteField("kind", asyncTaskKindImage))
+	require.NoError(t, writer.WriteField("action", asyncTaskActionEdit))
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "edit this"))
+	part, err := writer.CreateFormFile("image", "reference.png")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("reference-image"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	request := httptest.NewRequest(http.MethodPost, "/", body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	require.NoError(t, request.ParseMultipartForm(2<<20))
+	t.Cleanup(func() {
+		if request.MultipartForm != nil {
+			_ = request.MultipartForm.RemoveAll()
+		}
+	})
+	return asyncTaskExecution{
+		Request: asyncTaskRequest{
+			Kind:       asyncTaskKindImage,
+			Action:     asyncTaskActionEdit,
+			Model:      "gpt-image-2",
+			Input:      asyncTaskInput{Prompt: "edit this"},
+			Parameters: map[string]interface{}{"n": 1},
+		},
+		Multipart: request.MultipartForm,
+	}
 }
 
 func setAsyncTaskHTTPClientForTest(client *http.Client) func() {
