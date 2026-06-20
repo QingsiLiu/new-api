@@ -16,6 +16,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
@@ -219,6 +220,59 @@ func TestAsyncImageEditForwardsReferenceFiles(t *testing.T) {
 	engine.ServeHTTP(contentRecorder, contentRequest)
 	require.Equal(t, http.StatusOK, contentRecorder.Code, contentRecorder.Body.String())
 	require.Equal(t, "edit-bytes", contentRecorder.Body.String())
+}
+
+func TestAsyncGeminiImageEditUsesGenerateContentWithInlineReferences(t *testing.T) {
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		require.Equal(t, "/v1beta/models/gemini-2.5-flash-image:generateContent", req.URL.Path)
+		require.Equal(t, "sk-upstream", req.Header.Get("x-goog-api-key"))
+		require.Empty(t, req.Header.Get("Authorization"))
+		require.Equal(t, "application/json", req.Header.Get("Content-Type"))
+
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		var payload dto.GeminiChatRequest
+		require.NoError(t, common.Unmarshal(body, &payload))
+		require.Len(t, payload.Contents, 1)
+		require.Equal(t, "user", payload.Contents[0].Role)
+		require.Len(t, payload.Contents[0].Parts, 2)
+		require.Equal(t, "edit this", payload.Contents[0].Parts[0].Text)
+		require.NotNil(t, payload.Contents[0].Parts[1].InlineData)
+		require.Equal(t, "image/png", payload.Contents[0].Parts[1].InlineData.MimeType)
+		require.Equal(t, "cmVmZXJlbmNlLWltYWdl", payload.Contents[0].Parts[1].InlineData.Data)
+		require.Equal(t, []string{"TEXT", "IMAGE"}, payload.GenerationConfig.ResponseModalities)
+		require.NotNil(t, payload.GenerationConfig.CandidateCount)
+		require.Equal(t, 2, *payload.GenerationConfig.CandidateCount)
+		require.NotEmpty(t, payload.GenerationConfig.ImageConfig)
+		var imageConfig map[string]string
+		require.NoError(t, common.Unmarshal(payload.GenerationConfig.ImageConfig, &imageConfig))
+		require.Equal(t, "1:1", imageConfig["aspectRatio"])
+		require.Equal(t, "1K", imageConfig["imageSize"])
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`{
+				"candidates":[{"content":{"parts":[{"inlineData":{"mimeType":"image/png","data":"ZWRpdC1ieXRlcw=="}}]},"finishReason":"STOP","index":0}],
+				"usageMetadata":{"totalTokenCount":1}
+			}`)),
+			Request: req,
+		}, nil
+	})})
+	defer restoreClient()
+
+	upstreamURL := "https://upstream.example"
+	outputs, err := executeAsyncImageEdit(context.Background(), &model.Channel{
+		Type:    constant.ChannelTypeGemini,
+		Key:     "sk-upstream",
+		BaseURL: &upstreamURL,
+	}, newAsyncGeminiEditExecutionForTest(t))
+
+	require.NoError(t, err)
+	require.Len(t, outputs, 1)
+	require.Equal(t, "image/png", outputs[0].MimeType)
+	require.Equal(t, "ZWRpdC1ieXRlcw==", outputs[0].Content)
+	require.Equal(t, len("edit-bytes"), outputs[0].Size)
 }
 
 func TestAsyncMultipartFileContentTypeSniffsImageWhenHeaderUnknown(t *testing.T) {
@@ -1015,6 +1069,45 @@ func newAsyncEditExecutionForTimeoutTest(t *testing.T) asyncTaskExecution {
 			Model:      "gpt-image-2",
 			Input:      asyncTaskInput{Prompt: "edit this"},
 			Parameters: map[string]interface{}{"n": 1},
+		},
+		Multipart: request.MultipartForm,
+	}
+}
+
+func newAsyncGeminiEditExecutionForTest(t *testing.T) asyncTaskExecution {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	require.NoError(t, writer.WriteField("kind", asyncTaskKindImage))
+	require.NoError(t, writer.WriteField("action", asyncTaskActionEdit))
+	require.NoError(t, writer.WriteField("model", "gemini-2.5-flash-image"))
+	require.NoError(t, writer.WriteField("prompt", "edit this"))
+	require.NoError(t, writer.WriteField("quality", "1K"))
+	require.NoError(t, writer.WriteField("size", "1:1"))
+	partHeader := make(textproto.MIMEHeader)
+	partHeader.Set("Content-Disposition", `form-data; name="image"; filename="reference.png"`)
+	partHeader.Set("Content-Type", "image/png")
+	part, err := writer.CreatePart(partHeader)
+	require.NoError(t, err)
+	_, err = part.Write([]byte("reference-image"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	request := httptest.NewRequest(http.MethodPost, "/", body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	require.NoError(t, request.ParseMultipartForm(2<<20))
+	t.Cleanup(func() {
+		if request.MultipartForm != nil {
+			_ = request.MultipartForm.RemoveAll()
+		}
+	})
+	return asyncTaskExecution{
+		Request: asyncTaskRequest{
+			Kind:       asyncTaskKindImage,
+			Action:     asyncTaskActionEdit,
+			Model:      "gemini-2.5-flash-image",
+			Input:      asyncTaskInput{Prompt: "edit this"},
+			Parameters: map[string]interface{}{"n": 2, "quality": "1K", "size": "1:1"},
 		},
 		Multipart: request.MultipartForm,
 	}

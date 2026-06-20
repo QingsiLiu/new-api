@@ -25,6 +25,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -608,6 +609,9 @@ func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, ex
 		return nil, execution.MultipartErr
 	}
 	request := execution.Request
+	if shouldExecuteAsyncGeminiImageEdit(channel, request.Model) {
+		return executeAsyncGeminiImageEdit(parentCtx, channel, execution)
+	}
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	_ = writer.WriteField("model", request.Model)
@@ -643,6 +647,167 @@ func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, ex
 	upstreamReq.Header.Set("Content-Type", writer.FormDataContentType())
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
 	return doAsyncImageRequest(upstreamReq, asyncImageOutputMimeType(request.Parameters))
+}
+
+func shouldExecuteAsyncGeminiImageEdit(channel *model.Channel, modelName string) bool {
+	return channel != nil &&
+		channel.Type == constant.ChannelTypeGemini &&
+		model_setting.IsGeminiModelSupportImagine(modelName) &&
+		!strings.HasPrefix(modelName, "imagen")
+}
+
+func executeAsyncGeminiImageEdit(parentCtx context.Context, channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
+	if execution.Multipart == nil {
+		return nil, errors.New("image file is required")
+	}
+	request := execution.Request
+	payload, err := asyncGeminiImageEditPayload(request, execution.Multipart)
+	if err != nil {
+		return nil, err
+	}
+	body, err := common.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeoutDuration())
+	defer cancel()
+	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, asyncGeminiGenerateContentURL(channel, request.Model), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	upstreamReq.Header.Set("Content-Type", "application/json")
+	upstreamReq.Header.Set("x-goog-api-key", channel.Key)
+	return doAsyncGeminiImageRequest(upstreamReq)
+}
+
+func asyncGeminiImageEditPayload(request asyncTaskRequest, form *multipart.Form) (dto.GeminiChatRequest, error) {
+	parts := []dto.GeminiPart{{Text: request.Input.Prompt}}
+	imageFiles := asyncMultipartImageFiles(form)
+	if len(imageFiles) == 0 {
+		return dto.GeminiChatRequest{}, errors.New("image file is required")
+	}
+	for _, header := range imageFiles {
+		part, err := asyncGeminiMultipartImagePart(header)
+		if err != nil {
+			return dto.GeminiChatRequest{}, err
+		}
+		parts = append(parts, part)
+	}
+	imageConfig, err := asyncGeminiImageConfig(request.Parameters)
+	if err != nil {
+		return dto.GeminiChatRequest{}, err
+	}
+	return dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{
+				Role:  "user",
+				Parts: parts,
+			},
+		},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ResponseModalities: []string{"TEXT", "IMAGE"},
+			CandidateCount:     common.GetPointer(asyncParamIntValue(request.Parameters, "n", 1)),
+			ImageConfig:        imageConfig,
+		},
+	}, nil
+}
+
+func asyncMultipartImageFiles(form *multipart.Form) []*multipart.FileHeader {
+	if form == nil || form.File == nil {
+		return nil
+	}
+	files := append([]*multipart.FileHeader(nil), form.File["image"]...)
+	if len(files) > 0 {
+		return files
+	}
+	files = append(files, form.File["image[]"]...)
+	for fieldName, headers := range form.File {
+		if strings.HasPrefix(fieldName, "image[") {
+			files = append(files, headers...)
+		}
+	}
+	return files
+}
+
+func asyncGeminiMultipartImagePart(header *multipart.FileHeader) (dto.GeminiPart, error) {
+	file, err := header.Open()
+	if err != nil {
+		return dto.GeminiPart{}, err
+	}
+	defer file.Close()
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return dto.GeminiPart{}, err
+	}
+	contentType := asyncMultipartFileContentType(header, content)
+	if !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		return dto.GeminiPart{}, fmt.Errorf("mime type is not supported by Gemini image edit: %s", contentType)
+	}
+	return dto.GeminiPart{
+		InlineData: &dto.GeminiInlineData{
+			MimeType: contentType,
+			Data:     base64.StdEncoding.EncodeToString(content),
+		},
+	}, nil
+}
+
+func asyncGeminiImageConfig(parameters map[string]interface{}) (jsonBytes []byte, err error) {
+	config := map[string]string{}
+	if aspectRatio := asyncGeminiAspectRatio(asyncParamString(parameters, "size")); aspectRatio != "" {
+		config["aspectRatio"] = aspectRatio
+	}
+	if imageSize := asyncGeminiImageSize(asyncParamString(parameters, "quality")); imageSize != "" {
+		config["imageSize"] = imageSize
+	}
+	if len(config) == 0 {
+		return nil, nil
+	}
+	return common.Marshal(config)
+}
+
+func asyncGeminiAspectRatio(size string) string {
+	size = strings.TrimSpace(size)
+	if size == "" || strings.EqualFold(size, "auto") {
+		return ""
+	}
+	if strings.Contains(size, ":") {
+		return size
+	}
+	switch size {
+	case "256x256", "512x512", "1024x1024":
+		return "1:1"
+	case "1536x1024":
+		return "3:2"
+	case "1024x1536":
+		return "2:3"
+	case "1024x1792":
+		return "9:16"
+	case "1792x1024":
+		return "16:9"
+	}
+	return ""
+}
+
+func asyncGeminiImageSize(quality string) string {
+	switch strings.TrimSpace(quality) {
+	case "4K":
+		return "4K"
+	case "2K", "hd", "high":
+		return "2K"
+	case "1K", "standard", "medium", "low", "auto":
+		return "1K"
+	default:
+		return ""
+	}
+}
+
+func asyncGeminiGenerateContentURL(channel *model.Channel, modelName string) string {
+	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+	if strings.HasSuffix(strings.ToLower(baseURL), "/v1") || strings.HasSuffix(strings.ToLower(baseURL), "/v1beta") {
+		baseURL = baseURL[:strings.LastIndex(baseURL, "/")]
+	}
+	version := model_setting.GetGeminiVersionSetting(modelName)
+	return fmt.Sprintf("%s/%s/models/%s:generateContent", baseURL, version, modelName)
 }
 
 func asyncImageGenerationPayload(request asyncTaskRequest) map[string]interface{} {
@@ -719,6 +884,43 @@ func doAsyncImageRequest(request *http.Request, defaultMimeType string) ([]async
 	}
 	if len(outputs) == 0 {
 		return nil, errors.New("upstream image task returned no image")
+	}
+	return outputs, nil
+}
+
+func doAsyncGeminiImageRequest(request *http.Request) ([]asyncTaskStoredOutput, error) {
+	response, err := asyncTaskHTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	body, _ := io.ReadAll(response.Body)
+	if response.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("upstream image task failed: %s", common.LocalLogPreview(string(body)))
+	}
+	var payload dto.GeminiChatResponse
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	outputs := make([]asyncTaskStoredOutput, 0, len(payload.Candidates))
+	for _, candidate := range payload.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.InlineData == nil || !strings.HasPrefix(strings.ToLower(part.InlineData.MimeType), "image/") {
+				continue
+			}
+			content, err := decodeAsyncInlineBase64(part.InlineData.Data)
+			if err != nil {
+				return nil, err
+			}
+			outputs = append(outputs, asyncTaskStoredOutput{
+				MimeType: firstAsyncNonEmpty(part.InlineData.MimeType, "image/png"),
+				Content:  strings.TrimSpace(part.InlineData.Data),
+				Size:     len(content),
+			})
+		}
+	}
+	if len(outputs) == 0 {
+		return nil, errors.New("upstream Gemini image task returned no image")
 	}
 	return outputs, nil
 }
