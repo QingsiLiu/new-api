@@ -275,6 +275,92 @@ func TestAsyncGeminiImageEditUsesGenerateContentWithInlineReferences(t *testing.
 	require.Equal(t, len("edit-bytes"), outputs[0].Size)
 }
 
+func TestAsyncGeminiImageEditMapsCavasSizeAndQualityToImageConfig(t *testing.T) {
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		var payload dto.GeminiChatRequest
+		require.NoError(t, common.Unmarshal(body, &payload))
+		require.NotEmpty(t, payload.GenerationConfig.ImageConfig)
+		var imageConfig map[string]string
+		require.NoError(t, common.Unmarshal(payload.GenerationConfig.ImageConfig, &imageConfig))
+		require.Equal(t, "2:3", imageConfig["aspectRatio"])
+		require.Equal(t, "2K", imageConfig["imageSize"])
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`{
+				"candidates":[{"content":{"parts":[{"inlineData":{"mimeType":"image/png","data":"ZWRpdC1ieXRlcw=="}}]},"finishReason":"STOP","index":0}]
+			}`)),
+			Request: req,
+		}, nil
+	})})
+	defer restoreClient()
+
+	upstreamURL := "https://upstream.example"
+	outputs, err := executeAsyncImageEdit(context.Background(), &model.Channel{
+		Type:    constant.ChannelTypeGemini,
+		Key:     "sk-upstream",
+		BaseURL: &upstreamURL,
+	}, newAsyncGeminiEditExecutionWithImageConfigForTest(t, "medium", "1360x2048"))
+
+	require.NoError(t, err)
+	require.Len(t, outputs, 1)
+}
+
+func TestAsyncGeminiAspectRatioMapsCavasPixelSizes(t *testing.T) {
+	tests := map[string]string{
+		"auto":      "",
+		"2:3":       "2:3",
+		"1024x1024": "1:1",
+		"1536x1024": "3:2",
+		"1024x1536": "2:3",
+		"1360x1024": "4:3",
+		"1024x1360": "3:4",
+		"1792x1024": "16:9",
+		"1024x1792": "9:16",
+		"2048x2048": "1:1",
+		"2048x1360": "3:2",
+		"1360x2048": "2:3",
+		"2048x1536": "4:3",
+		"1536x2048": "3:4",
+		"2048x1152": "16:9",
+		"1152x2048": "9:16",
+		"3840x3840": "1:1",
+		"3840x2560": "3:2",
+		"2560x3840": "2:3",
+		"3840x2880": "4:3",
+		"2880x3840": "3:4",
+		"3840x2160": "16:9",
+		"2160x3840": "9:16",
+	}
+	for size, want := range tests {
+		t.Run(size, func(t *testing.T) {
+			require.Equal(t, want, asyncGeminiAspectRatio(size))
+		})
+	}
+}
+
+func TestAsyncGeminiImageSizeMapsCavasQualities(t *testing.T) {
+	tests := map[string]string{
+		"low":      "1K",
+		"1K":       "1K",
+		"standard": "1K",
+		"auto":     "1K",
+		"medium":   "2K",
+		"2K":       "2K",
+		"hd":       "2K",
+		"high":     "4K",
+		"4K":       "4K",
+	}
+	for quality, want := range tests {
+		t.Run(quality, func(t *testing.T) {
+			require.Equal(t, want, asyncGeminiImageSize(quality))
+		})
+	}
+}
+
 func TestAsyncMultipartFileContentTypeSniffsImageWhenHeaderUnknown(t *testing.T) {
 	header := &multipart.FileHeader{
 		Header: textproto.MIMEHeader{"Content-Type": []string{"application/octet-stream"}},
@@ -1075,6 +1161,10 @@ func newAsyncEditExecutionForTimeoutTest(t *testing.T) asyncTaskExecution {
 }
 
 func newAsyncGeminiEditExecutionForTest(t *testing.T) asyncTaskExecution {
+	return newAsyncGeminiEditExecutionWithImageConfigForTest(t, "1K", "1:1")
+}
+
+func newAsyncGeminiEditExecutionWithImageConfigForTest(t *testing.T, quality string, size string) asyncTaskExecution {
 	t.Helper()
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -1082,8 +1172,8 @@ func newAsyncGeminiEditExecutionForTest(t *testing.T) asyncTaskExecution {
 	require.NoError(t, writer.WriteField("action", asyncTaskActionEdit))
 	require.NoError(t, writer.WriteField("model", "gemini-2.5-flash-image"))
 	require.NoError(t, writer.WriteField("prompt", "edit this"))
-	require.NoError(t, writer.WriteField("quality", "1K"))
-	require.NoError(t, writer.WriteField("size", "1:1"))
+	require.NoError(t, writer.WriteField("quality", quality))
+	require.NoError(t, writer.WriteField("size", size))
 	partHeader := make(textproto.MIMEHeader)
 	partHeader.Set("Content-Disposition", `form-data; name="image"; filename="reference.png"`)
 	partHeader.Set("Content-Type", "image/png")
@@ -1107,7 +1197,7 @@ func newAsyncGeminiEditExecutionForTest(t *testing.T) asyncTaskExecution {
 			Action:     asyncTaskActionEdit,
 			Model:      "gemini-2.5-flash-image",
 			Input:      asyncTaskInput{Prompt: "edit this"},
-			Parameters: map[string]interface{}{"n": 2, "quality": "1K", "size": "1:1"},
+			Parameters: map[string]interface{}{"n": 2, "quality": quality, "size": size},
 		},
 		Multipart: request.MultipartForm,
 	}

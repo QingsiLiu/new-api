@@ -776,25 +776,31 @@ func asyncGeminiAspectRatio(size string) string {
 	switch size {
 	case "256x256", "512x512", "1024x1024":
 		return "1:1"
-	case "1536x1024":
+	case "1536x1024", "2048x1360", "3840x2560":
 		return "3:2"
-	case "1024x1536":
+	case "1024x1536", "1360x2048", "2560x3840":
 		return "2:3"
-	case "1024x1792":
-		return "9:16"
-	case "1792x1024":
+	case "1360x1024", "2048x1536", "3840x2880":
+		return "4:3"
+	case "1024x1360", "1536x2048", "2880x3840":
+		return "3:4"
+	case "1792x1024", "2048x1152", "3840x2160":
 		return "16:9"
+	case "1024x1792", "1152x2048", "2160x3840":
+		return "9:16"
+	case "2048x2048", "3840x3840":
+		return "1:1"
 	}
 	return ""
 }
 
 func asyncGeminiImageSize(quality string) string {
 	switch strings.TrimSpace(quality) {
-	case "4K":
+	case "4K", "high":
 		return "4K"
-	case "2K", "hd", "high":
+	case "2K", "hd", "medium":
 		return "2K"
-	case "1K", "standard", "medium", "low", "auto":
+	case "1K", "standard", "low", "auto":
 		return "1K"
 	default:
 		return ""
