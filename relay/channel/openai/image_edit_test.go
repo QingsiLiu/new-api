@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bytes"
+	"encoding/base64"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -95,4 +96,87 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 
 		convertAndReplay(t, c, prompt)
 	})
+}
+
+func TestConvertImageEditRequestJSONDataURLToMultipart(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	imageBytes := []byte("json image")
+	payload := []byte(`{
+		"model":"gpt-image-2",
+		"prompt":"make this sharper",
+		"image":"data:image/png;base64,` + base64.StdEncoding.EncodeToString(imageBytes) + `",
+		"size":"1024x1024",
+		"quality":"high",
+		"n":1
+	}`)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(payload))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	request := dto.ImageRequest{}
+	require.NoError(t, common.Unmarshal(payload, &request))
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(c, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+	}, request)
+	require.NoError(t, err)
+
+	convertedBody, ok := converted.(*bytes.Buffer)
+	require.True(t, ok)
+
+	replayedRequest := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(convertedBody.Bytes()))
+	replayedRequest.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	require.NoError(t, replayedRequest.ParseMultipartForm(32<<20))
+
+	require.Equal(t, "gpt-image-2", replayedRequest.PostForm.Get("model"))
+	require.Equal(t, "make this sharper", replayedRequest.PostForm.Get("prompt"))
+	require.Equal(t, "1024x1024", replayedRequest.PostForm.Get("size"))
+	require.Equal(t, "high", replayedRequest.PostForm.Get("quality"))
+	require.Equal(t, "1", replayedRequest.PostForm.Get("n"))
+	require.Len(t, replayedRequest.MultipartForm.File["image"], 1)
+
+	file, err := replayedRequest.MultipartForm.File["image"][0].Open()
+	require.NoError(t, err)
+	defer file.Close()
+	fileBytes, err := io.ReadAll(file)
+	require.NoError(t, err)
+	require.Equal(t, imageBytes, fileBytes)
+}
+
+func TestConvertImageEditRequestJSONImageURLObjectToMultipart(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	payload := []byte(`{
+		"model":"gpt-image-2",
+		"prompt":"use this reference",
+		"image_url":{"url":"https://example.com/input.png"},
+		"size":"1024x1024"
+	}`)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(payload))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	request := dto.ImageRequest{}
+	require.NoError(t, common.Unmarshal(payload, &request))
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(c, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+	}, request)
+	require.NoError(t, err)
+
+	convertedBody, ok := converted.(*bytes.Buffer)
+	require.True(t, ok)
+
+	replayedRequest := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(convertedBody.Bytes()))
+	replayedRequest.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	require.NoError(t, replayedRequest.ParseMultipartForm(32<<20))
+
+	require.Equal(t, "gpt-image-2", replayedRequest.PostForm.Get("model"))
+	require.Equal(t, "use this reference", replayedRequest.PostForm.Get("prompt"))
+	require.Equal(t, "1024x1024", replayedRequest.PostForm.Get("size"))
+	require.Equal(t, "https://example.com/input.png", replayedRequest.PostForm.Get("image_url"))
+	require.Empty(t, replayedRequest.MultipartForm.File)
 }

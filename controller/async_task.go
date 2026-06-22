@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -43,16 +44,21 @@ const (
 	asyncTaskPlatformOpenAI  = constant.TaskPlatform("openai-async")
 
 	asyncTaskHTTPTimeoutEnv            = "ASYNC_TASK_HTTP_TIMEOUT_SECONDS"
+	asyncTaskMaxRunningEnv             = "ASYNC_TASK_MAX_RUNNING"
+	asyncTaskMaxQueuedEnv              = "ASYNC_TASK_MAX_QUEUED"
 	asyncTaskDefaultHTTPTimeoutSeconds = 300
+	asyncTaskDefaultMaxRunning         = 2
+	asyncTaskDefaultMaxQueued          = 100
 	asyncTaskDefaultInlineContentLimit = 20 << 20
 )
 
 type asyncTaskRequest struct {
-	Kind       string                 `json:"kind"`
-	Action     string                 `json:"action"`
-	Model      string                 `json:"model"`
-	Input      asyncTaskInput         `json:"input"`
-	Parameters map[string]interface{} `json:"parameters"`
+	Kind           string                 `json:"kind"`
+	Action         string                 `json:"action"`
+	Model          string                 `json:"model"`
+	IdempotencyKey string                 `json:"idempotency_key"`
+	Input          asyncTaskInput         `json:"input"`
+	Parameters     map[string]interface{} `json:"parameters"`
 }
 
 type asyncTaskInput struct {
@@ -110,8 +116,34 @@ func CreateAsyncTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
 		return
 	}
+	if len(request.IdempotencyKey) > 191 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "idempotency_key is too long"}})
+		return
+	}
 	if request.Kind != asyncTaskKindImage {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "only image async tasks are supported in this version"}})
+		return
+	}
+	requestHash := asyncTaskRequestHash(request)
+	unlockIdempotency := lockAsyncTaskIdempotency(c.GetInt("id"), request.IdempotencyKey)
+	if unlockIdempotency != nil {
+		defer unlockIdempotency()
+		existing, exists, conflict, err := findExistingAsyncTaskByIdempotency(c.GetInt("id"), request.IdempotencyKey, requestHash)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to check async task idempotency"}})
+			return
+		}
+		if conflict {
+			c.JSON(http.StatusConflict, gin.H{"error": gin.H{"message": "idempotency_key has already been used with a different request", "code": "idempotency_conflict"}})
+			return
+		}
+		if exists {
+			c.JSON(http.StatusOK, asyncTaskModelToResponse(existing))
+			return
+		}
+	}
+	if !asyncTaskSchedulerCanAccept() {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": gin.H{"message": "async task queue is full", "code": "queued_limit_exceeded"}})
 		return
 	}
 	channel, err := selectAsyncTaskChannel(c, request.Model)
@@ -135,19 +167,20 @@ func CreateAsyncTask(c *gin.Context) {
 
 	now := time.Now().Unix()
 	task := model.Task{
-		TaskID:     model.GenerateTaskID(),
-		UserId:     c.GetInt("id"),
-		Group:      common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
-		ChannelId:  channel.Id,
-		Platform:   asyncTaskPlatformOpenAI,
-		Action:     request.Action,
-		Status:     model.TaskStatusInProgress,
-		Progress:   "0%",
-		SubmitTime: now,
-		StartTime:  now,
-		CreatedAt:  now,
-		UpdatedAt:  now,
-		Properties: model.Properties{Input: request.Input.Prompt, OriginModelName: request.Model, UpstreamModelName: request.Model},
+		TaskID:         model.GenerateTaskID(),
+		UserId:         c.GetInt("id"),
+		Group:          common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
+		ChannelId:      channel.Id,
+		Platform:       asyncTaskPlatformOpenAI,
+		Action:         request.Action,
+		IdempotencyKey: request.IdempotencyKey,
+		RequestHash:    requestHash,
+		Status:         model.TaskStatusQueued,
+		Progress:       "0%",
+		SubmitTime:     now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		Properties:     model.Properties{Input: request.Input.Prompt, OriginModelName: request.Model, UpstreamModelName: request.Model},
 	}
 	if relayInfo != nil {
 		task.Quota = relayInfo.PriceData.Quota
@@ -179,7 +212,11 @@ func CreateAsyncTask(c *gin.Context) {
 	service.LogTaskConsumption(c, relayInfo)
 
 	execution := asyncTaskExecution{Request: request, Multipart: cloneAsyncMultipartForm(c.Request.MultipartForm), RelayInfo: relayInfo}
-	startAsyncTaskExecution(task.TaskID, channel.Id, execution)
+	if err := startAsyncTaskExecution(task.TaskID, channel.Id, execution); err != nil {
+		completeAsyncTaskFailure(&task, request, "queued_limit_exceeded")
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": gin.H{"message": "async task queue is full", "code": "queued_limit_exceeded"}})
+		return
+	}
 	c.JSON(http.StatusOK, asyncTaskModelToResponse(&task))
 }
 
@@ -189,6 +226,13 @@ func GetAsyncTask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, asyncTaskModelToResponse(task))
+}
+
+func GetAsyncTaskMetrics(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"runtime": asyncTaskRuntimeMetrics(),
+		"tasks":   asyncTaskDatabaseMetrics(c.GetInt("id")),
+	})
 }
 
 func CancelAsyncTask(c *gin.Context) {
@@ -241,12 +285,20 @@ func GetAsyncTaskContent(c *gin.Context) {
 }
 
 func readAsyncTaskCreateRequest(c *gin.Context) (asyncTaskRequest, error) {
-	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
-		return readAsyncMultipartTaskRequest(c)
-	}
 	var request asyncTaskRequest
-	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+	var err error
+	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
+		request, err = readAsyncMultipartTaskRequest(c)
+	} else {
+		if err = common.DecodeJson(c.Request.Body, &request); err != nil {
+			return asyncTaskRequest{}, err
+		}
+	}
+	if err != nil {
 		return asyncTaskRequest{}, err
+	}
+	if strings.TrimSpace(request.IdempotencyKey) == "" {
+		request.IdempotencyKey = c.GetHeader("Idempotency-Key")
 	}
 	return normalizeAsyncTaskRequest(request), nil
 }
@@ -256,10 +308,11 @@ func readAsyncMultipartTaskRequest(c *gin.Context) (asyncTaskRequest, error) {
 		return asyncTaskRequest{}, err
 	}
 	request := asyncTaskRequest{
-		Kind:   c.PostForm("kind"),
-		Action: c.PostForm("action"),
-		Model:  c.PostForm("model"),
-		Input:  asyncTaskInput{Prompt: c.PostForm("prompt")},
+		Kind:           c.PostForm("kind"),
+		Action:         c.PostForm("action"),
+		Model:          c.PostForm("model"),
+		IdempotencyKey: c.PostForm("idempotency_key"),
+		Input:          asyncTaskInput{Prompt: c.PostForm("prompt")},
 		Parameters: map[string]interface{}{
 			"n":               asyncParamInt(c.PostForm("n")),
 			"quality":         c.PostForm("quality"),
@@ -281,6 +334,7 @@ func normalizeAsyncTaskRequest(request asyncTaskRequest) asyncTaskRequest {
 		request.Action = asyncTaskActionGenerate
 	}
 	request.Model = strings.TrimSpace(request.Model)
+	request.IdempotencyKey = strings.TrimSpace(request.IdempotencyKey)
 	request.Input.Prompt = strings.TrimSpace(request.Input.Prompt)
 	if request.Parameters == nil {
 		request.Parameters = map[string]interface{}{}
@@ -359,26 +413,29 @@ func prepareAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel *
 	return relayInfo, nil
 }
 
-func startAsyncTaskExecution(taskID string, channelID int, execution asyncTaskExecution) {
+func startAsyncTaskExecution(taskID string, channelID int, execution asyncTaskExecution) error {
 	asyncTaskRunnerMu.Lock()
 	runner := asyncTaskRunner
 	asyncTaskRunnerMu.Unlock()
-	runner(taskID, channelID, execution)
+	return runner(taskID, channelID, execution)
 }
 
 var (
 	asyncTaskRunnerMu sync.Mutex
-	asyncTaskRunner   = func(taskID string, channelID int, execution asyncTaskExecution) {
-		ctx, cancel := context.WithCancel(context.Background())
-		execution.Context = ctx
-		registerAsyncTaskCancel(taskID, cancel)
-		go executeAsyncTaskInBackground(taskID, channelID, execution)
+	asyncTaskRunner   = func(taskID string, channelID int, execution asyncTaskExecution) error {
+		return currentAsyncTaskScheduler().Schedule(asyncTaskQueuedExecution{TaskID: taskID, ChannelID: channelID, Execution: execution})
 	}
 	asyncTaskHTTPClient         = newAsyncTaskHTTPClient()
 	asyncTaskInlineContentLimit = asyncTaskDefaultInlineContentLimit
 
 	asyncTaskCancelMu sync.Mutex
 	asyncTaskCancels  = map[string]context.CancelFunc{}
+
+	asyncTaskSchedulerMu       sync.Mutex
+	asyncTaskSchedulerInstance *asyncTaskExecutionScheduler
+
+	asyncTaskIdempotencyMu    sync.Mutex
+	asyncTaskIdempotencyLocks = map[string]*sync.Mutex{}
 )
 
 func newAsyncTaskHTTPClient() *http.Client {
@@ -393,7 +450,7 @@ func asyncTaskHTTPTimeoutDuration() time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-func setAsyncTaskRunnerForTest(runner func(taskID string, channelID int, execution asyncTaskExecution)) func() {
+func setAsyncTaskRunnerForTest(runner func(taskID string, channelID int, execution asyncTaskExecution) error) func() {
 	asyncTaskRunnerMu.Lock()
 	previous := asyncTaskRunner
 	asyncTaskRunner = runner
@@ -403,6 +460,261 @@ func setAsyncTaskRunnerForTest(runner func(taskID string, channelID int, executi
 		asyncTaskRunner = previous
 		asyncTaskRunnerMu.Unlock()
 	}
+}
+
+func setLegacyAsyncTaskRunnerForTest(runner func(taskID string, channelID int, execution asyncTaskExecution)) func() {
+	return setAsyncTaskRunnerForTest(func(taskID string, channelID int, execution asyncTaskExecution) error {
+		runner(taskID, channelID, execution)
+		return nil
+	})
+}
+
+func setAsyncTaskSchedulerForTest(maxRunning int, maxQueued int) func() {
+	replacement := newAsyncTaskExecutionScheduler(maxRunning, maxQueued)
+	asyncTaskSchedulerMu.Lock()
+	previous := asyncTaskSchedulerInstance
+	asyncTaskSchedulerInstance = replacement
+	asyncTaskSchedulerMu.Unlock()
+	return func() {
+		asyncTaskSchedulerMu.Lock()
+		if asyncTaskSchedulerInstance == replacement {
+			asyncTaskSchedulerInstance = previous
+		}
+		asyncTaskSchedulerMu.Unlock()
+		replacement.Stop()
+	}
+}
+
+func resetAsyncTaskSchedulerForTest() {
+	asyncTaskSchedulerMu.Lock()
+	previous := asyncTaskSchedulerInstance
+	asyncTaskSchedulerInstance = newAsyncTaskExecutionScheduler(asyncTaskDefaultMaxRunning, asyncTaskDefaultMaxQueued)
+	asyncTaskSchedulerMu.Unlock()
+	if previous != nil {
+		previous.Stop()
+	}
+}
+
+type asyncTaskQueuedExecution struct {
+	TaskID    string
+	ChannelID int
+	Execution asyncTaskExecution
+}
+
+type asyncTaskExecutionScheduler struct {
+	maxRunning int
+	maxQueued  int
+	queue      chan asyncTaskQueuedExecution
+	stop       chan struct{}
+	stopOnce   sync.Once
+	mu         sync.Mutex
+	running    int
+}
+
+type asyncTaskRuntimeMetricsData struct {
+	Running    int `json:"running"`
+	Queued     int `json:"queued"`
+	MaxRunning int `json:"maxRunning"`
+	MaxQueued  int `json:"maxQueued"`
+}
+
+type asyncTaskDatabaseMetricsData struct {
+	Queued    int64 `json:"queued"`
+	Running   int64 `json:"running"`
+	Succeeded int64 `json:"succeeded"`
+	Failed    int64 `json:"failed"`
+	Timeout   int64 `json:"timeout"`
+	Total     int64 `json:"total"`
+}
+
+func currentAsyncTaskScheduler() *asyncTaskExecutionScheduler {
+	asyncTaskSchedulerMu.Lock()
+	defer asyncTaskSchedulerMu.Unlock()
+	if asyncTaskSchedulerInstance == nil {
+		asyncTaskSchedulerInstance = newAsyncTaskExecutionScheduler(
+			common.GetEnvOrDefault(asyncTaskMaxRunningEnv, asyncTaskDefaultMaxRunning),
+			common.GetEnvOrDefault(asyncTaskMaxQueuedEnv, asyncTaskDefaultMaxQueued),
+		)
+	}
+	return asyncTaskSchedulerInstance
+}
+
+func newAsyncTaskExecutionScheduler(maxRunning int, maxQueued int) *asyncTaskExecutionScheduler {
+	if maxRunning <= 0 {
+		maxRunning = asyncTaskDefaultMaxRunning
+	}
+	if maxQueued <= 0 {
+		maxQueued = asyncTaskDefaultMaxQueued
+	}
+	scheduler := &asyncTaskExecutionScheduler{
+		maxRunning: maxRunning,
+		maxQueued:  maxQueued,
+		queue:      make(chan asyncTaskQueuedExecution, maxQueued),
+		stop:       make(chan struct{}),
+	}
+	for i := 0; i < maxRunning; i++ {
+		go scheduler.worker()
+	}
+	return scheduler
+}
+
+func (scheduler *asyncTaskExecutionScheduler) Schedule(job asyncTaskQueuedExecution) error {
+	select {
+	case <-scheduler.stop:
+		return errors.New("async task scheduler stopped")
+	default:
+	}
+	select {
+	case scheduler.queue <- job:
+		return nil
+	default:
+		return errors.New("queued_limit_exceeded")
+	}
+}
+
+func (scheduler *asyncTaskExecutionScheduler) CanAccept() bool {
+	return len(scheduler.queue) < cap(scheduler.queue)
+}
+
+func (scheduler *asyncTaskExecutionScheduler) Metrics() asyncTaskRuntimeMetricsData {
+	scheduler.mu.Lock()
+	running := scheduler.running
+	scheduler.mu.Unlock()
+	return asyncTaskRuntimeMetricsData{
+		Running:    running,
+		Queued:     len(scheduler.queue),
+		MaxRunning: scheduler.maxRunning,
+		MaxQueued:  scheduler.maxQueued,
+	}
+}
+
+func (scheduler *asyncTaskExecutionScheduler) Stop() {
+	scheduler.stopOnce.Do(func() {
+		close(scheduler.stop)
+	})
+}
+
+func (scheduler *asyncTaskExecutionScheduler) worker() {
+	for {
+		select {
+		case <-scheduler.stop:
+			return
+		case job := <-scheduler.queue:
+			scheduler.mu.Lock()
+			scheduler.running++
+			scheduler.mu.Unlock()
+			scheduler.run(job)
+			scheduler.mu.Lock()
+			scheduler.running--
+			scheduler.mu.Unlock()
+		}
+	}
+}
+
+func (scheduler *asyncTaskExecutionScheduler) run(job asyncTaskQueuedExecution) {
+	ctx, cancel := context.WithCancel(context.Background())
+	job.Execution.Context = ctx
+	registerAsyncTaskCancel(job.TaskID, cancel)
+	defer cancel()
+	executeAsyncTaskInBackground(job.TaskID, job.ChannelID, job.Execution)
+}
+
+func asyncTaskSchedulerCanAccept() bool {
+	return currentAsyncTaskScheduler().CanAccept()
+}
+
+func asyncTaskRuntimeMetrics() asyncTaskRuntimeMetricsData {
+	return currentAsyncTaskScheduler().Metrics()
+}
+
+func asyncTaskDatabaseMetrics(userID int) asyncTaskDatabaseMetricsData {
+	return asyncTaskDatabaseMetricsData{
+		Queued:    countAsyncTasksByStatus(userID, []model.TaskStatus{model.TaskStatusQueued, model.TaskStatusSubmitted, model.TaskStatusNotStart}, ""),
+		Running:   countAsyncTasksByStatus(userID, []model.TaskStatus{model.TaskStatusInProgress}, ""),
+		Succeeded: countAsyncTasksByStatus(userID, []model.TaskStatus{model.TaskStatusSuccess}, ""),
+		Failed:    countAsyncTasksByStatus(userID, []model.TaskStatus{model.TaskStatusFailure}, ""),
+		Timeout:   countAsyncTasksByStatus(userID, []model.TaskStatus{model.TaskStatusFailure}, asyncTaskStatusTimeout),
+		Total:     countAsyncTasksByStatus(userID, nil, ""),
+	}
+}
+
+func countAsyncTasksByStatus(userID int, statuses []model.TaskStatus, failReason string) int64 {
+	if model.DB == nil {
+		return 0
+	}
+	query := model.DB.Model(&model.Task{}).Where("platform = ?", asyncTaskPlatformOpenAI)
+	if userID > 0 {
+		query = query.Where("user_id = ?", userID)
+	}
+	if len(statuses) > 0 {
+		query = query.Where("status IN ?", statuses)
+	}
+	if failReason != "" {
+		query = query.Where("fail_reason = ?", failReason)
+	}
+	var count int64
+	_ = query.Count(&count).Error
+	return count
+}
+
+func lockAsyncTaskIdempotency(userID int, idempotencyKey string) func() {
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if idempotencyKey == "" {
+		return nil
+	}
+	key := fmt.Sprintf("%d:%s", userID, idempotencyKey)
+	asyncTaskIdempotencyMu.Lock()
+	lock := asyncTaskIdempotencyLocks[key]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		asyncTaskIdempotencyLocks[key] = lock
+	}
+	asyncTaskIdempotencyMu.Unlock()
+	lock.Lock()
+	return lock.Unlock
+}
+
+func findExistingAsyncTaskByIdempotency(userID int, idempotencyKey string, requestHash string) (*model.Task, bool, bool, error) {
+	if strings.TrimSpace(idempotencyKey) == "" {
+		return nil, false, false, nil
+	}
+	var tasks []model.Task
+	err := model.DB.Where("user_id = ? AND platform = ? AND idempotency_key = ?", userID, asyncTaskPlatformOpenAI, idempotencyKey).
+		Order("created_at DESC").
+		Limit(1).
+		Find(&tasks).Error
+	if err != nil {
+		return nil, false, false, err
+	}
+	if len(tasks) == 0 {
+		return nil, false, false, nil
+	}
+	task := tasks[0]
+	if strings.TrimSpace(task.RequestHash) != requestHash {
+		return &task, true, true, nil
+	}
+	return &task, true, false, nil
+}
+
+func asyncTaskRequestHash(request asyncTaskRequest) string {
+	fingerprint := struct {
+		Kind       string                 `json:"kind"`
+		Action     string                 `json:"action"`
+		Model      string                 `json:"model"`
+		Input      asyncTaskInput         `json:"input"`
+		Parameters map[string]interface{} `json:"parameters"`
+	}{
+		Kind:       request.Kind,
+		Action:     request.Action,
+		Model:      request.Model,
+		Input:      request.Input,
+		Parameters: request.Parameters,
+	}
+	payload, err := common.Marshal(fingerprint)
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(common.Sha256Raw(payload))
 }
 
 func setAsyncTaskInlineContentLimitForTest(limit int) func() {
@@ -420,6 +732,10 @@ func executeAsyncTaskInBackground(taskID string, channelID int, execution asyncT
 		return
 	}
 	if asyncTaskIsTerminal(task.Status) {
+		return
+	}
+	task, ok := markAsyncTaskRunning(task)
+	if !ok {
 		return
 	}
 	channel, err := model.CacheGetChannel(channelID)
@@ -512,6 +828,29 @@ func unregisterAsyncTaskCancel(taskID string) {
 
 func asyncTaskIsTerminal(status model.TaskStatus) bool {
 	return status == model.TaskStatusSuccess || status == model.TaskStatusFailure
+}
+
+func markAsyncTaskRunning(task *model.Task) (*model.Task, bool) {
+	if task.Status == model.TaskStatusInProgress {
+		return task, true
+	}
+	if task.Status != model.TaskStatusQueued && task.Status != model.TaskStatusSubmitted && task.Status != model.TaskStatusNotStart {
+		return task, true
+	}
+	fromStatus := task.Status
+	task.Status = model.TaskStatusInProgress
+	task.StartTime = time.Now().Unix()
+	task.UpdatedAt = task.StartTime
+	task.Progress = "0%"
+	won, err := task.UpdateWithStatus(fromStatus)
+	if err != nil || !won {
+		reloaded, exists, reloadErr := model.GetByOnlyTaskId(task.TaskID)
+		if reloadErr != nil || !exists || asyncTaskIsTerminal(reloaded.Status) {
+			return nil, false
+		}
+		return reloaded, reloaded.Status == model.TaskStatusInProgress
+	}
+	return task, true
 }
 
 func SweepAsyncTimedOutTasksForTest(cutoffUnix int64, limit int) {

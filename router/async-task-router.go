@@ -14,6 +14,7 @@ func SetAsyncTaskRouter(router *gin.Engine) {
 	asyncRouter.Use(middleware.TokenAuth())
 	{
 		asyncRouter.POST("/tasks", controller.CreateAsyncTask)
+		asyncRouter.GET("/metrics", controller.GetAsyncTaskMetrics)
 		asyncRouter.GET("/tasks/:id", controller.GetAsyncTask)
 		asyncRouter.POST("/tasks/:id/cancel", controller.CancelAsyncTask)
 		asyncRouter.GET("/tasks/:id/content", controller.GetAsyncTaskContent)

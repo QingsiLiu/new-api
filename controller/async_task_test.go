@@ -115,7 +115,7 @@ func TestAsyncImageGenerationWrapsSynchronousOpenAIChannel(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	var created asyncTaskResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
-	require.Equal(t, "running", created.Status)
+	require.Equal(t, "queued", created.Status)
 	require.NotEmpty(t, created.ID)
 	require.Empty(t, created.Outputs)
 	require.Eventually(t, func() bool {
@@ -196,7 +196,7 @@ func TestAsyncImageEditForwardsReferenceFiles(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	var created asyncTaskResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
-	require.Equal(t, "running", created.Status)
+	require.Equal(t, "queued", created.Status)
 	require.Eventually(t, func() bool {
 		select {
 		case <-upstreamCalled:
@@ -410,6 +410,185 @@ func TestAsyncImageGenerationForcesURLResponseFormat(t *testing.T) {
 		default:
 			return false
 		}
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestAsyncTaskSchedulerBoundsConcurrentExecutionsAndReportsMetrics(t *testing.T) {
+	resultURLServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("img-bytes"))
+	}))
+	defer resultURLServer.Close()
+
+	started := make(chan string, 2)
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		prompt := "first"
+		release := releaseFirst
+		if strings.Contains(string(body), "second") {
+			prompt = "second"
+			release = releaseSecond
+		}
+		started <- prompt
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"url":"` + resultURLServer.URL + `/result.png"}]}`))
+	}))
+	defer upstream.Close()
+	defer close(releaseFirst)
+	defer close(releaseSecond)
+
+	engine, token := setupAsyncTaskRouterTest(t, upstream.URL, "gpt-image-2")
+	restoreScheduler := setAsyncTaskSchedulerForTest(1, 4)
+	defer restoreScheduler()
+	first := createAsyncTaskForTest(t, engine, token, "first", "idem-first")
+	require.Equal(t, "queued", first.Status)
+	require.Equal(t, "first", <-started)
+
+	second := createAsyncTaskForTest(t, engine, token, "second", "idem-second")
+	require.Equal(t, "queued", second.Status)
+	require.NotEqual(t, first.ID, second.ID)
+
+	select {
+	case prompt := <-started:
+		t.Fatalf("expected second task to stay queued while first is running, got upstream call for %s", prompt)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	metricsRecorder := httptest.NewRecorder()
+	metricsRequest := httptest.NewRequest(http.MethodGet, "/v1/async/metrics", nil)
+	metricsRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(metricsRecorder, metricsRequest)
+	require.Equal(t, http.StatusOK, metricsRecorder.Code, metricsRecorder.Body.String())
+	var metrics struct {
+		Runtime struct {
+			Running    int `json:"running"`
+			Queued     int `json:"queued"`
+			MaxRunning int `json:"maxRunning"`
+			MaxQueued  int `json:"maxQueued"`
+		} `json:"runtime"`
+	}
+	require.NoError(t, common.Unmarshal(metricsRecorder.Body.Bytes(), &metrics))
+	require.Equal(t, 1, metrics.Runtime.Running)
+	require.Equal(t, 1, metrics.Runtime.Queued)
+	require.Equal(t, 1, metrics.Runtime.MaxRunning)
+	require.Equal(t, 4, metrics.Runtime.MaxQueued)
+
+	releaseFirst <- struct{}{}
+	require.Eventually(t, func() bool {
+		select {
+		case prompt := <-started:
+			return prompt == "second"
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+	releaseSecond <- struct{}{}
+
+	require.Eventually(t, func() bool {
+		var count int64
+		err := model.DB.Model(&model.Task{}).Where("task_id IN ? AND status = ?", []string{first.ID, second.ID}, model.TaskStatusSuccess).Count(&count).Error
+		return err == nil && count == 2
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestAsyncTaskIdempotencyKeyReplaysSameTaskWithoutDuplicateExecution(t *testing.T) {
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started <- struct{}{}
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, upstream.URL, "gpt-image-2")
+	restoreScheduler := setAsyncTaskSchedulerForTest(1, 4)
+	defer restoreScheduler()
+	first := createAsyncTaskForTest(t, engine, token, "same prompt", "retry-key-1")
+	require.Equal(t, "queued", first.Status)
+	require.Eventually(t, func() bool {
+		select {
+		case <-started:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+
+	second := createAsyncTaskForTest(t, engine, token, "same prompt", "retry-key-1")
+	require.Equal(t, first.ID, second.ID)
+
+	select {
+	case <-started:
+		t.Fatal("idempotent replay executed upstream a second time")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	var taskCount int64
+	require.NoError(t, model.DB.Model(&model.Task{}).Where("user_id = ? AND platform = ?", 2001, asyncTaskPlatformOpenAI).Count(&taskCount).Error)
+	require.EqualValues(t, 1, taskCount)
+
+	close(release)
+	released = true
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", first.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestAsyncTaskIdempotencyKeyRejectsDifferentPayload(t *testing.T) {
+	release := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, upstream.URL, "gpt-image-2")
+	first := createAsyncTaskForTest(t, engine, token, "original prompt", "conflict-key-1")
+	require.NotEmpty(t, first.ID)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"idempotency_key":"conflict-key-1",
+		"input":{"prompt":"changed prompt"},
+		"parameters":{"quality":"high","size":"1024x1024","n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusConflict, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "idempotency_key")
+
+	close(release)
+	released = true
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", first.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
 	}, 2*time.Second, 20*time.Millisecond)
 }
 
@@ -837,12 +1016,14 @@ func TestAsyncTaskFailureRefundsPreConsumedQuotaOnce(t *testing.T) {
 
 func TestAsyncTaskCancelPreventsSuccessOverwrite(t *testing.T) {
 	finishUpstream := make(chan struct{})
+	upstreamStarted := make(chan struct{})
 	resultURLServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write([]byte("img-bytes"))
 	}))
 	defer resultURLServer.Close()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(upstreamStarted)
 		<-finishUpstream
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":[{"url":"` + resultURLServer.URL + `/result.png"}]}`))
@@ -850,6 +1031,8 @@ func TestAsyncTaskCancelPreventsSuccessOverwrite(t *testing.T) {
 	defer upstream.Close()
 
 	engine, token := setupAsyncTaskRouterTest(t, upstream.URL, "gpt-image-2")
+	restoreScheduler := setAsyncTaskSchedulerForTest(1, 4)
+	defer restoreScheduler()
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
 		"kind":"image",
@@ -864,6 +1047,14 @@ func TestAsyncTaskCancelPreventsSuccessOverwrite(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	var created asyncTaskResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		select {
+		case <-upstreamStarted:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
 
 	cancelRecorder := httptest.NewRecorder()
 	cancelRequest := httptest.NewRequest(http.MethodPost, "/v1/async/tasks/"+created.ID+"/cancel", nil)
@@ -1097,11 +1288,34 @@ func setupAsyncTaskRouterTestWithMapping(t *testing.T, upstreamURL string, model
 	asyncRouter.Use(middleware.TokenAuth())
 	{
 		asyncRouter.POST("/tasks", CreateAsyncTask)
+		asyncRouter.GET("/metrics", GetAsyncTaskMetrics)
 		asyncRouter.GET("/tasks/:id", GetAsyncTask)
 		asyncRouter.POST("/tasks/:id/cancel", CancelAsyncTask)
 		asyncRouter.GET("/tasks/:id/content", GetAsyncTaskContent)
 	}
 	return engine, "sk-cavas"
+}
+
+func createAsyncTaskForTest(t *testing.T, engine *gin.Engine, token string, prompt string, idempotencyKey string) asyncTaskResponse {
+	t.Helper()
+	body, err := common.Marshal(map[string]interface{}{
+		"kind":            "image",
+		"action":          "generate",
+		"model":           "gpt-image-2",
+		"idempotency_key": idempotencyKey,
+		"input":           map[string]interface{}{"prompt": prompt},
+		"parameters":      map[string]interface{}{"quality": "high", "size": "1024x1024", "n": 1},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	return created
 }
 
 func optionalStringPointer(value string) *string {
@@ -1214,6 +1428,11 @@ func setAsyncTaskHTTPClientForTest(client *http.Client) func() {
 func setupAsyncTaskTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := setupModelListControllerTestDB(t)
+	resetAsyncTaskSchedulerForTest()
+	t.Cleanup(func() {
+		waitAsyncTaskSchedulerIdleForTest()
+		resetAsyncTaskSchedulerForTest()
+	})
 	require.NoError(t, db.AutoMigrate(&model.Token{}, &model.Task{}, &model.Log{}, &model.TopUp{}, &model.UserSubscription{}))
 	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"gpt-image-2":0.01}`))
 	t.Cleanup(func() {
@@ -1239,6 +1458,17 @@ func setupAsyncTaskTestDB(t *testing.T) *gorm.DB {
 		UsedQuota:      0,
 	}).Error)
 	return db
+}
+
+func waitAsyncTaskSchedulerIdleForTest() {
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		metrics := asyncTaskRuntimeMetrics()
+		if metrics.Running == 0 && metrics.Queued == 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 func TestOpenAIModelListIncludesGPTImage2(t *testing.T) {

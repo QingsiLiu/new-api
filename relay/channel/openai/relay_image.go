@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,6 +38,10 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 
 	if oaiError := usageResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+
+	if !openAIImageResponseHasImageData(responseBody) {
+		return nil, types.NewOpenAIError(fmt.Errorf("upstream image response does not contain url or b64_json"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
 	}
 
 	// 写入新的 response body
@@ -210,6 +215,10 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	if oaiError := usageResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+	if !openAIImageResponseHasImageData(responseBody) {
+		return nil, types.NewOpenAIError(fmt.Errorf("upstream image response does not contain url or b64_json"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+	images := openAIImageResponseImages(responseBody)
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 
@@ -223,7 +232,7 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	if info != nil {
 		info.SetFirstResponseTime()
 	}
-	for _, image := range imageResp.Data {
+	for _, image := range images {
 		payload := map[string]any{
 			"type":       "image_generation.completed",
 			"created_at": created,
@@ -254,13 +263,146 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		return &usageResp.Usage, nil
 	}
 	if info != nil {
-		info.ReceivedResponseCount += len(imageResp.Data)
+		info.ReceivedResponseCount += len(images)
 		if info.StreamStatus == nil {
 			info.StreamStatus = relaycommon.NewStreamStatus()
 		}
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 	}
 	return &usageResp.Usage, nil
+}
+
+func openAIImageResponseHasImageData(responseBody []byte) bool {
+	return len(openAIImageResponseImages(responseBody)) > 0
+}
+
+func openAIImageResponseImages(responseBody []byte) []dto.ImageData {
+	var payload map[string]json.RawMessage
+	if err := common.Unmarshal(responseBody, &payload); err != nil {
+		return nil
+	}
+	return openAIImageObjectImages(payload)
+}
+
+func openAIImageRawImages(raw json.RawMessage) []dto.ImageData {
+	switch common.GetJsonType(raw) {
+	case "string":
+		return openAIImageDataFromPotentialImageString(common.JsonRawMessageToString(raw))
+	case "array":
+		var items []json.RawMessage
+		if err := common.Unmarshal(raw, &items); err != nil {
+			return nil
+		}
+		var images []dto.ImageData
+		for _, item := range items {
+			images = append(images, openAIImageRawImages(item)...)
+		}
+		return images
+	case "object":
+		var object map[string]json.RawMessage
+		if err := common.Unmarshal(raw, &object); err != nil {
+			return nil
+		}
+		return openAIImageObjectImages(object)
+	default:
+		return nil
+	}
+}
+
+func openAIImageObjectImages(object map[string]json.RawMessage) []dto.ImageData {
+	image := dto.ImageData{
+		Url:           firstOpenAIImageString(object, "url", "image_url"),
+		B64Json:       firstOpenAIImageString(object, "b64_json"),
+		RevisedPrompt: firstOpenAIImageString(object, "revised_prompt"),
+	}
+	if image.Url != "" || image.B64Json != "" {
+		return []dto.ImageData{image}
+	}
+
+	var images []dto.ImageData
+	for _, key := range []string{"data", "images", "output"} {
+		if value, ok := object[key]; ok {
+			images = append(images, openAIImageRawImages(value)...)
+		}
+	}
+	if value, ok := object["result"]; ok {
+		images = append(images, openAIImageResultImages(value)...)
+	}
+	return images
+}
+
+func firstOpenAIImageString(object map[string]json.RawMessage, keys ...string) string {
+	for _, key := range keys {
+		if raw, ok := object[key]; ok {
+			if value := openAIImageString(raw); value != "" {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func openAIImageString(raw json.RawMessage) string {
+	switch common.GetJsonType(raw) {
+	case "string":
+		return strings.TrimSpace(common.JsonRawMessageToString(raw))
+	case "object":
+		var object map[string]json.RawMessage
+		if err := common.Unmarshal(raw, &object); err != nil {
+			return ""
+		}
+		return firstOpenAIImageString(object, "url", "image_url", "b64_json")
+	default:
+		return ""
+	}
+}
+
+func openAIImageResultImages(raw json.RawMessage) []dto.ImageData {
+	switch common.GetJsonType(raw) {
+	case "string":
+		return openAIImageDataFromPotentialImageString(common.JsonRawMessageToString(raw))
+	case "array":
+		var items []json.RawMessage
+		if err := common.Unmarshal(raw, &items); err != nil {
+			return nil
+		}
+		var images []dto.ImageData
+		for _, item := range items {
+			images = append(images, openAIImageResultImages(item)...)
+		}
+		return images
+	case "object":
+		var object map[string]json.RawMessage
+		if err := common.Unmarshal(raw, &object); err != nil {
+			return nil
+		}
+		return openAIImageObjectImages(object)
+	default:
+		return nil
+	}
+}
+
+func openAIImageDataFromPotentialImageString(value string) []dto.ImageData {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if isHTTPURL(value) || strings.HasPrefix(strings.ToLower(value), "data:") {
+		return []dto.ImageData{{Url: value}}
+	}
+	if !looksLikeBase64ImageData(value) {
+		return nil
+	}
+	return []dto.ImageData{{B64Json: value}}
+}
+
+func looksLikeBase64ImageData(value string) bool {
+	value = normalizeBase64Payload(value)
+	if len(value) < 32 {
+		return false
+	}
+	_, err := base64.StdEncoding.DecodeString(value)
+	return err == nil
 }
 
 func writeOpenaiImageStreamPayload(c *gin.Context, eventName string, payload any) error {
