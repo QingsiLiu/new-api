@@ -134,6 +134,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.kie.ai',
+    hints: {
+      key: 'KIE API Key',
+      models: 'bytedance/seedance-2-fast',
+      baseUrl: 'Default: https://api.kie.ai',
+    },
+  },
 }
 
 /**

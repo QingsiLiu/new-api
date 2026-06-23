@@ -752,6 +752,192 @@ func TestAsyncImageGenerationUsesMappedUpstreamModel(t *testing.T) {
 	require.Equal(t, "upstream-image-real", task.Properties.UpstreamModelName)
 }
 
+func TestAsyncKieSeedanceVideoTaskPollsAndProxiesContent(t *testing.T) {
+	videoContent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/video.mp4", r.URL.Path)
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = w.Write([]byte("mp4-bytes"))
+	}))
+	defer videoContent.Close()
+
+	createCalled := make(chan struct{}, 1)
+	pollCalled := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/jobs/createTask":
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "bytedance/seedance-2-fast", payload["model"])
+			input, ok := payload["input"].(map[string]interface{})
+			require.True(t, ok, "expected KIE payload input object: %#v", payload)
+			require.Equal(t, "moving product shot", input["prompt"])
+			require.Equal(t, "16:9", input["aspect_ratio"])
+			require.Equal(t, "720p", input["resolution"])
+			require.InDelta(t, 6, input["duration"], 0.001)
+			require.Equal(t, true, input["generate_audio"])
+			require.Equal(t, false, input["watermark"])
+			require.NotContains(t, payload, "content")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-task-1"}}`))
+			createCalled <- struct{}{}
+		case "/api/v1/jobs/recordInfo":
+			require.Equal(t, http.MethodGet, r.Method)
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			require.Equal(t, "kie-task-1", r.URL.Query().Get("taskId"))
+			w.Header().Set("Content-Type", "application/json")
+			resultJSON := `{"resultUrls":["` + videoContent.URL + `/video.mp4"]}`
+			encoded, err := common.Marshal(map[string]interface{}{
+				"code": 200,
+				"msg":  "success",
+				"data": map[string]interface{}{
+					"taskId":     "kie-task-1",
+					"state":      "success",
+					"resultJson": resultJSON,
+				},
+			})
+			require.NoError(t, err)
+			_, _ = w.Write(encoded)
+			pollCalled <- struct{}{}
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskRouterTestWithChannel(t, upstream.URL, "bytedance/seedance-2-fast", constant.ChannelTypeKie)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"bytedance/seedance-2-fast":0.01}`))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
+		"kind":"video",
+		"action":"generate",
+		"model":"bytedance/seedance-2-fast",
+		"input":{"prompt":"moving product shot"},
+		"parameters":{
+			"content":[{"type":"text","text":"moving product shot"}],
+			"ratio":"16:9",
+			"resolution":"720p",
+			"duration":6,
+			"generate_audio":true,
+			"watermark":false
+		}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Equal(t, "queued", created.Status)
+	require.Equal(t, "video", created.Kind)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-createCalled:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool {
+		select {
+		case <-pollCalled:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&stored).Error)
+	require.Equal(t, "kie-task-1", stored.PrivateData.UpstreamTaskID)
+
+	statusRecorder := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+created.ID, nil)
+	statusRequest.Header.Set("Authorization", "Bearer "+token)
+	require.Eventually(t, func() bool {
+		statusRecorder = httptest.NewRecorder()
+		engine.ServeHTTP(statusRecorder, statusRequest)
+		return statusRecorder.Code == http.StatusOK && strings.Contains(statusRecorder.Body.String(), `"status":"succeeded"`)
+	}, 2*time.Second, 20*time.Millisecond, statusRecorder.Body.String())
+	var status asyncTaskResponse
+	require.NoError(t, common.Unmarshal(statusRecorder.Body.Bytes(), &status))
+	require.Len(t, status.Outputs, 1)
+	require.Equal(t, "video/mp4", status.Outputs[0].MimeType)
+	require.Equal(t, videoContent.URL+"/video.mp4", status.Outputs[0].URL)
+
+	contentRecorder := httptest.NewRecorder()
+	contentRequest := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+created.ID+"/content", nil)
+	contentRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(contentRecorder, contentRequest)
+	require.Equal(t, http.StatusOK, contentRecorder.Code, contentRecorder.Body.String())
+	require.Equal(t, "video/mp4", contentRecorder.Header().Get("Content-Type"))
+	require.Equal(t, "mp4-bytes", contentRecorder.Body.String())
+}
+
+func TestAsyncKieSeedanceVideoTaskFailureRefundsQuota(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/jobs/createTask":
+			require.Equal(t, http.MethodPost, r.Method)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-failed-1"}}`))
+		case "/api/v1/jobs/recordInfo":
+			require.Equal(t, http.MethodGet, r.Method)
+			require.Equal(t, "kie-failed-1", r.URL.Query().Get("taskId"))
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-failed-1","state":"failed","failReason":"KIE rejected prompt"}}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskRouterTestWithChannel(t, upstream.URL, "bytedance/seedance-2-fast", constant.ChannelTypeKie)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"bytedance/seedance-2-fast":0.01}`))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
+		"kind":"video",
+		"action":"generate",
+		"model":"bytedance/seedance-2-fast",
+		"input":{"prompt":"blocked prompt"},
+		"parameters":{"content":[{"type":"text","text":"blocked prompt"}],"ratio":"16:9","resolution":"480p","duration":4}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusFailure
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, "kie-failed-1", task.PrivateData.UpstreamTaskID)
+	require.Contains(t, task.FailReason, "KIE rejected prompt")
+
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+
+	var refundLogs []model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error)
+	require.Len(t, refundLogs, 1)
+	require.Equal(t, task.Quota, refundLogs[0].Quota)
+}
+
 func TestAsyncImageGenerationAcceptsBase64OutputAndServesContent(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1262,10 +1448,20 @@ func setupAsyncTaskRouterTest(t *testing.T, upstreamURL string, modelName string
 
 func setupAsyncTaskRouterTestWithMapping(t *testing.T, upstreamURL string, modelName string, modelMapping string) (*gin.Engine, string) {
 	t.Helper()
+	return setupAsyncTaskRouterTestWithChannelAndMapping(t, upstreamURL, modelName, constant.ChannelTypeOpenAI, modelMapping)
+}
+
+func setupAsyncTaskRouterTestWithChannel(t *testing.T, upstreamURL string, modelName string, channelType int) (*gin.Engine, string) {
+	t.Helper()
+	return setupAsyncTaskRouterTestWithChannelAndMapping(t, upstreamURL, modelName, channelType, "")
+}
+
+func setupAsyncTaskRouterTestWithChannelAndMapping(t *testing.T, upstreamURL string, modelName string, channelType int, modelMapping string) (*gin.Engine, string) {
+	t.Helper()
 	db := setupAsyncTaskTestDB(t)
 	require.NoError(t, db.Create(&model.Channel{
 		Id:           4001,
-		Type:         constant.ChannelTypeOpenAI,
+		Type:         channelType,
 		Key:          "sk-upstream",
 		Status:       common.ChannelStatusEnabled,
 		Name:         "CPA OpenAI Compatible",

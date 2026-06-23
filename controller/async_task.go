@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,6 +34,7 @@ import (
 
 const (
 	asyncTaskKindImage       = "image"
+	asyncTaskKindVideo       = "video"
 	asyncTaskActionGenerate  = "generate"
 	asyncTaskActionEdit      = "edit"
 	asyncTaskStatusQueued    = "queued"
@@ -50,6 +52,7 @@ const (
 	asyncTaskDefaultMaxRunning         = 2
 	asyncTaskDefaultMaxQueued          = 100
 	asyncTaskDefaultInlineContentLimit = 20 << 20
+	asyncTaskKieSeedanceFastModel      = "bytedance/seedance-2-fast"
 )
 
 type asyncTaskRequest struct {
@@ -120,8 +123,8 @@ func CreateAsyncTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "idempotency_key is too long"}})
 		return
 	}
-	if request.Kind != asyncTaskKindImage {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "only image async tasks are supported in this version"}})
+	if !isSupportedAsyncTaskKind(request.Kind) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "unsupported async task kind"}})
 		return
 	}
 	requestHash := asyncTaskRequestHash(request)
@@ -342,6 +345,10 @@ func normalizeAsyncTaskRequest(request asyncTaskRequest) asyncTaskRequest {
 	return request
 }
 
+func isSupportedAsyncTaskKind(kind string) bool {
+	return kind == asyncTaskKindImage || kind == asyncTaskKindVideo
+}
+
 func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, error) {
 	if strings.TrimSpace(modelName) == "" {
 		return nil, errors.New("model is required")
@@ -384,14 +391,20 @@ func prepareAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel *
 		ForcePreConsume: true,
 		RequestURLPath:  c.Request.URL.String(),
 		StartTime:       time.Now(),
-		RelayFormat:     types.RelayFormatOpenAIImage,
 		TaskRelayInfo:   &relaycommon.TaskRelayInfo{Action: request.Action},
 	}
 	if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
 		relayInfo.UserSetting = userSetting
 	}
-	relayInfo.RelayMode = relayconstant.RelayModeImagesGenerations
-	if request.Action == asyncTaskActionEdit {
+	switch request.Kind {
+	case asyncTaskKindVideo:
+		relayInfo.RelayFormat = types.RelayFormatTask
+		relayInfo.RelayMode = relayconstant.RelayModeVideoSubmit
+	default:
+		relayInfo.RelayFormat = types.RelayFormatOpenAIImage
+		relayInfo.RelayMode = relayconstant.RelayModeImagesGenerations
+	}
+	if request.Kind == asyncTaskKindImage && request.Action == asyncTaskActionEdit {
 		relayInfo.RelayMode = relayconstant.RelayModeImagesEdits
 	}
 	relayInfo.InitChannelMeta(c)
@@ -743,7 +756,15 @@ func executeAsyncTaskInBackground(taskID string, channelID int, execution asyncT
 		completeAsyncTaskFailure(task, execution.Request, "channel not found")
 		return
 	}
-	outputs, err := executeAsyncImageTask(channel, execution)
+	var outputs []asyncTaskStoredOutput
+	switch execution.Request.Kind {
+	case asyncTaskKindImage:
+		outputs, err = executeAsyncImageTask(channel, execution)
+	case asyncTaskKindVideo:
+		outputs, err = executeAsyncVideoTask(task, channel, execution)
+	default:
+		err = fmt.Errorf("unsupported async task kind %s", execution.Request.Kind)
+	}
 	if err != nil {
 		completeAsyncTaskFailure(task, execution.Request, safeAsyncTaskError(err))
 		return
@@ -918,6 +939,24 @@ func executeAsyncImageTask(channel *model.Channel, execution asyncTaskExecution)
 	default:
 		return nil, fmt.Errorf("unsupported image action %s", execution.Request.Action)
 	}
+}
+
+func executeAsyncVideoTask(task *model.Task, channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
+	execution.Request.Model = asyncTaskUpstreamModel(execution)
+	ctx := execution.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if channel.Type != constant.ChannelTypeKie {
+		return nil, fmt.Errorf("unsupported video async channel type %s", constant.GetChannelTypeName(channel.Type))
+	}
+	if execution.Request.Action != asyncTaskActionGenerate {
+		return nil, fmt.Errorf("unsupported video action %s", execution.Request.Action)
+	}
+	if execution.Request.Model != asyncTaskKieSeedanceFastModel {
+		return nil, fmt.Errorf("unsupported KIE video model %s", execution.Request.Model)
+	}
+	return executeAsyncKieSeedanceVideoTask(ctx, task, channel, execution.Request)
 }
 
 func asyncTaskUpstreamModel(execution asyncTaskExecution) string {
@@ -1231,6 +1270,269 @@ func doAsyncImageRequest(request *http.Request, defaultMimeType string) ([]async
 		return nil, errors.New("upstream image task returned no image")
 	}
 	return outputs, nil
+}
+
+type asyncKieCreateTaskResponse struct {
+	Code  int    `json:"code"`
+	Msg   string `json:"msg"`
+	Error string `json:"error"`
+	Data  struct {
+		TaskID string `json:"taskId"`
+		ID     string `json:"id"`
+	} `json:"data"`
+}
+
+type asyncKieRecordInfoResponse struct {
+	Code  int    `json:"code"`
+	Msg   string `json:"msg"`
+	Error string `json:"error"`
+	Data  struct {
+		TaskID     string   `json:"taskId"`
+		ID         string   `json:"id"`
+		State      string   `json:"state"`
+		Status     string   `json:"status"`
+		FailReason string   `json:"failReason"`
+		Error      string   `json:"error"`
+		ResultJSON string   `json:"resultJson"`
+		ResultURLs []string `json:"resultUrls"`
+		VideoURL   string   `json:"videoUrl"`
+		OutputURL  string   `json:"outputUrl"`
+		Response   struct {
+			ResultURLs []string `json:"resultUrls"`
+			VideoURL   string   `json:"videoUrl"`
+			OutputURL  string   `json:"outputUrl"`
+		} `json:"response"`
+	} `json:"data"`
+}
+
+func executeAsyncKieSeedanceVideoTask(parentCtx context.Context, task *model.Task, channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
+	taskID, err := createAsyncKieVideoTask(parentCtx, channel, request)
+	if err != nil {
+		return nil, err
+	}
+	if taskID == "" {
+		return nil, errors.New("KIE video task returned no task id")
+	}
+	persistAsyncTaskUpstreamTaskID(task, taskID)
+	for {
+		record, err := pollAsyncKieVideoTask(parentCtx, channel, taskID)
+		if err != nil {
+			return nil, err
+		}
+		status := asyncKieTaskStatus(record)
+		if asyncKieTaskSucceeded(status) {
+			outputs := asyncKieVideoOutputs(record)
+			if len(outputs) == 0 {
+				return nil, errors.New("KIE video task succeeded without video URL")
+			}
+			return outputs, nil
+		}
+		if asyncKieTaskFailed(status) {
+			return nil, errors.New(firstAsyncNonEmpty(record.Data.FailReason, record.Data.Error, record.Msg, "KIE video task failed"))
+		}
+		select {
+		case <-parentCtx.Done():
+			return nil, parentCtx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+func createAsyncKieVideoTask(parentCtx context.Context, channel *model.Channel, request asyncTaskRequest) (string, error) {
+	body, err := common.Marshal(asyncKieSeedancePayload(request))
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeoutDuration())
+	defer cancel()
+	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, asyncChannelURL(channel, "/api/v1/jobs/createTask"), bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	upstreamReq.Header.Set("Content-Type", "application/json")
+	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	response, err := asyncTaskHTTPClient.Do(upstreamReq)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	responseBody, _ := io.ReadAll(response.Body)
+	if response.StatusCode >= http.StatusBadRequest {
+		return "", fmt.Errorf("upstream KIE video task failed: %s", common.LocalLogPreview(string(responseBody)))
+	}
+	var payload asyncKieCreateTaskResponse
+	if err := common.Unmarshal(responseBody, &payload); err != nil {
+		return "", err
+	}
+	if payload.Code != 0 && payload.Code != 200 {
+		return "", errors.New(firstAsyncNonEmpty(payload.Error, payload.Msg, "KIE video task create failed"))
+	}
+	return firstAsyncNonEmpty(payload.Data.TaskID, payload.Data.ID), nil
+}
+
+func pollAsyncKieVideoTask(parentCtx context.Context, channel *model.Channel, taskID string) (asyncKieRecordInfoResponse, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeoutDuration())
+	defer cancel()
+	query := url.Values{"taskId": []string{taskID}}
+	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodGet, asyncChannelURL(channel, "/api/v1/jobs/recordInfo")+"?"+query.Encode(), nil)
+	if err != nil {
+		return asyncKieRecordInfoResponse{}, err
+	}
+	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	response, err := asyncTaskHTTPClient.Do(upstreamReq)
+	if err != nil {
+		return asyncKieRecordInfoResponse{}, err
+	}
+	defer response.Body.Close()
+	responseBody, _ := io.ReadAll(response.Body)
+	if response.StatusCode >= http.StatusBadRequest {
+		return asyncKieRecordInfoResponse{}, fmt.Errorf("upstream KIE video task poll failed: %s", common.LocalLogPreview(string(responseBody)))
+	}
+	var payload asyncKieRecordInfoResponse
+	if err := common.Unmarshal(responseBody, &payload); err != nil {
+		return asyncKieRecordInfoResponse{}, err
+	}
+	if payload.Code != 0 && payload.Code != 200 {
+		return asyncKieRecordInfoResponse{}, errors.New(firstAsyncNonEmpty(payload.Error, payload.Msg, "KIE video task poll failed"))
+	}
+	return payload, nil
+}
+
+func asyncKieSeedancePayload(request asyncTaskRequest) map[string]interface{} {
+	input := map[string]interface{}{"prompt": request.Input.Prompt}
+	contentPrompt, imageURLs, videoURLs, audioURLs := asyncKieSeedanceContentParts(request.Parameters["content"])
+	if strings.TrimSpace(request.Input.Prompt) == "" && contentPrompt != "" {
+		input["prompt"] = contentPrompt
+	}
+	if len(imageURLs) > 0 {
+		input["reference_image_urls"] = imageURLs
+	}
+	if len(videoURLs) > 0 {
+		input["reference_video_urls"] = videoURLs
+	}
+	if len(audioURLs) > 0 {
+		input["reference_audio_urls"] = audioURLs
+	}
+	if value := asyncParamString(request.Parameters, "ratio"); value != "" {
+		input["aspect_ratio"] = value
+	}
+	for _, field := range []string{"resolution", "duration", "generate_audio", "watermark"} {
+		if value, ok := request.Parameters[field]; ok {
+			input[field] = value
+		}
+	}
+	return map[string]interface{}{
+		"model": request.Model,
+		"input": input,
+	}
+}
+
+func asyncKieSeedanceContentParts(raw interface{}) (string, []string, []string, []string) {
+	items, ok := raw.([]interface{})
+	if !ok {
+		return "", nil, nil, nil
+	}
+	var prompt string
+	var imageURLs []string
+	var videoURLs []string
+	var audioURLs []string
+	for _, item := range items {
+		part, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(fmt.Sprint(part["type"]))) {
+		case "text":
+			if text := strings.TrimSpace(fmt.Sprint(part["text"])); text != "" && prompt == "" {
+				prompt = text
+			}
+		case "image_url":
+			if url := asyncKieNestedURL(part["image_url"]); url != "" {
+				imageURLs = append(imageURLs, url)
+			}
+		case "video_url":
+			if url := asyncKieNestedURL(part["video_url"]); url != "" {
+				videoURLs = append(videoURLs, url)
+			}
+		case "audio_url":
+			if url := asyncKieNestedURL(part["audio_url"]); url != "" {
+				audioURLs = append(audioURLs, url)
+			}
+		}
+	}
+	return prompt, imageURLs, videoURLs, audioURLs
+}
+
+func asyncKieNestedURL(raw interface{}) string {
+	switch typed := raw.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case map[string]interface{}:
+		return strings.TrimSpace(fmt.Sprint(typed["url"]))
+	default:
+		return ""
+	}
+}
+
+func asyncKieTaskStatus(payload asyncKieRecordInfoResponse) string {
+	return strings.ToLower(firstAsyncNonEmpty(payload.Data.State, payload.Data.Status))
+}
+
+func asyncKieTaskSucceeded(status string) bool {
+	status = strings.ToLower(strings.TrimSpace(status))
+	return status == "success" || status == "succeeded" || status == "completed" || status == "finish" || status == "finished"
+}
+
+func asyncKieTaskFailed(status string) bool {
+	status = strings.ToLower(strings.TrimSpace(status))
+	return status == "fail" || status == "failed" || status == "error" || status == "canceled" || status == "cancelled" || status == "timeout" || status == "expired"
+}
+
+func asyncKieVideoOutputs(payload asyncKieRecordInfoResponse) []asyncTaskStoredOutput {
+	urls := append([]string{}, payload.Data.ResultURLs...)
+	urls = append(urls, payload.Data.Response.ResultURLs...)
+	urls = append(urls, payload.Data.VideoURL, payload.Data.OutputURL, payload.Data.Response.VideoURL, payload.Data.Response.OutputURL)
+	urls = append(urls, asyncKieResultJSONURLs(payload.Data.ResultJSON)...)
+	outputs := make([]asyncTaskStoredOutput, 0, len(urls))
+	seen := map[string]bool{}
+	for _, rawURL := range urls {
+		rawURL = strings.TrimSpace(rawURL)
+		if rawURL == "" || seen[rawURL] {
+			continue
+		}
+		seen[rawURL] = true
+		outputs = append(outputs, asyncTaskStoredOutput{MimeType: "video/mp4", URL: rawURL})
+	}
+	return outputs
+}
+
+func asyncKieResultJSONURLs(resultJSON string) []string {
+	resultJSON = strings.TrimSpace(resultJSON)
+	if resultJSON == "" {
+		return nil
+	}
+	var payload struct {
+		ResultURLs []string `json:"resultUrls"`
+		URLs       []string `json:"urls"`
+		VideoURL   string   `json:"videoUrl"`
+		OutputURL  string   `json:"outputUrl"`
+	}
+	if err := common.Unmarshal([]byte(resultJSON), &payload); err != nil {
+		return nil
+	}
+	urls := append([]string{}, payload.ResultURLs...)
+	urls = append(urls, payload.URLs...)
+	urls = append(urls, payload.VideoURL, payload.OutputURL)
+	return urls
+}
+
+func persistAsyncTaskUpstreamTaskID(task *model.Task, upstreamTaskID string) {
+	if task == nil || strings.TrimSpace(upstreamTaskID) == "" {
+		return
+	}
+	task.PrivateData.UpstreamTaskID = strings.TrimSpace(upstreamTaskID)
+	task.UpdatedAt = time.Now().Unix()
+	_ = model.DB.Model(task).Select("private_data", "updated_at").Updates(task).Error
 }
 
 func doAsyncGeminiImageRequest(request *http.Request) ([]asyncTaskStoredOutput, error) {
