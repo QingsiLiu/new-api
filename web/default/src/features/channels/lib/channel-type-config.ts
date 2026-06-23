@@ -137,7 +137,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   58: {
     id: 58,
     name: CHANNEL_TYPES[58],
-    icon: 'openai',
+    icon: 'kie',
     defaultBaseUrl: 'https://api.kie.ai',
     hints: {
       key: 'KIE API Key',

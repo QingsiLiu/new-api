@@ -26,6 +26,75 @@ For commercial licensing, please contact support@quantumnous.com
  * - Size parameter: getLobeIcon("OpenAI", 20)
  */
 import * as LobeIcons from '@lobehub/icons'
+import { useId } from 'react'
+
+function KieIcon(props: { size?: number | string }) {
+  const size = props.size ?? 20
+  const gradientId = `kie-icon-gradient-${useId().replace(/:/g, '')}`
+
+  return (
+    <svg
+      aria-hidden='true'
+      fill='none'
+      height={size}
+      viewBox='0 0 64 64'
+      width={size}
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <defs>
+        <linearGradient
+          id={gradientId}
+          x1='32'
+          x2='32'
+          y1='4'
+          y2='60'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#10a5f5' />
+          <stop offset='1' stopColor='#234bc4' />
+        </linearGradient>
+      </defs>
+      <path
+        d='M7.5 49.5 25 18.8c2.8-4.9 5.2-6.4 10.8-6.4h4.8c5.4 0 7.5 1.5 10.2 6.2l15.7 30.9'
+        stroke={`url(#${gradientId})`}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='7'
+      />
+      <path
+        d='M22.2 48.5 37 22.6M27.2 42h18.4L35.2 24.2M42 23.5l8.2 15.6M52.5 47.7l6 11.5M13 55.5h13.5M48.8 55.5h8.7'
+        stroke={`url(#${gradientId})`}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='7'
+      />
+      <circle
+        cx='29.7'
+        cy='18.4'
+        fill='white'
+        r='4.6'
+        stroke={`url(#${gradientId})`}
+        strokeWidth='5'
+      />
+      <circle
+        cx='7.5'
+        cy='55.5'
+        fill='white'
+        r='5.8'
+        stroke={`url(#${gradientId})`}
+        strokeWidth='5'
+      />
+      <circle
+        cx='58'
+        cy='55.5'
+        fill='white'
+        r='5.8'
+        stroke={`url(#${gradientId})`}
+        strokeWidth='5'
+      />
+    </svg>
+  )
+}
 
 /**
  * Parse a property value from string to appropriate type
@@ -102,6 +171,11 @@ export function getLobeIcon(
   // Parse component path and chained properties
   const segments = trimmedName.split('.')
   const baseKey = segments[0]
+
+  if (baseKey.toLowerCase() === 'kie') {
+    return <KieIcon size={size} />
+  }
+
   const BaseIcon = (LobeIcons as Record<string, unknown>)[baseKey] as
     | Record<string, unknown>
     | undefined
