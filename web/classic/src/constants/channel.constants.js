@@ -160,6 +160,11 @@ export const CHANNEL_OPTIONS = [
     label: '即梦',
   },
   {
+    value: 59,
+    color: 'blue',
+    label: '即梦视频（OpenAI Video）',
+  },
+  {
     value: 52,
     color: 'purple',
     label: 'Vidu',

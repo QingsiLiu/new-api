@@ -53,6 +53,7 @@ const (
 	asyncTaskDefaultMaxQueued          = 100
 	asyncTaskDefaultInlineContentLimit = 20 << 20
 	asyncTaskKieSeedanceFastModel      = "bytedance/seedance-2-fast"
+	asyncTaskKieSeedanceModel          = "bytedance/seedance-2"
 )
 
 type asyncTaskRequest struct {
@@ -271,7 +272,7 @@ func GetAsyncTaskContent(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(data.Outputs[index].URL) != "" {
-		content, mimeType, err := downloadAsyncOutputURL(data.Outputs[index].URL)
+		content, mimeType, err := downloadAsyncTaskOutputURL(task, data.Outputs[index])
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"message": "failed to fetch async task content"}})
 			return
@@ -947,16 +948,20 @@ func executeAsyncVideoTask(task *model.Task, channel *model.Channel, execution a
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if channel.Type != constant.ChannelTypeKie {
-		return nil, fmt.Errorf("unsupported video async channel type %s", constant.GetChannelTypeName(channel.Type))
-	}
 	if execution.Request.Action != asyncTaskActionGenerate {
 		return nil, fmt.Errorf("unsupported video action %s", execution.Request.Action)
 	}
-	if execution.Request.Model != asyncTaskKieSeedanceFastModel {
-		return nil, fmt.Errorf("unsupported KIE video model %s", execution.Request.Model)
+	switch channel.Type {
+	case constant.ChannelTypeKie:
+		if !isAsyncKieSeedanceModel(execution.Request.Model) {
+			return nil, fmt.Errorf("unsupported KIE video model %s", execution.Request.Model)
+		}
+		return executeAsyncKieSeedanceVideoTask(ctx, task, channel, execution.Request)
+	case constant.ChannelTypeJimengOpenAIVideo:
+		return executeAsyncOpenAIVideoTask(ctx, task, channel, execution.Request)
+	default:
+		return nil, fmt.Errorf("unsupported video async channel type %s", constant.GetChannelTypeName(channel.Type))
 	}
-	return executeAsyncKieSeedanceVideoTask(ctx, task, channel, execution.Request)
 }
 
 func asyncTaskUpstreamModel(execution asyncTaskExecution) string {
@@ -1303,6 +1308,200 @@ type asyncKieRecordInfoResponse struct {
 			OutputURL  string   `json:"outputUrl"`
 		} `json:"response"`
 	} `json:"data"`
+}
+
+type asyncOpenAIVideoTaskResponse struct {
+	ID         string `json:"id"`
+	TaskID     string `json:"task_id"`
+	Status     string `json:"status"`
+	Progress   int    `json:"progress"`
+	Error      any    `json:"error"`
+	Message    string `json:"message"`
+	FailReason string `json:"fail_reason"`
+}
+
+func isAsyncKieSeedanceModel(modelName string) bool {
+	switch strings.TrimSpace(modelName) {
+	case asyncTaskKieSeedanceFastModel, asyncTaskKieSeedanceModel:
+		return true
+	default:
+		return false
+	}
+}
+
+func executeAsyncOpenAIVideoTask(parentCtx context.Context, task *model.Task, channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
+	taskID, err := createAsyncOpenAIVideoTask(parentCtx, channel, request)
+	if err != nil {
+		return nil, err
+	}
+	if taskID == "" {
+		return nil, errors.New("OpenAI video task returned no task id")
+	}
+	persistAsyncTaskUpstreamTaskID(task, taskID)
+	for {
+		record, err := pollAsyncOpenAIVideoTask(parentCtx, channel, taskID)
+		if err != nil {
+			return nil, err
+		}
+		status := strings.ToLower(strings.TrimSpace(record.Status))
+		if asyncOpenAIVideoTaskSucceeded(status) {
+			return []asyncTaskStoredOutput{{
+				MimeType: "video/mp4",
+				URL:      asyncChannelURL(channel, "/v1/videos/"+url.PathEscape(taskID)+"/content"),
+			}}, nil
+		}
+		if asyncOpenAIVideoTaskFailed(status) {
+			return nil, errors.New(firstAsyncNonEmpty(asyncOpenAIVideoErrorMessage(record.Error), record.FailReason, record.Message, "OpenAI video task failed"))
+		}
+		select {
+		case <-parentCtx.Done():
+			return nil, parentCtx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+func createAsyncOpenAIVideoTask(parentCtx context.Context, channel *model.Channel, request asyncTaskRequest) (string, error) {
+	body, err := common.Marshal(asyncOpenAIVideoPayload(request))
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeoutDuration())
+	defer cancel()
+	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, asyncChannelURL(channel, "/v1/videos"), bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	upstreamReq.Header.Set("Content-Type", "application/json")
+	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	response, err := asyncTaskHTTPClient.Do(upstreamReq)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	responseBody, _ := io.ReadAll(response.Body)
+	if response.StatusCode >= http.StatusBadRequest {
+		return "", fmt.Errorf("upstream OpenAI video task failed: %s", common.LocalLogPreview(string(responseBody)))
+	}
+	var payload asyncOpenAIVideoTaskResponse
+	if err := common.Unmarshal(responseBody, &payload); err != nil {
+		return "", err
+	}
+	if msg := firstAsyncNonEmpty(asyncOpenAIVideoErrorMessage(payload.Error), payload.FailReason, payload.Message); msg != "" && asyncOpenAIVideoTaskFailed(payload.Status) {
+		return "", errors.New(msg)
+	}
+	return firstAsyncNonEmpty(payload.ID, payload.TaskID), nil
+}
+
+func pollAsyncOpenAIVideoTask(parentCtx context.Context, channel *model.Channel, taskID string) (asyncOpenAIVideoTaskResponse, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, asyncTaskHTTPTimeoutDuration())
+	defer cancel()
+	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodGet, asyncChannelURL(channel, "/v1/videos/"+url.PathEscape(taskID)), nil)
+	if err != nil {
+		return asyncOpenAIVideoTaskResponse{}, err
+	}
+	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	response, err := asyncTaskHTTPClient.Do(upstreamReq)
+	if err != nil {
+		return asyncOpenAIVideoTaskResponse{}, err
+	}
+	defer response.Body.Close()
+	responseBody, _ := io.ReadAll(response.Body)
+	if response.StatusCode >= http.StatusBadRequest {
+		return asyncOpenAIVideoTaskResponse{}, fmt.Errorf("upstream OpenAI video task poll failed: %s", common.LocalLogPreview(string(responseBody)))
+	}
+	var payload asyncOpenAIVideoTaskResponse
+	if err := common.Unmarshal(responseBody, &payload); err != nil {
+		return asyncOpenAIVideoTaskResponse{}, err
+	}
+	return payload, nil
+}
+
+func asyncOpenAIVideoPayload(request asyncTaskRequest) map[string]interface{} {
+	payload := map[string]interface{}{
+		"model":        request.Model,
+		"prompt":       asyncVideoPrompt(request),
+		"seconds":      asyncOpenAIVideoSeconds(request.Parameters),
+		"aspect_ratio": asyncOpenAIVideoAspectRatio(request.Parameters),
+	}
+	if reference := asyncOpenAIVideoInputReference(request.Parameters); reference != "" {
+		payload["input_reference"] = reference
+	}
+	return payload
+}
+
+func asyncVideoPrompt(request asyncTaskRequest) string {
+	if prompt := strings.TrimSpace(request.Input.Prompt); prompt != "" {
+		return prompt
+	}
+	prompt, _, _, _ := asyncKieSeedanceContentParts(request.Parameters["content"])
+	return prompt
+}
+
+func asyncOpenAIVideoSeconds(parameters map[string]interface{}) string {
+	if value := asyncParamString(parameters, "seconds"); value != "" {
+		return value
+	}
+	if duration := asyncParamIntValue(parameters, "duration", 0); duration > 0 {
+		return strconv.Itoa(duration)
+	}
+	return "5"
+}
+
+func asyncOpenAIVideoAspectRatio(parameters map[string]interface{}) string {
+	if value := asyncParamString(parameters, "aspect_ratio"); value != "" {
+		return value
+	}
+	if value := asyncParamString(parameters, "ratio"); value != "" {
+		return value
+	}
+	size := strings.ToLower(strings.TrimSpace(asyncParamString(parameters, "size")))
+	switch size {
+	case "1024x1024":
+		return "1:1"
+	case "720x1280", "1024x1792":
+		return "9:16"
+	case "1280x720", "1792x1024":
+		return "16:9"
+	default:
+		return "16:9"
+	}
+}
+
+func asyncOpenAIVideoInputReference(parameters map[string]interface{}) string {
+	for _, key := range []string{"input_reference", "image", "image_url"} {
+		if value := asyncParamString(parameters, key); value != "" {
+			return value
+		}
+	}
+	_, imageURLs, _, _ := asyncKieSeedanceContentParts(parameters["content"])
+	if len(imageURLs) > 0 {
+		return imageURLs[0]
+	}
+	return ""
+}
+
+func asyncOpenAIVideoTaskSucceeded(status string) bool {
+	status = strings.ToLower(strings.TrimSpace(status))
+	return status == "succeeded" || status == "success" || status == "completed" || status == "complete" || status == "finished"
+}
+
+func asyncOpenAIVideoTaskFailed(status string) bool {
+	status = strings.ToLower(strings.TrimSpace(status))
+	return status == "failed" || status == "fail" || status == "error" || status == "canceled" || status == "cancelled" || status == "timeout" || status == "expired"
+}
+
+func asyncOpenAIVideoErrorMessage(raw any) string {
+	switch typed := raw.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(typed)
+	case map[string]interface{}:
+		return firstAsyncNonEmpty(strings.TrimSpace(fmt.Sprint(typed["message"])), strings.TrimSpace(fmt.Sprint(typed["error"])), strings.TrimSpace(fmt.Sprint(typed["code"])))
+	default:
+		return strings.TrimSpace(fmt.Sprint(raw))
+	}
 }
 
 func executeAsyncKieSeedanceVideoTask(parentCtx context.Context, task *model.Task, channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
@@ -1833,12 +2032,63 @@ func safeAsyncTaskError(err error) string {
 	return common.LocalLogPreview(err.Error())
 }
 
-func downloadAsyncOutputURL(url string) ([]byte, string, error) {
+func downloadAsyncTaskOutputURL(task *model.Task, output asyncTaskStoredOutput) ([]byte, string, error) {
+	rawURL := strings.TrimSpace(output.URL)
+	headers := map[string]string{}
+	if channel := asyncTaskAuthenticatedContentChannel(task, rawURL); channel != nil {
+		headers["Authorization"] = "Bearer " + channel.Key
+	}
+	return downloadAsyncOutputURL(rawURL, headers)
+}
+
+func asyncTaskAuthenticatedContentChannel(task *model.Task, rawURL string) *model.Channel {
+	if task == nil || strings.TrimSpace(rawURL) == "" {
+		return nil
+	}
+	channel, err := model.CacheGetChannel(task.ChannelId)
+	if err != nil || channel == nil {
+		return nil
+	}
+	switch channel.Type {
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora, constant.ChannelTypeJimengOpenAIVideo:
+	default:
+		return nil
+	}
+	if !asyncTaskURLMatchesOpenAIVideoContent(channel, rawURL) {
+		return nil
+	}
+	return channel
+}
+
+func asyncTaskURLMatchesOpenAIVideoContent(channel *model.Channel, rawURL string) bool {
+	outputURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || outputURL.Scheme == "" || outputURL.Host == "" {
+		return false
+	}
+	baseURL, err := url.Parse(asyncChannelURL(channel, ""))
+	if err != nil || baseURL.Host == "" {
+		return false
+	}
+	if !strings.EqualFold(outputURL.Scheme, baseURL.Scheme) || !strings.EqualFold(outputURL.Host, baseURL.Host) {
+		return false
+	}
+	basePath := strings.TrimRight(baseURL.EscapedPath(), "/")
+	contentPrefix := basePath + "/v1/videos/"
+	outputPath := outputURL.EscapedPath()
+	return strings.HasPrefix(outputPath, contentPrefix) && strings.HasSuffix(outputPath, "/content")
+}
+
+func downloadAsyncOutputURL(url string, headers map[string]string) ([]byte, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), asyncTaskHTTPTimeoutDuration())
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, "", err
+	}
+	for key, value := range headers {
+		if strings.TrimSpace(value) != "" {
+			request.Header.Set(key, value)
+		}
 	}
 	response, err := asyncTaskHTTPClient.Do(request)
 	if err != nil {
