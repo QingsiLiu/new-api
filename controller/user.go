@@ -23,6 +23,8 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm"
 )
 
 type LoginRequest struct {
@@ -918,10 +920,11 @@ func CreateUser(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
-	Action string `json:"action"`
-	Value  int    `json:"value"`
-	Mode   string `json:"mode"`
+	Id        int    `json:"id"`
+	Action    string `json:"action"`
+	Value     int    `json:"value"`
+	Mode      string `json:"mode"`
+	RequestId string `json:"request_id"`
 }
 
 // ManageUser Only admin user can do this
@@ -994,6 +997,18 @@ func ManageUser(c *gin.Context) {
 		}
 		user.Role = common.RoleCommonUser
 	case "add_quota":
+		if strings.TrimSpace(req.RequestId) != "" {
+			if applied, err := applyQuotaChangeRequestID(c, req, user); err != nil {
+				common.ApiError(c, err)
+				return
+			} else if applied {
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"message": "",
+				})
+				return
+			}
+		}
 		switch req.Mode {
 		case "add":
 			if req.Value <= 0 {
@@ -1071,6 +1086,75 @@ func ManageUser(c *gin.Context) {
 		"data":    clearUser,
 	})
 	return
+}
+
+func applyQuotaChangeRequestID(c *gin.Context, req ManageRequest, user model.User) (bool, error) {
+	requestID := strings.TrimSpace(req.RequestId)
+	if requestID == "" {
+		return false, nil
+	}
+	switch req.Mode {
+	case "add", "subtract":
+	default:
+		return false, nil
+	}
+	if req.Value <= 0 {
+		return false, nil
+	}
+	applyDelta := req.Value
+	if req.Mode == "subtract" {
+		applyDelta = -req.Value
+	}
+	applied := false
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var lockedUser model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.Id).First(&lockedUser).Error; err != nil {
+			return err
+		}
+		var record model.UserQuotaChangeRecord
+		if err := tx.Where("request_id = ?", requestID).First(&record).Error; err == nil {
+			if record.UserId != user.Id || record.Mode != req.Mode || record.Delta != req.Value {
+				return fmt.Errorf("重复 request_id 与请求参数不一致")
+			}
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		beforeQuota := lockedUser.Quota
+		afterQuota := beforeQuota + applyDelta
+		if afterQuota < 0 {
+			return fmt.Errorf("用户额度不足")
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", afterQuota).Error; err != nil {
+			return err
+		}
+		record = model.UserQuotaChangeRecord{
+			RequestId:   requestID,
+			UserId:      user.Id,
+			Mode:        req.Mode,
+			Delta:       req.Value,
+			BeforeQuota: beforeQuota,
+			AfterQuota:  afterQuota,
+		}
+		if err := tx.Create(&record).Error; err != nil {
+			return err
+		}
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if !applied {
+		return true, nil
+	}
+	if err := model.InvalidateUserCache(user.Id); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d after quota request %s: %s", user.Id, requestID, err.Error()))
+	}
+	recordManageAuditFor(c, user.Id, "user.quota_"+req.Mode, map[string]interface{}{
+		"quota": logger.LogQuota(req.Value),
+	})
+	return true, nil
 }
 
 type emailBindRequest struct {
