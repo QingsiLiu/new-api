@@ -84,11 +84,11 @@ export function SystemBrand(props: SystemBrandProps) {
           className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
           render={<div />}
         >
-          <div className='border-sidebar-border bg-sidebar-accent flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border'>
+          <div className='border-sidebar-border bg-sidebar-accent flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md border'>
             <img
               src={logo}
               alt={t('Logo')}
-              className='size-full rounded-lg object-cover'
+              className='size-full rounded-md object-cover'
             />
           </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>

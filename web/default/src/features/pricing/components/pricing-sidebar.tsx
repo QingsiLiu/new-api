@@ -101,7 +101,7 @@ function FilterChip(props: {
       className={cn(
         'group inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-all',
         props.active
-          ? 'border-foreground/30 bg-foreground/5 text-foreground shadow-sm'
+          ? 'border-border bg-accent text-foreground'
           : 'border-border/70 bg-background text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
       )}
       title={props.option.label}

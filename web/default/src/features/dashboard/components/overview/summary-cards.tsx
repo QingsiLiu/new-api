@@ -28,6 +28,7 @@ import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
+import { EditorialLabel } from '@/components/editorial'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -216,7 +217,7 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['rose', 'teal', 'gray'] as const
+    const tones = ['primary', 'success', 'neutral'] as const
 
     return {
       key: config.key,
@@ -224,7 +225,7 @@ export function SummaryCards() {
       value: config.value,
       desc: config.description,
       icon: config.icon,
-      tone: tones[index] ?? 'gray',
+      tone: tones[index] ?? 'neutral',
       sparkline:
         config.key === 'todayUsage'
           ? sparklineData.usage
@@ -234,12 +235,13 @@ export function SummaryCards() {
   })
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
+    <div className='editorial-panel overflow-hidden'>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
         <div className='flex flex-col gap-3 p-4 sm:p-5'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div className='flex flex-col gap-1'>
-              <h3 className='text-base font-semibold'>
+              <EditorialLabel>{t('Overview')}</EditorialLabel>
+              <h3 className='editorial-section-title text-2xl'>
                 {t('Usage at a glance')}
               </h3>
               <p className='text-muted-foreground text-sm'>
@@ -285,7 +287,7 @@ export function SummaryCards() {
               </span>
             </div>
 
-            <div className='font-mono text-2xl font-semibold tracking-tight'>
+            <div className='font-serif text-2xl font-medium tracking-normal'>
               {formatQuota(remainQuota)}
             </div>
 

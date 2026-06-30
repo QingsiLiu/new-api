@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet'
+type AccentTone = 'primary' | 'success' | 'warning' | 'info'
 
 interface ApiDemoConfig {
   id: string
@@ -43,29 +43,25 @@ const ACCENT_CLASSES: Record<
     badge: string
   }
 > = {
-  emerald: {
-    activeText: 'text-emerald-600 dark:text-emerald-400',
-    activeBorder: 'border-emerald-500 dark:border-emerald-400',
-    badge:
-      'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400',
+  primary: {
+    activeText: 'text-primary',
+    activeBorder: 'border-primary',
+    badge: 'bg-primary/10 text-primary',
   },
-  amber: {
-    activeText: 'text-amber-600 dark:text-amber-400',
-    activeBorder: 'border-amber-500 dark:border-amber-400',
-    badge:
-      'bg-amber-500/10 text-amber-600 dark:bg-amber-400/10 dark:text-amber-400',
+  success: {
+    activeText: 'text-success',
+    activeBorder: 'border-success',
+    badge: 'bg-success/10 text-success',
   },
-  blue: {
-    activeText: 'text-blue-600 dark:text-blue-400',
-    activeBorder: 'border-blue-500 dark:border-blue-400',
-    badge:
-      'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400',
+  warning: {
+    activeText: 'text-warning',
+    activeBorder: 'border-warning',
+    badge: 'bg-warning/10 text-warning',
   },
-  violet: {
-    activeText: 'text-violet-600 dark:text-violet-400',
-    activeBorder: 'border-violet-500 dark:border-violet-400',
-    badge:
-      'bg-violet-500/10 text-violet-600 dark:bg-violet-400/10 dark:text-violet-400',
+  info: {
+    activeText: 'text-info',
+    activeBorder: 'border-info',
+    badge: 'bg-info/10 text-info',
   },
 }
 
@@ -91,7 +87,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<tokens>'],
     tokens: 27,
     latency: 142,
-    accent: 'emerald',
+    accent: 'success',
   },
   {
     id: 'responses',
@@ -109,7 +105,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<tokens>'],
     tokens: 31,
     latency: 168,
-    accent: 'amber',
+    accent: 'primary',
   },
   {
     id: 'claude',
@@ -133,7 +129,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<in>', '<out>'],
     tokens: 29,
     latency: 156,
-    accent: 'blue',
+    accent: 'info',
   },
   {
     id: 'gemini',
@@ -156,7 +152,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<tokens>'],
     tokens: 25,
     latency: 93,
-    accent: 'violet',
+    accent: 'warning',
   },
 ]
 
@@ -207,13 +203,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
 
   return (
     <div className={cn('mx-auto w-full max-w-2xl', props.className)}>
-      <div
-        className={cn(
-          'overflow-hidden rounded-2xl border backdrop-blur-sm',
-          'border-border/60 bg-white/95 shadow-[0_20px_50px_-25px_rgba(15,23,42,0.18)]',
-          'dark:border-white/[0.06] dark:bg-[#0b0f17]/95 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.7)]'
-        )}
-      >
+      <div className={cn('editorial-panel overflow-hidden rounded-xl')}>
         {/* Tab strip */}
         <div
           className={cn(
@@ -240,7 +230,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
             )
           })}
           <div className='ml-auto flex items-center gap-2 pr-2 sm:pr-3'>
-            <span className='inline-block size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' />
+            <span className='bg-success inline-block size-1.5 rounded-full' />
             <span className='text-foreground/40 font-mono text-[10px] tracking-wider uppercase'>
               200 ok
             </span>
@@ -359,10 +349,7 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
 
   return (
     <div
-      className={cn(
-        'relative border-t px-5 py-4',
-        'border-border/40 bg-muted/20 dark:border-white/[0.05] dark:bg-white/[0.015]'
-      )}
+      className={cn('relative border-t px-5 py-4', 'border-border bg-muted/20')}
     >
       <SectionLabel>Response</SectionLabel>
       <div
@@ -502,37 +489,23 @@ function CodeLine(props: { children: ReactNode; indent?: number }) {
 }
 
 function Command(props: { children: ReactNode }) {
-  return (
-    <span className='font-medium text-emerald-600 dark:text-emerald-400'>
-      {props.children}
-    </span>
-  )
+  return <span className='text-success font-medium'>{props.children}</span>
 }
 
 function Flag(props: { children: ReactNode }) {
-  return (
-    <span className='text-blue-600 dark:text-blue-400'>{props.children}</span>
-  )
+  return <span className='text-info'>{props.children}</span>
 }
 
 function Key(props: { children: ReactNode }) {
-  return (
-    <span className='text-sky-700 dark:text-sky-300'>{props.children}</span>
-  )
+  return <span className='text-foreground/85'>{props.children}</span>
 }
 
 function StringText(props: { children: ReactNode }) {
-  return (
-    <span className='text-amber-700 dark:text-amber-300'>{props.children}</span>
-  )
+  return <span className='text-warning'>{props.children}</span>
 }
 
 function NumberText(props: { children: ReactNode }) {
-  return (
-    <span className='font-medium text-violet-600 dark:text-violet-300'>
-      {props.children}
-    </span>
-  )
+  return <span className='text-foreground font-medium'>{props.children}</span>
 }
 
 function Muted(props: { children: ReactNode }) {

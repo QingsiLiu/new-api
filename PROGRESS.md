@@ -96,6 +96,48 @@ Target: `web/default` only
   - `bun run typecheck` in `web/default`: passed.
   - `bun run build` in `web/default`: passed.
 
-## Next
+## Stage 6 - Page-Level Editorial Pass
 
-- Stage 6: page-level editorial passes for login, overview, keys, usage logs, models, channels, billing/recharge, pricing, settings/profile, home, and errors.
+- Restyled auth entry pages and layout:
+  - `auth-layout`, sign-in, sign-up, forgot password, OTP, and reset-password confirmation now use the asymmetric editorial split, configured system logo/name, mono labels, Fraunces headings, hairline panels, and tokenized form surfaces.
+- Restyled public and marketing surfaces:
+  - Home hero, stats, features, CTA, gateway card, feature items, icon cards, connection lines, and terminal demo now use warm paper/ink paper, hairline structure, serif display type, mono labels, and semantic status colors.
+  - Public header and shared logo/system-brand wrappers keep the configured backend logo/system name and move sign-in/header controls to restrained outline/secondary treatments.
+  - Pricing index/sidebar were moved toward editorial title/sidebar/table framing; local preview could not render pricing content because `/api/status` is unavailable and the app falls back to the home route/config state.
+- Restyled app/dashboard surfaces:
+  - Dashboard overview setup guide and summary/stat cards now use editorial panels, serif stat values, token backgrounds, and reduced shadow/gradient usage.
+  - Wallet stat/recharge/subscription/billing/payment surfaces now use editorial stat groups, tokenized panels, and hairline dialogs.
+  - API key group combobox, API key quota progress, usage-log column helpers, and channel status-code risk dialog were tokenized to remove hardcoded palette utilities in the edited surfaces.
+  - Profile header and system-settings page/card/section wrappers now use reusable editorial stat/label primitives and hairline sections.
+- Restyled error pages:
+  - Added `src/features/errors/error-frame.tsx`.
+  - 404, forbidden, unauthorized, general, and maintenance errors now share the editorial error frame with large Fraunces codes, mono eyebrows, hairlines, and restrained actions.
+- Added `web/default/scripts/verify-geili-editorial-pages.mjs` for static coverage of the edited page surfaces and key anti-regression checks around old gradients/glass/shadows and palette utilities.
+
+## Stage 7/8 - Motion, Build, And Dual-Mode QA
+
+- Motion remains on the Stage 3 editorial timing system: 150-220ms fade/slide, small movement, no blur/scale-heavy page choreography, and existing `prefers-reduced-motion` checks remain in place.
+- Chart/themed visualization surfaces continue to consume semantic theme variables from the earlier component pass; this page slice did not change chart data or chart behavior.
+- Fresh verification after Stage 6:
+  - `bun scripts/verify-geili-editorial-theme.mjs`: passed.
+  - `bun scripts/verify-geili-editorial-components.mjs`: passed.
+  - `bun scripts/verify-geili-editorial-pages.mjs`: passed.
+  - `git diff --check`: passed.
+  - `bun run typecheck`: passed.
+  - `bun run build`: passed; built assets include the self-hosted Inter, Fraunces, and IBM Plex Mono font files.
+  - `bun run lint`: failed with the same baseline scale as the initial run, `101 errors, 4 warnings`, in existing React hooks/query lint rules such as `react-hooks/set-state-in-effect`, `react-hooks/refs`, `react-hooks/purity`, and `@tanstack/query/exhaustive-deps`. I did not fix broad pre-existing lint debt because it is outside the visual-only scope.
+- Screenshot QA from rebuilt preview:
+  - Preview used `http://127.0.0.1:4175/` because older preview processes occupied `4174` and an unrelated service had occupied `4173` earlier.
+  - Clean public/auth/error light/dark captures are in `artifacts/geili-editorial-screenshots/`:
+    - `home-light-final.png`, `home-dark-final.png`
+    - `sign-in-light-final.png`, `sign-in-dark-final.png`
+    - `404-light-final.png`, `404-dark-final.png`
+    - `pricing-light-final.png`, `pricing-dark-final.png` (route did not show pricing content locally because `/api/status` is unavailable)
+  - I attempted protected-route captures for dashboard, keys, usage logs, wallet, models, channels, and system settings. Without a real backend/session, production preview redirects those routes to sign-in even with a harmless seeded local user, so authenticated page screenshots still require负责人 with a real local session/backend.
+  - Public home, sign-in, and 404 screenshots were visually checked in both modes: warm paper/ink paper tokens render, text contrast is readable, configured logo/system name are used, hairlines replace old heavy shadows, and the cinnabar focus is restrained.
+
+## Current Status
+
+- Stages 1-6 are implemented in `web/default`; Stage 7/8 static and public visual QA are complete within the local environment limits.
+- Remaining human QA item: authenticated dashboard/admin pages need a real backend/session for screenshot verification.
+- Remaining repository-wide gate: full `bun run lint` is still blocked by pre-existing baseline lint debt, unchanged in count from the baseline noted above.

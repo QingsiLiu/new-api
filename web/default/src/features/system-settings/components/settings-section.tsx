@@ -40,7 +40,10 @@ export function SettingsSection({
         <div className='flex flex-col gap-1'>
           <h3
             {...titleProps}
-            className={cn('text-base font-semibold', titleProps?.className)}
+            className={cn(
+              'editorial-section-title text-xl',
+              titleProps?.className
+            )}
           >
             {title}
           </h3>

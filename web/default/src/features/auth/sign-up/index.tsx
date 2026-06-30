@@ -30,15 +30,16 @@ export function SignUp() {
   return (
     <AuthLayout>
       <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+        <div className='space-y-3'>
+          <p className='editorial-label'>{t('New Account')}</p>
+          <h2 className='editorial-section-title text-left'>
             {t('Create an account')}
           </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
+          <p className='text-muted-foreground text-left text-sm leading-6'>
             {t('Already have an account?')}{' '}
             <Link
               to='/sign-in'
-              className='hover:text-primary font-medium underline underline-offset-4'
+              className='text-foreground decoration-primary hover:text-primary font-medium underline underline-offset-4'
             >
               {t('Sign in')}
             </Link>

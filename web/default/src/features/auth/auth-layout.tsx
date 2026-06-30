@@ -30,31 +30,44 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const { systemName, logo, loading } = useSystemConfig()
 
   return (
-    <div className='relative grid h-svh max-w-none'>
+    <div className='bg-background relative min-h-svh overflow-hidden'>
       <Link
         to='/'
-        className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
+        className='absolute top-5 left-5 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
       >
-        <div className='relative h-8 w-8'>
+        <div className='border-border bg-card relative h-8 w-8 overflow-hidden rounded-md border'>
           {loading ? (
-            <Skeleton className='absolute inset-0 rounded-full' />
+            <Skeleton className='absolute inset-0 rounded-none' />
           ) : (
             <img
               src={logo}
               alt={t('Logo')}
-              className='h-8 w-8 rounded-full object-cover'
+              className='h-full w-full object-cover'
             />
           )}
         </div>
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
+          <h1 className='editorial-label text-foreground'>{systemName}</h1>
         )}
       </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
-          {children}
+
+      <div className='mx-auto grid min-h-svh w-full max-w-6xl px-5 pt-24 pb-8 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(26rem,0.62fr)] lg:items-center lg:gap-16 lg:pt-8'>
+        <aside className='hidden border-l pl-6 lg:block'>
+          <p className='editorial-label mb-5'>{t('Access Console')}</p>
+          <h2 className='editorial-display max-w-xl text-5xl'>{systemName}</h2>
+          <p className='text-muted-foreground mt-6 max-w-sm text-sm leading-7'>
+            {t(
+              'A quiet control surface for routing, billing, keys, and model operations.'
+            )}
+          </p>
+        </aside>
+
+        <div className='flex w-full items-center justify-center lg:justify-end'>
+          <div className='editorial-panel w-full max-w-[30rem] px-5 py-6 sm:px-8 sm:py-8'>
+            {children}
+          </div>
         </div>
       </div>
     </div>
