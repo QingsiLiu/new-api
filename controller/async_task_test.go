@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -855,6 +856,18 @@ func TestAsyncPricingEstimateMatchesTaskQuotaWithoutSideEffects(t *testing.T) {
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
 	require.Equal(t, estimate.Quota, task.Quota)
+}
+
+func TestSafeAsyncTaskErrorRedactsSecretsAndInternalURLs(t *testing.T) {
+	message := safeAsyncTaskError(fmt.Errorf(
+		`upstream https://api.internal.example/v1 failed Authorization: Bearer sk-live-secret api_key=provider-secret base_url=http://relay-cli-proxy:3000`,
+	))
+
+	require.NotContains(t, message, "sk-live-secret")
+	require.NotContains(t, message, "provider-secret")
+	require.NotContains(t, message, "api.internal.example")
+	require.NotContains(t, message, "relay-cli-proxy")
+	require.Contains(t, message, "[redacted")
 }
 
 func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {

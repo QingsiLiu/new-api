@@ -14,6 +14,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -57,6 +58,13 @@ const (
 	asyncTaskKieSeedanceFastModel      = "bytedance/seedance-2-fast"
 	asyncTaskKieSeedanceModel          = "bytedance/seedance-2"
 	asyncTaskProductKindContextKey     = "async_task_product_kind"
+)
+
+var (
+	asyncTaskBearerSecretPattern   = regexp.MustCompile(`(?i)(bearer\s+)([A-Za-z0-9._~+/=-]+)`)
+	asyncTaskKeyValueSecretPattern = regexp.MustCompile(`(?i)\b(api[_-]?key|key|token|secret)\s*[:=]\s*([^\s,;]+)`)
+	asyncTaskBaseURLPattern        = regexp.MustCompile(`(?i)\b(base[_-]?url)\s*[:=]\s*([^\s,;]+)`)
+	asyncTaskURLPattern            = regexp.MustCompile(`https?://[^\s,;]+`)
 )
 
 type asyncTaskRequest struct {
@@ -2218,7 +2226,15 @@ func safeAsyncTaskError(err error) string {
 	if err == nil {
 		return ""
 	}
-	return common.LocalLogPreview(err.Error())
+	return common.LocalLogPreview(redactAsyncTaskError(err.Error()))
+}
+
+func redactAsyncTaskError(message string) string {
+	message = asyncTaskBearerSecretPattern.ReplaceAllString(message, "${1}[redacted-secret]")
+	message = asyncTaskKeyValueSecretPattern.ReplaceAllString(message, "${1}=[redacted-secret]")
+	message = asyncTaskBaseURLPattern.ReplaceAllString(message, "${1}=[redacted-url]")
+	message = asyncTaskURLPattern.ReplaceAllString(message, "[redacted-url]")
+	return message
 }
 
 func downloadAsyncTaskOutputURL(task *model.Task, output asyncTaskStoredOutput) ([]byte, string, error) {
