@@ -44,10 +44,11 @@ func TestAsyncTaskProductRoutesEnabledRequiresTokenAuth(t *testing.T) {
 		"/v1/tasks/task-1",
 		"/v1/tasks/task-1/content",
 		"/v1/tasks/task-1/cancel",
+		"/v1/pricing/estimate",
 	} {
 		t.Run(target, func(t *testing.T) {
 			method := http.MethodGet
-			if strings.HasSuffix(target, "/tasks") || strings.HasSuffix(target, "/cancel") {
+			if strings.HasSuffix(target, "/tasks") || strings.HasSuffix(target, "/cancel") || strings.HasSuffix(target, "/pricing/estimate") {
 				method = http.MethodPost
 			}
 			recorder := httptest.NewRecorder()

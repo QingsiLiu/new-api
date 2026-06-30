@@ -95,6 +95,24 @@ type asyncTaskOutput struct {
 	URL      string `json:"url,omitempty"`
 }
 
+type asyncTaskPricingEstimateResponse struct {
+	Kind      string                            `json:"kind"`
+	Action    string                            `json:"action"`
+	Model     string                            `json:"model"`
+	Quota     int                               `json:"quota"`
+	Unit      string                            `json:"unit"`
+	Breakdown asyncTaskPricingEstimateBreakdown `json:"breakdown"`
+}
+
+type asyncTaskPricingEstimateBreakdown struct {
+	ModelPrice  float64            `json:"model_price"`
+	ModelRatio  float64            `json:"model_ratio,omitempty"`
+	GroupRatio  float64            `json:"group_ratio"`
+	OtherRatios map[string]float64 `json:"other_ratios,omitempty"`
+	FreeModel   bool               `json:"free_model"`
+	UsePrice    bool               `json:"use_price"`
+}
+
 type asyncTaskData struct {
 	Kind    string                  `json:"kind"`
 	Action  string                  `json:"action"`
@@ -235,6 +253,51 @@ func CreateAsyncImageTask(c *gin.Context) {
 func CreateAsyncVideoTask(c *gin.Context) {
 	c.Set(asyncTaskProductKindContextKey, asyncTaskKindVideo)
 	CreateAsyncTask(c)
+}
+
+func EstimateAsyncTaskPricing(c *gin.Context) {
+	request, err := readAsyncTaskCreateRequest(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
+		return
+	}
+	if !isSupportedAsyncTaskKind(request.Kind) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "unsupported async task kind"}})
+		return
+	}
+	channel, err := selectAsyncTaskChannel(c, request.Model)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{"message": err.Error()}})
+		return
+	}
+	if setupErr := middleware.SetupContextForSelectedChannel(c, channel, request.Model); setupErr != nil {
+		status := setupErr.StatusCode
+		if status == 0 {
+			status = http.StatusServiceUnavailable
+		}
+		c.JSON(status, gin.H{"error": gin.H{"message": setupErr.Error()}})
+		return
+	}
+	relayInfo, priceErr := estimateAsyncTaskBilling(c, request, channel)
+	if priceErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": priceErr.Error()}})
+		return
+	}
+	c.JSON(http.StatusOK, asyncTaskPricingEstimateResponse{
+		Kind:   request.Kind,
+		Action: request.Action,
+		Model:  request.Model,
+		Quota:  relayInfo.PriceData.Quota,
+		Unit:   "quota",
+		Breakdown: asyncTaskPricingEstimateBreakdown{
+			ModelPrice:  relayInfo.PriceData.ModelPrice,
+			ModelRatio:  relayInfo.PriceData.ModelRatio,
+			GroupRatio:  relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			OtherRatios: relayInfo.PriceData.OtherRatios,
+			FreeModel:   relayInfo.PriceData.FreeModel,
+			UsePrice:    relayInfo.PriceData.UsePrice,
+		},
+	})
 }
 
 func GetAsyncTask(c *gin.Context) {
@@ -391,6 +454,19 @@ func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, e
 }
 
 func prepareAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel *model.Channel) (*relaycommon.RelayInfo, error) {
+	relayInfo, err := estimateAsyncTaskBilling(c, request, channel)
+	if err != nil {
+		return nil, err
+	}
+	if !relayInfo.PriceData.FreeModel {
+		if apiErr := service.PreConsumeBilling(c, relayInfo.PriceData.Quota, relayInfo); apiErr != nil {
+			return nil, apiErr
+		}
+	}
+	return relayInfo, nil
+}
+
+func estimateAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel *model.Channel) (*relaycommon.RelayInfo, error) {
 	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
 	if tokenGroup == "" {
 		tokenGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
@@ -438,11 +514,6 @@ func prepareAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel *
 	relayInfo.PriceData = priceData
 	if operation_setting.AsyncTaskSpecPricingEnabled {
 		applyAsyncTaskSpecPricing(request, relayInfo)
-	}
-	if !priceData.FreeModel {
-		if apiErr := service.PreConsumeBilling(c, relayInfo.PriceData.Quota, relayInfo); apiErr != nil {
-			return nil, apiErr
-		}
 	}
 	return relayInfo, nil
 }

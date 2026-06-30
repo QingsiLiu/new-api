@@ -797,6 +797,66 @@ func TestAsyncImageGenerationSpecPricingDependsOnQualitySizeAndCount(t *testing.
 	require.NotEqual(t, baseQuota, countQuota)
 }
 
+func TestAsyncPricingEstimateMatchesTaskQuotaWithoutSideEffects(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	payload := `{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"estimate product image"},
+		"parameters":{"quality":"high","size":"1792x1024","n":2}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, "quota", estimate.Unit)
+	require.Greater(t, estimate.Quota, 0)
+	require.InDelta(t, operation_setting.AsyncImageQualityHighMultiplier, estimate.Breakdown.OtherRatios["quality"], 0.001)
+	require.InDelta(t, operation_setting.AsyncImageSize1792x1024Multiplier, estimate.Breakdown.OtherRatios["size"], 0.001)
+	require.InDelta(t, 2, estimate.Breakdown.OtherRatios["n"], 0.001)
+
+	var taskCount int64
+	require.NoError(t, model.DB.Model(&model.Task{}).Count(&taskCount).Error)
+	require.Zero(t, taskCount)
+	var logCount int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Count(&logCount).Error)
+	require.Zero(t, logCount)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	var storedToken model.Token
+	require.NoError(t, model.DB.First(&storedToken, 3001).Error)
+	require.Equal(t, 1000000, storedToken.RemainQuota)
+
+	createRecorder := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
+	createRequest.Header.Set("Authorization", "Bearer "+token)
+	createRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(createRecorder, createRequest)
+	require.Equal(t, http.StatusOK, createRecorder.Code, createRecorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, estimate.Quota, task.Quota)
+}
+
 func TestAsyncVideoGenerationSpecPricingDependsOnResolutionAndDuration(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2034,6 +2094,7 @@ func setupAsyncTaskProductRouterTest(t *testing.T, upstreamURL string, modelName
 		productRouter.GET("/tasks/:id", GetAsyncTask)
 		productRouter.POST("/tasks/:id/cancel", CancelAsyncTask)
 		productRouter.GET("/tasks/:id/content", GetAsyncTaskContent)
+		productRouter.POST("/pricing/estimate", EstimateAsyncTaskPricing)
 	}
 	return engine, "sk-cavas"
 }
