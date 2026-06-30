@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -19,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+var testDBSerial uint64
 
 type listModelsResponse struct {
 	Success bool               `json:"success"`
@@ -37,13 +40,14 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
 
-	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	dsn := fmt.Sprintf("file:%s_%d?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"), atomic.AddUint64(&testDBSerial, 1))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
 
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}))
+	require.NoError(t, db.AutoMigrate(&model.Option{}))
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()

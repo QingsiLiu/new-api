@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -28,6 +29,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -419,12 +421,62 @@ func prepareAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel *
 		return nil, err
 	}
 	relayInfo.PriceData = priceData
+	if operation_setting.AsyncTaskSpecPricingEnabled {
+		applyAsyncTaskSpecPricing(request, relayInfo)
+	}
 	if !priceData.FreeModel {
-		if apiErr := service.PreConsumeBilling(c, priceData.Quota, relayInfo); apiErr != nil {
+		if apiErr := service.PreConsumeBilling(c, relayInfo.PriceData.Quota, relayInfo); apiErr != nil {
 			return nil, apiErr
 		}
 	}
 	return relayInfo, nil
+}
+
+func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.RelayInfo) {
+	if relayInfo == nil {
+		return
+	}
+	baseQuota := relayInfo.PriceData.Quota
+	if baseQuota <= 0 {
+		baseQuota = relayInfo.PriceData.QuotaToPreConsume
+	}
+	if baseQuota <= 0 {
+		return
+	}
+
+	multiplier := 1.0
+	switch request.Kind {
+	case asyncTaskKindVideo:
+		resolution := asyncParamString(request.Parameters, "resolution")
+		if resolution == "" {
+			resolution = asyncParamString(request.Parameters, "size")
+		}
+		seconds := asyncParamIntValue(request.Parameters, "duration", 0)
+		if seconds <= 0 {
+			seconds = asyncParamIntValue(request.Parameters, "seconds", 0)
+		}
+		if seconds <= 0 {
+			seconds = operation_setting.AsyncVideoBaseSeconds
+		}
+		multiplier = operation_setting.GetAsyncVideoSpecMultiplier(resolution, seconds)
+		relayInfo.PriceData.AddOtherRatio("resolution", operation_setting.GetAsyncVideoResolutionMultiplier(resolution))
+		relayInfo.PriceData.AddOtherRatio("seconds", operation_setting.GetAsyncVideoDurationMultiplier(seconds))
+	default:
+		quality := asyncParamString(request.Parameters, "quality")
+		size := asyncParamString(request.Parameters, "size")
+		count := asyncParamIntValue(request.Parameters, "n", 1)
+		multiplier = operation_setting.GetAsyncImageSpecMultiplier(quality, size, count)
+		relayInfo.PriceData.AddOtherRatio("quality", operation_setting.GetAsyncImageQualityMultiplier(quality))
+		relayInfo.PriceData.AddOtherRatio("size", operation_setting.GetAsyncImageSizeMultiplier(size))
+		relayInfo.PriceData.AddOtherRatio("n", operation_setting.GetAsyncImageCountMultiplier(count))
+	}
+
+	if multiplier <= 0 {
+		return
+	}
+
+	relayInfo.PriceData.Quota = int(math.Round(float64(baseQuota) * multiplier))
+	relayInfo.PriceData.QuotaToPreConsume = relayInfo.PriceData.Quota
 }
 
 func startAsyncTaskExecution(taskID string, channelID int, execution asyncTaskExecution) error {

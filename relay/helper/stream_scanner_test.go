@@ -48,6 +48,24 @@ func setupStreamTest(t *testing.T, body io.Reader) (*gin.Context, *http.Response
 	return c, resp, info
 }
 
+func setupStreamTestWithoutTimeoutOverride(t *testing.T, body io.Reader) (*gin.Context, *http.Response, *relaycommon.RelayInfo) {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{
+		Body: io.NopCloser(body),
+	}
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	return c, resp, info
+}
+
 func buildSSEBody(n int) string {
 	var b strings.Builder
 	for i := 0; i < n; i++ {
@@ -523,6 +541,20 @@ func TestStreamScannerHandler_StreamStatus_HandlerDone(t *testing.T) {
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 	assert.False(t, info.StreamStatus.HasErrors())
+}
+
+func TestStreamScannerHandler_NonPositiveTimeoutFallsBackToDefault(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 0
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := buildSSEBody(1)
+	c, resp, info := setupStreamTestWithoutTimeoutOverride(t, strings.NewReader(body))
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 }
 
 func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {

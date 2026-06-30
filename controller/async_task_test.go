@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -752,6 +753,118 @@ func TestAsyncImageGenerationUsesMappedUpstreamModel(t *testing.T) {
 	require.Equal(t, "upstream-image-real", task.Properties.UpstreamModelName)
 }
 
+func TestAsyncImageGenerationSpecPricingDependsOnQualitySizeAndCount(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	var baseQuota, highQualityQuota, largeSizeQuota, countQuota int
+	t.Run("base", func(t *testing.T) {
+		baseQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+			"quality": "standard",
+			"size":    "1024x1024",
+			"n":       1,
+		})
+	})
+	t.Run("high-quality", func(t *testing.T) {
+		highQualityQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+			"quality": "high",
+			"size":    "1024x1024",
+			"n":       1,
+		})
+	})
+	t.Run("large-size", func(t *testing.T) {
+		largeSizeQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+			"quality": "standard",
+			"size":    "1792x1024",
+			"n":       1,
+		})
+	})
+	t.Run("count", func(t *testing.T) {
+		countQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+			"quality": "standard",
+			"size":    "1024x1024",
+			"n":       2,
+		})
+	})
+
+	require.NotEqual(t, baseQuota, highQualityQuota)
+	require.NotEqual(t, baseQuota, largeSizeQuota)
+	require.NotEqual(t, baseQuota, countQuota)
+}
+
+func TestAsyncVideoGenerationSpecPricingDependsOnResolutionAndDuration(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/jobs/createTask":
+			require.Equal(t, http.MethodPost, r.Method)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-task-1"}}`))
+		case "/api/v1/jobs/recordInfo":
+			require.Equal(t, http.MethodGet, r.Method)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-task-1","state":"success","resultJson":"{\"resultUrls\":[\"https://example.test/video.mp4\"]}"}}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	var baseQuota, highResolutionQuota, longDurationQuota int
+	t.Run("base", func(t *testing.T) {
+		baseQuota = asyncTaskQuotaForVideoRequest(t, upstream.URL, map[string]interface{}{
+			"ratio":      "16:9",
+			"resolution": "480p",
+			"duration":   4,
+		})
+	})
+	t.Run("high-resolution", func(t *testing.T) {
+		highResolutionQuota = asyncTaskQuotaForVideoRequest(t, upstream.URL, map[string]interface{}{
+			"ratio":      "16:9",
+			"resolution": "1080p",
+			"duration":   4,
+		})
+	})
+	t.Run("long-duration", func(t *testing.T) {
+		longDurationQuota = asyncTaskQuotaForVideoRequest(t, upstream.URL, map[string]interface{}{
+			"ratio":      "16:9",
+			"resolution": "480p",
+			"duration":   10,
+		})
+	})
+
+	require.NotEqual(t, baseQuota, highResolutionQuota)
+	require.NotEqual(t, baseQuota, longDurationQuota)
+}
+
+func TestAsyncImageSpecPricingIsDisabledByDefault(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, false)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	baseQuota := asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+		"quality": "standard",
+		"size":    "1024x1024",
+		"n":       1,
+	})
+	highQuota := asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+		"quality": "high",
+		"size":    "1792x1024",
+		"n":       2,
+	})
+
+	require.Equal(t, baseQuota, highQuota)
+}
+
 func TestAsyncKieSeedanceVideoTaskPollsAndProxiesContent(t *testing.T) {
 	videoContent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/video.mp4", r.URL.Path)
@@ -1399,6 +1512,81 @@ func TestAsyncTaskFailureRefundsPreConsumedQuotaOnce(t *testing.T) {
 	require.Equal(t, 1000000, user.Quota)
 	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error)
 	require.Len(t, refundLogs, 1)
+}
+
+func asyncTaskQuotaForImageRequest(t *testing.T, upstreamURL string, parameters map[string]interface{}) int {
+	t.Helper()
+	engine, token := setupAsyncTaskRouterTest(t, upstreamURL, "gpt-image-2")
+	recorder := httptest.NewRecorder()
+	requestBody, err := common.Marshal(map[string]interface{}{
+		"kind":       "image",
+		"action":     "generate",
+		"model":      "gpt-image-2",
+		"input":      map[string]interface{}{"prompt": "draw a studio"},
+		"parameters": parameters,
+	})
+	require.NoError(t, err)
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", bytes.NewReader(requestBody))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.NotEmpty(t, created.ID)
+
+	var task model.Task
+	require.Eventually(t, func() bool {
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil
+	}, 2*time.Second, 20*time.Millisecond)
+	return task.Quota
+}
+
+func withAsyncTaskSpecPricingEnabled(t *testing.T, enabled bool) {
+	t.Helper()
+
+	original := operation_setting.AsyncTaskSpecPricingEnabled
+	operation_setting.AsyncTaskSpecPricingEnabled = enabled
+	t.Cleanup(func() {
+		operation_setting.AsyncTaskSpecPricingEnabled = original
+	})
+}
+
+func asyncTaskQuotaForVideoRequest(t *testing.T, upstreamURL string, parameters map[string]interface{}) int {
+	t.Helper()
+	engine, token := setupAsyncTaskRouterTestWithChannel(t, upstreamURL, "bytedance/seedance-2-fast", constant.ChannelTypeKie)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"bytedance/seedance-2-fast":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+
+	recorder := httptest.NewRecorder()
+	requestBody, err := common.Marshal(map[string]interface{}{
+		"kind":       "video",
+		"action":     "generate",
+		"model":      "bytedance/seedance-2-fast",
+		"input":      map[string]interface{}{"prompt": "moving product shot"},
+		"parameters": parameters,
+	})
+	require.NoError(t, err)
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", bytes.NewReader(requestBody))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.NotEmpty(t, created.ID)
+
+	var task model.Task
+	require.Eventually(t, func() bool {
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil
+	}, 2*time.Second, 20*time.Millisecond)
+	return task.Quota
 }
 
 func TestAsyncTaskCancelPreventsSuccessOverwrite(t *testing.T) {
