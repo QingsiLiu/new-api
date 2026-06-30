@@ -39,3 +39,35 @@ func TestUpdateOptionPersistsAsyncTaskSpecPricingEnabled(t *testing.T) {
 	require.NoError(t, DB.First(&option, "key = ?", "AsyncTaskSpecPricingEnabled").Error)
 	require.Equal(t, "true", option.Value)
 }
+
+func TestInitOptionMapIncludesAsyncTaskProductRoutesEnabled(t *testing.T) {
+	truncateTables(t)
+	operation_setting.AsyncTaskProductRoutesEnabled = false
+
+	InitOptionMap()
+
+	require.Equal(t, "false", common.OptionMap["AsyncTaskProductRoutesEnabled"])
+}
+
+func TestUpdateOptionMapUpdatesAsyncTaskProductRoutesEnabled(t *testing.T) {
+	truncateTables(t)
+	operation_setting.AsyncTaskProductRoutesEnabled = false
+
+	require.NoError(t, updateOptionMap("AsyncTaskProductRoutesEnabled", "true"))
+	require.True(t, operation_setting.AsyncTaskProductRoutesEnabled)
+
+	require.NoError(t, updateOptionMap("AsyncTaskProductRoutesEnabled", "false"))
+	require.False(t, operation_setting.AsyncTaskProductRoutesEnabled)
+}
+
+func TestUpdateOptionPersistsAsyncTaskProductRoutesEnabled(t *testing.T) {
+	truncateTables(t)
+	operation_setting.AsyncTaskProductRoutesEnabled = false
+
+	require.NoError(t, UpdateOption("AsyncTaskProductRoutesEnabled", "true"))
+	require.True(t, operation_setting.AsyncTaskProductRoutesEnabled)
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", "AsyncTaskProductRoutesEnabled").Error)
+	require.Equal(t, "true", option.Value)
+}

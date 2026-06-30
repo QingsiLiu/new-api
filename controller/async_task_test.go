@@ -1252,6 +1252,127 @@ func TestAsyncKieSeedanceVideoTaskFailureRefundsQuota(t *testing.T) {
 	require.Equal(t, task.Quota, refundLogs[0].Quota)
 }
 
+func TestAsyncProductImageTaskRouteDefaultsKindToImage(t *testing.T) {
+	upstreamCalled := make(chan struct{}, 1)
+	resultURLServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("product-image-bytes"))
+	}))
+	defer resultURLServer.Close()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"url":"` + resultURLServer.URL + `/image.png"}]}`))
+		upstreamCalled <- struct{}{}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"product route image"},
+		"parameters":{"quality":"high","size":"1024x1024","n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Equal(t, asyncTaskKindImage, created.Kind)
+	require.Eventually(t, func() bool {
+		select {
+		case <-upstreamCalled:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&stored).Error)
+	var data asyncTaskData
+	require.NoError(t, stored.GetData(&data))
+	require.Equal(t, asyncTaskKindImage, data.Kind)
+}
+
+func TestAsyncProductVideoTaskRouteDefaultsKindToVideo(t *testing.T) {
+	videoContent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = w.Write([]byte("product-video-bytes"))
+	}))
+	defer videoContent.Close()
+
+	createCalled := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/videos":
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "video-ds-2.0-fast", payload["model"])
+			require.Equal(t, "product route video", payload["prompt"])
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"product-video-1","status":"queued"}`))
+			createCalled <- struct{}{}
+		case "/v1/videos/product-video-1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"product-video-1","status":"completed","progress":100}`))
+		case "/v1/videos/product-video-1/content":
+			w.Header().Set("Content-Type", "video/mp4")
+			_, _ = w.Write([]byte("product-video-bytes"))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(
+		t,
+		upstream.URL,
+		"seedance-2.0-fast",
+		constant.ChannelTypeJimengOpenAIVideo,
+		`{"seedance-2.0-fast":"video-ds-2.0-fast"}`,
+	)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0-fast":0.01}`))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"seedance-2.0-fast",
+		"input":{"prompt":"product route video"},
+		"parameters":{"content":[{"type":"text","text":"product route video"}],"ratio":"16:9","duration":5}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Equal(t, asyncTaskKindVideo, created.Kind)
+	require.Eventually(t, func() bool {
+		select {
+		case <-createCalled:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&stored).Error)
+	var data asyncTaskData
+	require.NoError(t, stored.GetData(&data))
+	require.Equal(t, asyncTaskKindVideo, data.Kind)
+	require.EqualValues(t, model.TaskStatusSuccess, stored.Status)
+}
+
 func TestAsyncImageGenerationAcceptsBase64OutputAndServesContent(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1877,6 +1998,42 @@ func setupAsyncTaskRouterTestWithChannelAndMapping(t *testing.T, upstreamURL str
 		asyncRouter.GET("/tasks/:id", GetAsyncTask)
 		asyncRouter.POST("/tasks/:id/cancel", CancelAsyncTask)
 		asyncRouter.GET("/tasks/:id/content", GetAsyncTaskContent)
+	}
+	return engine, "sk-cavas"
+}
+
+func setupAsyncTaskProductRouterTest(t *testing.T, upstreamURL string, modelName string, channelType int, modelMapping string) (*gin.Engine, string) {
+	t.Helper()
+	db := setupAsyncTaskTestDB(t)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:           4001,
+		Type:         channelType,
+		Key:          "sk-upstream",
+		Status:       common.ChannelStatusEnabled,
+		Name:         "CPA OpenAI Compatible",
+		BaseURL:      &upstreamURL,
+		Models:       modelName,
+		Group:        "default",
+		ModelMapping: optionalStringPointer(modelMapping),
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     modelName,
+		ChannelId: 4001,
+		Enabled:   true,
+		Weight:    1,
+	}).Error)
+	model.InitChannelCache()
+
+	engine := gin.New()
+	productRouter := engine.Group("/v1")
+	productRouter.Use(middleware.TokenAuth())
+	{
+		productRouter.POST("/images/tasks", CreateAsyncImageTask)
+		productRouter.POST("/videos/tasks", CreateAsyncVideoTask)
+		productRouter.GET("/tasks/:id", GetAsyncTask)
+		productRouter.POST("/tasks/:id/cancel", CancelAsyncTask)
+		productRouter.GET("/tasks/:id/content", GetAsyncTaskContent)
 	}
 	return engine, "sk-cavas"
 }

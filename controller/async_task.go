@@ -56,6 +56,7 @@ const (
 	asyncTaskDefaultInlineContentLimit = 20 << 20
 	asyncTaskKieSeedanceFastModel      = "bytedance/seedance-2-fast"
 	asyncTaskKieSeedanceModel          = "bytedance/seedance-2"
+	asyncTaskProductKindContextKey     = "async_task_product_kind"
 )
 
 type asyncTaskRequest struct {
@@ -226,6 +227,16 @@ func CreateAsyncTask(c *gin.Context) {
 	c.JSON(http.StatusOK, asyncTaskModelToResponse(&task))
 }
 
+func CreateAsyncImageTask(c *gin.Context) {
+	c.Set(asyncTaskProductKindContextKey, asyncTaskKindImage)
+	CreateAsyncTask(c)
+}
+
+func CreateAsyncVideoTask(c *gin.Context) {
+	c.Set(asyncTaskProductKindContextKey, asyncTaskKindVideo)
+	CreateAsyncTask(c)
+}
+
 func GetAsyncTask(c *gin.Context) {
 	task, ok := getUserAsyncTask(c)
 	if !ok {
@@ -306,7 +317,11 @@ func readAsyncTaskCreateRequest(c *gin.Context) (asyncTaskRequest, error) {
 	if strings.TrimSpace(request.IdempotencyKey) == "" {
 		request.IdempotencyKey = c.GetHeader("Idempotency-Key")
 	}
-	return normalizeAsyncTaskRequest(request), nil
+	request = normalizeAsyncTaskRequest(request)
+	if forcedKind := c.GetString(asyncTaskProductKindContextKey); forcedKind != "" {
+		request.Kind = forcedKind
+	}
+	return request, nil
 }
 
 func readAsyncMultipartTaskRequest(c *gin.Context) (asyncTaskRequest, error) {
