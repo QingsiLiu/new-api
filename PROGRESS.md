@@ -243,3 +243,14 @@ Target: `web/default` only
 - 当前状态：
   - Geili Editorial 视觉改造、静态验收、typecheck/build、截图 QA 均已收口到可审状态。
   - 唯一未满足的原始完成定义是 `lint` 全绿；在不越过 visual-only 边界的前提下无法继续修复。建议后续单独授权 hooks/query lint debt 目标，或将本 Goal 的 lint 验收改为"无新增 lint 债务 + baseline 已记录"。
+
+## 2026-07-01 00:39 CST
+- 做了什么：再次续跑 active goal，尝试从剩余 lint 中寻找可在 visual-only 红线内继续推进的最小修复点。抽样 `src/features/wallet/components/subscription-plans-card.tsx` 与 `src/features/wallet/components/recharge-form-card.tsx` 后确认，剩余 3 个 changed-file lint errors 分别位于订阅到期/剩余天数时间计算（`Date.now()` purity）和充值金额输入本地状态同步（`setLocalAmount` in effect）。这些都属于业务数据流/交互行为层，不是 token/字体/组件皮肤/排版层；未修改代码。
+- 新鲜验证命令：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-theme.mjs && bun scripts/verify-geili-editorial-components.mjs && bun scripts/verify-geili-editorial-pages.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run typecheck` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run build` 通过，构建产物继续包含 self-hosted Inter/Fraunces/IBM Plex Mono 字体。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bunx eslint src/features/wallet/components/subscription-plans-card.tsx src/features/wallet/components/recharge-form-card.tsx` 失败，3 errors，均为上述 baseline hooks/compiler 规则。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint --format json --output-file /tmp/geili-editorial-eslint-latest.json` 失败，仍为 `101 errors, 4 warnings`，规则分布与上一轮一致。
+- 当前状态：继续满足视觉改造、typecheck/build、截图 QA 的可审状态；lint 全绿仍需单独授权 hooks/query 行为重构，或调整本视觉 Goal 的 lint 验收口径。
