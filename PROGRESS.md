@@ -47,6 +47,21 @@ Target: `web/default` only
   - `bun run typecheck` in `web/default`: passed.
   - `bun run build` in `web/default`: passed.
 
+## Stage 3 - Editorial Base Typography And Motion
+
+- Added global editorial typography rules in `web/default/src/styles/index.css`:
+  - Fraunces for headings, dialog/sheet/drawer titles, card titles, display text, and stat numbers.
+  - IBM Plex Mono for table headers, badges, labels, status text, and IDs.
+  - Warm selection color, balanced headings, tabular stat numerals, and base font rendering features.
+- Added reusable editorial utility classes for constrained containers, section stacks, mono labels, display titles, stat values, hairlines, focal text, and hairline panels.
+- Changed card hover styling away from shadow stacking toward subtle border/background changes.
+- Added shared hairline table header treatment and removed default shadows from cards and overlay surfaces so component layers can rely on hairline structure.
+- Tightened shared motion in `web/default/src/lib/motion.ts` to 150-220ms fade/slide transitions without blur or scale-heavy motion.
+- Verification after Stage 3:
+  - `bunx prettier --write src/styles/index.css src/lib/motion.ts` in `web/default`: passed.
+  - `bun run typecheck` in `web/default`: passed.
+  - `bun run build` in `web/default`: passed.
+
 ## Next
 
-- Stage 3: add global editorial typography, hairline, spacing, and motion base rules.
+- Stage 4: restyle shared UI, layout, data table, status, and overlay components without changing business logic.
