@@ -162,6 +162,9 @@ func CreateAsyncTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
 		return
 	}
+	if !applyAsyncTaskServiceUserProxy(c) {
+		return
+	}
 	if len(request.IdempotencyKey) > 191 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "idempotency_key is too long"}})
 		return
@@ -280,6 +283,9 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 	request, err := readAsyncTaskCreateRequest(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
+		return
+	}
+	if !applyAsyncTaskServiceUserProxy(c) {
 		return
 	}
 	if !isSupportedAsyncTaskKind(request.Kind) {
@@ -487,6 +493,46 @@ func normalizeAsyncTaskRequest(request asyncTaskRequest) asyncTaskRequest {
 
 func isSupportedAsyncTaskKind(kind string) bool {
 	return kind == asyncTaskKindImage || kind == asyncTaskKindVideo
+}
+
+func applyAsyncTaskServiceUserProxy(c *gin.Context) bool {
+	if !operation_setting.AsyncTaskServiceUserProxyEnabled {
+		return true
+	}
+	targetUserIDText := strings.TrimSpace(c.GetHeader("New-Api-User"))
+	if targetUserIDText == "" {
+		return true
+	}
+	targetUserID, err := strconv.Atoi(targetUserIDText)
+	if err != nil || targetUserID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "invalid New-Api-User"}})
+		return false
+	}
+	currentUserID := c.GetInt("id")
+	if targetUserID == currentUserID {
+		return true
+	}
+	if !model.IsAdmin(currentUserID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "service user proxy requires admin token"}})
+		return false
+	}
+	userCache, err := model.GetUserCache(targetUserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "target user not found"}})
+		return false
+	}
+	if userCache.Status != common.UserStatusEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "target user is disabled"}})
+		return false
+	}
+	c.Set("id", targetUserID)
+	common.SetContextKey(c, constant.ContextKeyUserId, targetUserID)
+	userCache.WriteContext(c)
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if usingGroup == "" || usingGroup == common.GetContextKeyString(c, constant.ContextKeyTokenGroup) {
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, userCache.Group)
+	}
+	return true
 }
 
 func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, error) {

@@ -71,3 +71,35 @@ func TestUpdateOptionPersistsAsyncTaskProductRoutesEnabled(t *testing.T) {
 	require.NoError(t, DB.First(&option, "key = ?", "AsyncTaskProductRoutesEnabled").Error)
 	require.Equal(t, "true", option.Value)
 }
+
+func TestInitOptionMapIncludesAsyncTaskServiceUserProxyEnabled(t *testing.T) {
+	truncateTables(t)
+	operation_setting.AsyncTaskServiceUserProxyEnabled = false
+
+	InitOptionMap()
+
+	require.Equal(t, "false", common.OptionMap["AsyncTaskServiceUserProxyEnabled"])
+}
+
+func TestUpdateOptionMapUpdatesAsyncTaskServiceUserProxyEnabled(t *testing.T) {
+	truncateTables(t)
+	operation_setting.AsyncTaskServiceUserProxyEnabled = false
+
+	require.NoError(t, updateOptionMap("AsyncTaskServiceUserProxyEnabled", "true"))
+	require.True(t, operation_setting.AsyncTaskServiceUserProxyEnabled)
+
+	require.NoError(t, updateOptionMap("AsyncTaskServiceUserProxyEnabled", "false"))
+	require.False(t, operation_setting.AsyncTaskServiceUserProxyEnabled)
+}
+
+func TestUpdateOptionPersistsAsyncTaskServiceUserProxyEnabled(t *testing.T) {
+	truncateTables(t)
+	operation_setting.AsyncTaskServiceUserProxyEnabled = false
+
+	require.NoError(t, UpdateOption("AsyncTaskServiceUserProxyEnabled", "true"))
+	require.True(t, operation_setting.AsyncTaskServiceUserProxyEnabled)
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", "AsyncTaskServiceUserProxyEnabled").Error)
+	require.Equal(t, "true", option.Value)
+}

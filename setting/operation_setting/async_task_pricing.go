@@ -3,8 +3,9 @@ package operation_setting
 import "strings"
 
 var (
-	AsyncTaskSpecPricingEnabled   = false
-	AsyncTaskProductRoutesEnabled = false
+	AsyncTaskSpecPricingEnabled      = false
+	AsyncTaskProductRoutesEnabled    = false
+	AsyncTaskServiceUserProxyEnabled = false
 )
 
 // TODO(D1): replace these placeholder async multipliers with the approved quota table.

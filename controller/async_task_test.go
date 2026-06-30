@@ -1423,6 +1423,157 @@ func TestAsyncProductImageTaskRouteDefaultsKindToImage(t *testing.T) {
 	require.Equal(t, asyncTaskKindImage, data.Kind)
 }
 
+func TestAsyncProductRouteCanChargeTargetUserWhenServiceProxyEnabled(t *testing.T) {
+	previous := operation_setting.AsyncTaskServiceUserProxyEnabled
+	operation_setting.AsyncTaskServiceUserProxyEnabled = true
+	t.Cleanup(func() {
+		operation_setting.AsyncTaskServiceUserProxyEnabled = previous
+	})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 2001).Updates(map[string]interface{}{
+		"role":  common.RoleAdminUser,
+		"quota": 1000000,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       2002,
+		Username: "studio-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Quota:    1000000,
+		Group:    "default",
+		AffCode:  "AFF2002",
+	}).Error)
+	adminBefore, err := model.GetUserQuota(2001, false)
+	require.NoError(t, err)
+	targetBefore, err := model.GetUserQuota(2002, false)
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"target user task"},
+		"parameters":{"n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("New-Api-User", "2002")
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, 2002, task.UserId)
+	require.Equal(t, 3001, task.PrivateData.TokenId)
+
+	adminAfter, err := model.GetUserQuota(2001, false)
+	require.NoError(t, err)
+	targetAfter, err := model.GetUserQuota(2002, false)
+	require.NoError(t, err)
+	require.Equal(t, adminBefore, adminAfter)
+	require.Equal(t, targetBefore-task.Quota, targetAfter)
+}
+
+func TestAsyncProductRouteIgnoresTargetUserWhenServiceProxyDisabled(t *testing.T) {
+	previous := operation_setting.AsyncTaskServiceUserProxyEnabled
+	operation_setting.AsyncTaskServiceUserProxyEnabled = false
+	t.Cleanup(func() {
+		operation_setting.AsyncTaskServiceUserProxyEnabled = previous
+	})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 2001).Update("quota", 1000000).Error)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       2002,
+		Username: "studio-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Quota:    1000000,
+		Group:    "default",
+		AffCode:  "AFF2002",
+	}).Error)
+	ownerBefore, err := model.GetUserQuota(2001, false)
+	require.NoError(t, err)
+	targetBefore, err := model.GetUserQuota(2002, false)
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"owner user task"},
+		"parameters":{"n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("New-Api-User", "2002")
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, 2001, task.UserId)
+
+	ownerAfter, err := model.GetUserQuota(2001, false)
+	require.NoError(t, err)
+	targetAfter, err := model.GetUserQuota(2002, false)
+	require.NoError(t, err)
+	require.Equal(t, ownerBefore-task.Quota, ownerAfter)
+	require.Equal(t, targetBefore, targetAfter)
+}
+
+func TestAsyncProductRouteRejectsTargetUserForNonAdminToken(t *testing.T) {
+	previous := operation_setting.AsyncTaskServiceUserProxyEnabled
+	operation_setting.AsyncTaskServiceUserProxyEnabled = true
+	t.Cleanup(func() {
+		operation_setting.AsyncTaskServiceUserProxyEnabled = previous
+	})
+	engine, token := setupAsyncTaskProductRouterTest(t, "https://upstream.example", "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       2002,
+		Username: "studio-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Quota:    1000000,
+		Group:    "default",
+		AffCode:  "AFF2002",
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"rejected proxy task"},
+		"parameters":{"n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("New-Api-User", "2002")
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	var taskCount int64
+	require.NoError(t, model.DB.Model(&model.Task{}).Count(&taskCount).Error)
+	require.Zero(t, taskCount)
+}
+
 func TestAsyncProductVideoTaskRouteDefaultsKindToVideo(t *testing.T) {
 	videoContent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "video/mp4")

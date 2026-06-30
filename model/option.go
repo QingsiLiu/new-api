@@ -166,6 +166,7 @@ func InitOptionMap() {
 	common.OptionMap["SelfUseModeEnabled"] = strconv.FormatBool(operation_setting.SelfUseModeEnabled)
 	common.OptionMap["AsyncTaskSpecPricingEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskSpecPricingEnabled)
 	common.OptionMap["AsyncTaskProductRoutesEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskProductRoutesEnabled)
+	common.OptionMap["AsyncTaskServiceUserProxyEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskServiceUserProxyEnabled)
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(setting.ModelRequestRateLimitEnabled)
 	common.OptionMap["CheckSensitiveOnPromptEnabled"] = strconv.FormatBool(setting.CheckSensitiveOnPromptEnabled)
 	common.OptionMap["StopOnSensitiveEnabled"] = strconv.FormatBool(setting.StopOnSensitiveEnabled)
@@ -348,6 +349,8 @@ func updateOptionMap(key string, value string) (err error) {
 			operation_setting.AsyncTaskSpecPricingEnabled = boolValue
 		case "AsyncTaskProductRoutesEnabled":
 			operation_setting.AsyncTaskProductRoutesEnabled = boolValue
+		case "AsyncTaskServiceUserProxyEnabled":
+			operation_setting.AsyncTaskServiceUserProxyEnabled = boolValue
 		case "CheckSensitiveOnPromptEnabled":
 			setting.CheckSensitiveOnPromptEnabled = boolValue
 		case "ModelRequestRateLimitEnabled":
