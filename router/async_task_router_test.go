@@ -45,6 +45,8 @@ func TestAsyncTaskProductRoutesEnabledRequiresTokenAuth(t *testing.T) {
 		"/v1/tasks/task-1/content",
 		"/v1/tasks/task-1/cancel",
 		"/v1/pricing/estimate",
+		"/v1/billing/balance",
+		"/v1/billing/usage",
 	} {
 		t.Run(target, func(t *testing.T) {
 			method := http.MethodGet

@@ -857,6 +857,56 @@ func TestAsyncPricingEstimateMatchesTaskQuotaWithoutSideEffects(t *testing.T) {
 	require.Equal(t, estimate.Quota, task.Quota)
 }
 
+func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {
+	engine, token := setupAsyncTaskProductRouterTest(t, "https://upstream.example", "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, model.LOG_DB.Create(&model.Log{
+		UserId:    2001,
+		Type:      model.LogTypeConsume,
+		ModelName: "gpt-image-2",
+		TokenName: "cavas",
+		Quota:     1234,
+		ChannelId: 4001,
+		TokenId:   3001,
+		Group:     "default",
+		CreatedAt: 100,
+	}).Error)
+
+	balanceRecorder := httptest.NewRecorder()
+	balanceRequest := httptest.NewRequest(http.MethodGet, "/v1/billing/balance", nil)
+	balanceRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(balanceRecorder, balanceRequest)
+	require.Equal(t, http.StatusOK, balanceRecorder.Code, balanceRecorder.Body.String())
+
+	var balance asyncBillingBalanceResponse
+	require.NoError(t, common.Unmarshal(balanceRecorder.Body.Bytes(), &balance))
+	require.Equal(t, 1000000, balance.Quota)
+	require.Equal(t, "quota", balance.Unit)
+	require.Equal(t, 2001, balance.UserID)
+
+	usageRecorder := httptest.NewRecorder()
+	usageRequest := httptest.NewRequest(http.MethodGet, "/v1/billing/usage?p=1&page_size=10", nil)
+	usageRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(usageRecorder, usageRequest)
+	require.Equal(t, http.StatusOK, usageRecorder.Code, usageRecorder.Body.String())
+
+	var usage asyncBillingUsageResponse
+	require.NoError(t, common.Unmarshal(usageRecorder.Body.Bytes(), &usage))
+	require.Equal(t, 1, usage.Page)
+	require.Equal(t, 10, usage.PageSize)
+	require.Equal(t, 1, usage.Total)
+	require.Len(t, usage.Items, 1)
+	require.Equal(t, "gpt-image-2", usage.Items[0].ModelName)
+	require.Equal(t, 1234, usage.Items[0].Quota)
+	require.Equal(t, model.LogTypeConsume, usage.Items[0].Type)
+
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	var storedToken model.Token
+	require.NoError(t, model.DB.First(&storedToken, 3001).Error)
+	require.Equal(t, 1000000, storedToken.RemainQuota)
+}
+
 func TestAsyncVideoGenerationSpecPricingDependsOnResolutionAndDuration(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2095,6 +2145,8 @@ func setupAsyncTaskProductRouterTest(t *testing.T, upstreamURL string, modelName
 		productRouter.POST("/tasks/:id/cancel", CancelAsyncTask)
 		productRouter.GET("/tasks/:id/content", GetAsyncTaskContent)
 		productRouter.POST("/pricing/estimate", EstimateAsyncTaskPricing)
+		productRouter.GET("/billing/balance", GetAsyncBillingBalance)
+		productRouter.GET("/billing/usage", GetAsyncBillingUsage)
 	}
 	return engine, "sk-cavas"
 }

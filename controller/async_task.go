@@ -113,6 +113,19 @@ type asyncTaskPricingEstimateBreakdown struct {
 	UsePrice    bool               `json:"use_price"`
 }
 
+type asyncBillingBalanceResponse struct {
+	UserID int    `json:"user_id"`
+	Quota  int    `json:"quota"`
+	Unit   string `json:"unit"`
+}
+
+type asyncBillingUsageResponse struct {
+	Page     int          `json:"page"`
+	PageSize int          `json:"page_size"`
+	Total    int          `json:"total"`
+	Items    []*model.Log `json:"items"`
+}
+
 type asyncTaskData struct {
 	Kind    string                  `json:"kind"`
 	Action  string                  `json:"action"`
@@ -297,6 +310,44 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 			FreeModel:   relayInfo.PriceData.FreeModel,
 			UsePrice:    relayInfo.PriceData.UsePrice,
 		},
+	})
+}
+
+func GetAsyncBillingBalance(c *gin.Context) {
+	userID := c.GetInt("id")
+	quota, err := model.GetUserQuota(userID, false)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to query user quota"}})
+		return
+	}
+	c.JSON(http.StatusOK, asyncBillingBalanceResponse{
+		UserID: userID,
+		Quota:  quota,
+		Unit:   "quota",
+	})
+}
+
+func GetAsyncBillingUsage(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	userID := c.GetInt("id")
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	group := c.Query("group")
+	requestID := c.Query("request_id")
+	upstreamRequestID := c.Query("upstream_request_id")
+	logs, total, err := model.GetUserLogs(userID, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestID, upstreamRequestID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to query billing usage"}})
+		return
+	}
+	c.JSON(http.StatusOK, asyncBillingUsageResponse{
+		Page:     pageInfo.Page,
+		PageSize: pageInfo.PageSize,
+		Total:    int(total),
+		Items:    logs,
 	})
 }
 

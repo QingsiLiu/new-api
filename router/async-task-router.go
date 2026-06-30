@@ -38,5 +38,7 @@ func SetAsyncTaskProductRouter(router *gin.Engine) {
 		productRouter.POST("/tasks/:id/cancel", controller.CancelAsyncTask)
 		productRouter.GET("/tasks/:id/content", controller.GetAsyncTaskContent)
 		productRouter.POST("/pricing/estimate", controller.EstimateAsyncTaskPricing)
+		productRouter.GET("/billing/balance", controller.GetAsyncBillingBalance)
+		productRouter.GET("/billing/usage", controller.GetAsyncBillingUsage)
 	}
 }
