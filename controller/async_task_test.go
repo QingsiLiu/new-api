@@ -1423,6 +1423,33 @@ func TestAsyncProductImageTaskRouteDefaultsKindToImage(t *testing.T) {
 	require.Equal(t, asyncTaskKindImage, data.Kind)
 }
 
+func TestAsyncProductImageTaskRouteReturnsPaymentRequiredWhenQuotaInsufficient(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("upstream should not be called when wallet quota is insufficient: %s", r.URL.Path)
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 2001).Update("quota", 1).Error)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"product route image without enough quota"},
+		"parameters":{"quality":"high","size":"1024x1024","n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusPaymentRequired, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "需要预扣费额度")
+	var taskCount int64
+	require.NoError(t, model.DB.Model(&model.Task{}).Count(&taskCount).Error)
+	require.Zero(t, taskCount)
+}
+
 func TestAsyncProductRouteCanChargeTargetUserWhenServiceProxyEnabled(t *testing.T) {
 	previous := operation_setting.AsyncTaskServiceUserProxyEnabled
 	operation_setting.AsyncTaskServiceUserProxyEnabled = true

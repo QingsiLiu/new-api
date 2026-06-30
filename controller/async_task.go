@@ -210,7 +210,7 @@ func CreateAsyncTask(c *gin.Context) {
 	}
 	relayInfo, priceErr := prepareAsyncTaskBilling(c, request, channel)
 	if priceErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": priceErr.Error()}})
+		c.JSON(asyncTaskCreateErrorStatus(priceErr), gin.H{"error": gin.H{"message": priceErr.Error()}})
 		return
 	}
 
@@ -533,6 +533,20 @@ func applyAsyncTaskServiceUserProxy(c *gin.Context) bool {
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userCache.Group)
 	}
 	return true
+}
+
+func asyncTaskCreateErrorStatus(err error) int {
+	var apiErr *types.NewAPIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.GetErrorCode() {
+		case types.ErrorCodeInsufficientUserQuota, types.ErrorCodePreConsumeTokenQuotaFailed:
+			return http.StatusPaymentRequired
+		}
+		if apiErr.StatusCode >= http.StatusBadRequest {
+			return apiErr.StatusCode
+		}
+	}
+	return http.StatusBadRequest
 }
 
 func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, error) {
