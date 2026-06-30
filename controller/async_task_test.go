@@ -754,7 +754,7 @@ func TestAsyncImageGenerationUsesMappedUpstreamModel(t *testing.T) {
 	require.Equal(t, "upstream-image-real", task.Properties.UpstreamModelName)
 }
 
-func TestAsyncImageGenerationSpecPricingDependsOnQualitySizeAndCount(t *testing.T) {
+func TestAsyncImageGenerationSpecPricingUsesFreePlaceholderQuota(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/images/generations", r.URL.Path)
@@ -793,12 +793,13 @@ func TestAsyncImageGenerationSpecPricingDependsOnQualitySizeAndCount(t *testing.
 		})
 	})
 
-	require.NotEqual(t, baseQuota, highQualityQuota)
-	require.NotEqual(t, baseQuota, largeSizeQuota)
-	require.NotEqual(t, baseQuota, countQuota)
+	require.Zero(t, baseQuota)
+	require.Zero(t, highQualityQuota)
+	require.Zero(t, largeSizeQuota)
+	require.Zero(t, countQuota)
 }
 
-func TestAsyncPricingEstimateMatchesTaskQuotaWithoutSideEffects(t *testing.T) {
+func TestAsyncPricingEstimateMatchesFreePlaceholderTaskQuotaWithoutSideEffects(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/images/generations", r.URL.Path)
@@ -826,10 +827,8 @@ func TestAsyncPricingEstimateMatchesTaskQuotaWithoutSideEffects(t *testing.T) {
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
 	require.Equal(t, "quota", estimate.Unit)
-	require.Greater(t, estimate.Quota, 0)
-	require.InDelta(t, operation_setting.AsyncImageQualityHighMultiplier, estimate.Breakdown.OtherRatios["quality"], 0.001)
-	require.InDelta(t, operation_setting.AsyncImageSize1792x1024Multiplier, estimate.Breakdown.OtherRatios["size"], 0.001)
-	require.InDelta(t, 2, estimate.Breakdown.OtherRatios["n"], 0.001)
+	require.Zero(t, estimate.Quota)
+	require.Equal(t, map[string]float64{"placeholder_free": 0}, estimate.Breakdown.OtherRatios)
 
 	var taskCount int64
 	require.NoError(t, model.DB.Model(&model.Task{}).Count(&taskCount).Error)
@@ -856,6 +855,60 @@ func TestAsyncPricingEstimateMatchesTaskQuotaWithoutSideEffects(t *testing.T) {
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
 	require.Equal(t, estimate.Quota, task.Quota)
+	require.Zero(t, task.Quota)
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	require.Zero(t, user.UsedQuota)
+	require.NoError(t, model.DB.First(&storedToken, 3001).Error)
+	require.Equal(t, 1000000, storedToken.RemainQuota)
+}
+
+func TestAsyncFreePlaceholderTaskCanRunWithZeroWalletQuota(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	resultURLServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("free-img-bytes"))
+	}))
+	defer resultURLServer.Close()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"url":"` + resultURLServer.URL + `/result.png"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 2001).Update("quota", 0).Error)
+	require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 3001).Updates(map[string]interface{}{
+		"remain_quota":    0,
+		"unlimited_quota": true,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"free placeholder image"},
+		"parameters":{"quality":"high","size":"1792x1024","n":2}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Zero(t, task.Quota)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Zero(t, user.Quota)
+	require.Zero(t, user.UsedQuota)
+	var storedToken model.Token
+	require.NoError(t, model.DB.First(&storedToken, 3001).Error)
+	require.Zero(t, storedToken.RemainQuota)
+	require.True(t, storedToken.UnlimitedQuota)
 }
 
 func TestSafeAsyncTaskErrorRedactsSecretsAndInternalURLs(t *testing.T) {
@@ -920,7 +973,7 @@ func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {
 	require.Equal(t, 1000000, storedToken.RemainQuota)
 }
 
-func TestAsyncVideoGenerationSpecPricingDependsOnResolutionAndDuration(t *testing.T) {
+func TestAsyncVideoGenerationSpecPricingUsesFreePlaceholderQuota(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -961,8 +1014,9 @@ func TestAsyncVideoGenerationSpecPricingDependsOnResolutionAndDuration(t *testin
 		})
 	})
 
-	require.NotEqual(t, baseQuota, highResolutionQuota)
-	require.NotEqual(t, baseQuota, longDurationQuota)
+	require.Zero(t, baseQuota)
+	require.Zero(t, highResolutionQuota)
+	require.Zero(t, longDurationQuota)
 }
 
 func TestAsyncImageSpecPricingIsDisabledByDefault(t *testing.T) {
@@ -1990,6 +2044,59 @@ func TestAsyncTaskFailureRefundsPreConsumedQuotaOnce(t *testing.T) {
 	require.Equal(t, 1000000, user.Quota)
 	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error)
 	require.Len(t, refundLogs, 1)
+}
+
+func TestAsyncTaskZeroPriceFailureDoesNotRefundOrChangeQuota(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":{"message":"free placeholder upstream exploded"}}`, http.StatusBadGateway)
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, upstream.URL, "gpt-image-2")
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", strings.NewReader(`{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"free placeholder failure"},
+		"parameters":{"quality":"high","size":"1792x1024","n":2}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusFailure
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Zero(t, task.Quota)
+
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	require.Zero(t, user.UsedQuota)
+	var storedToken model.Token
+	require.NoError(t, model.DB.First(&storedToken, 3001).Error)
+	require.Equal(t, 1000000, storedToken.RemainQuota)
+
+	var refundLogs []model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error)
+	require.Empty(t, refundLogs)
+
+	completeAsyncTaskFailure(&task, asyncTaskRequest{Kind: asyncTaskKindImage, Action: asyncTaskActionGenerate, Model: "gpt-image-2"}, "retry failure")
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error)
+	require.Empty(t, refundLogs)
 }
 
 func asyncTaskQuotaForImageRequest(t *testing.T, upstreamURL string, parameters map[string]interface{}) int {

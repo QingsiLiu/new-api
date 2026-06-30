@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -641,15 +640,8 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 	if relayInfo == nil {
 		return
 	}
-	baseQuota := relayInfo.PriceData.Quota
-	if baseQuota <= 0 {
-		baseQuota = relayInfo.PriceData.QuotaToPreConsume
-	}
-	if baseQuota <= 0 {
-		return
-	}
 
-	multiplier := 1.0
+	quota := operation_setting.AsyncTaskSpecPricingPlaceholderQuota
 	switch request.Kind {
 	case asyncTaskKindVideo:
 		resolution := asyncParamString(request.Parameters, "resolution")
@@ -661,27 +653,21 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 			seconds = asyncParamIntValue(request.Parameters, "seconds", 0)
 		}
 		if seconds <= 0 {
-			seconds = operation_setting.AsyncVideoBaseSeconds
+			seconds = 0
 		}
-		multiplier = operation_setting.GetAsyncVideoSpecMultiplier(resolution, seconds)
-		relayInfo.PriceData.AddOtherRatio("resolution", operation_setting.GetAsyncVideoResolutionMultiplier(resolution))
-		relayInfo.PriceData.AddOtherRatio("seconds", operation_setting.GetAsyncVideoDurationMultiplier(seconds))
+		quota = operation_setting.GetAsyncVideoSpecQuota(resolution, seconds)
 	default:
 		quality := asyncParamString(request.Parameters, "quality")
 		size := asyncParamString(request.Parameters, "size")
 		count := asyncParamIntValue(request.Parameters, "n", 1)
-		multiplier = operation_setting.GetAsyncImageSpecMultiplier(quality, size, count)
-		relayInfo.PriceData.AddOtherRatio("quality", operation_setting.GetAsyncImageQualityMultiplier(quality))
-		relayInfo.PriceData.AddOtherRatio("size", operation_setting.GetAsyncImageSizeMultiplier(size))
-		relayInfo.PriceData.AddOtherRatio("n", operation_setting.GetAsyncImageCountMultiplier(count))
+		quota = operation_setting.GetAsyncImageSpecQuota(quality, size, count)
 	}
 
-	if multiplier <= 0 {
-		return
+	relayInfo.PriceData.Quota = quota
+	relayInfo.PriceData.QuotaToPreConsume = quota
+	relayInfo.PriceData.OtherRatios = map[string]float64{
+		"placeholder_free": float64(quota),
 	}
-
-	relayInfo.PriceData.Quota = int(math.Round(float64(baseQuota) * multiplier))
-	relayInfo.PriceData.QuotaToPreConsume = relayInfo.PriceData.Quota
 }
 
 func startAsyncTaskExecution(taskID string, channelID int, execution asyncTaskExecution) error {
