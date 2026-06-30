@@ -81,6 +81,21 @@ Target: `web/default` only
   - `bun run typecheck` in `web/default`: passed.
   - `bun run build` in `web/default`: passed.
 
+## Stage 5 - Editorial Building Blocks
+
+- Added reusable editorial presentation components under `web/default/src/components/editorial/`:
+  - `EditorialLabel`: shared mono uppercase label wrapper.
+  - `EditorialStatus`: dot + mono uppercase status text with tokenized success/progress/danger/neutral/warning/info tones.
+  - `EditorialStat` and `EditorialStatGroup`: mono label + Fraunces stat value + optional primary accent + vertical hairline grouping.
+- Added `web/default/scripts/verify-geili-editorial-components.mjs` to statically verify the components exist, are exported, and use editorial/token classes.
+- TDD-style check for Stage 5:
+  - Initial `bun scripts/verify-geili-editorial-components.mjs` failed because the editorial component files did not exist.
+  - After adding the components, `bun scripts/verify-geili-editorial-components.mjs`: passed.
+- Verification after Stage 5:
+  - `bunx prettier --write scripts/verify-geili-editorial-components.mjs src/components/editorial/...` in `web/default`: passed.
+  - `bun run typecheck` in `web/default`: passed.
+  - `bun run build` in `web/default`: passed.
+
 ## Next
 
-- Stage 5: add dedicated editorial stat/label/status components, then begin page-level passes.
+- Stage 6: page-level editorial passes for login, overview, keys, usage logs, models, channels, billing/recharge, pricing, settings/profile, home, and errors.
