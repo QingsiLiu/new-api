@@ -37,6 +37,22 @@ const files = {
   homeFeatureItem: 'src/features/home/components/feature-item.tsx',
   homeTerminal: 'src/features/home/components/hero-terminal-demo.tsx',
   pricing: 'src/features/pricing/index.tsx',
+  pricingModalities: 'src/features/pricing/components/model-details-modalities.tsx',
+  pricingCapabilities: 'src/features/pricing/components/model-details-capabilities.tsx',
+  pricingBreakdown: 'src/features/pricing/components/dynamic-pricing-breakdown.tsx',
+  pricingPerformance: 'src/features/pricing/components/model-details-performance.tsx',
+  pricingApi: 'src/features/pricing/components/model-details-api.tsx',
+  pricingDetails: 'src/features/pricing/components/model-details.tsx',
+  pricingApps: 'src/features/pricing/components/model-details-apps.tsx',
+  pricingCharts: 'src/features/pricing/components/model-details-charts.tsx',
+  pricingQuickStats:
+    'src/features/pricing/components/model-details-quick-stats.tsx',
+  pricingModelCard: 'src/features/pricing/components/model-card.tsx',
+  pricingColumns: 'src/features/pricing/components/pricing-columns.tsx',
+  pricingSidebar: 'src/features/pricing/components/pricing-sidebar.tsx',
+  pricingToolbar: 'src/features/pricing/components/pricing-toolbar.tsx',
+  pricingTable: 'src/features/pricing/components/pricing-table.tsx',
+  pricingSearch: 'src/features/pricing/components/search-bar.tsx',
   wallet: 'src/features/wallet/index.tsx',
   walletStats: 'src/features/wallet/components/wallet-stats-card.tsx',
   walletRecharge: 'src/features/wallet/components/recharge-form-card.tsx',
@@ -120,6 +136,21 @@ for (const key of [
   'homeFeatureItem',
   'homeTerminal',
   'pricing',
+  'pricingModalities',
+  'pricingCapabilities',
+  'pricingBreakdown',
+  'pricingPerformance',
+  'pricingApi',
+  'pricingDetails',
+  'pricingApps',
+  'pricingCharts',
+  'pricingQuickStats',
+  'pricingModelCard',
+  'pricingColumns',
+  'pricingSidebar',
+  'pricingToolbar',
+  'pricingTable',
+  'pricingSearch',
 ]) {
   assertNoPattern(
     key,
@@ -128,13 +159,37 @@ for (const key of [
   )
   assertNoPattern(
     key,
-    /radial-gradient|bg-gradient|bg-linear|from-|via-|to-|glass-|backdrop-blur|shadow-(?:xs|sm|md|lg|xl|2xl|\[)/,
+    /radial-gradient|bg-gradient|bg-linear|(?:^|[\s'"`])(?:from|via|to)-|glass-|backdrop-blur|shadow-(?:xs|sm|md|lg|xl|2xl|\[)/,
     'public/editorial pages must not use old gradient, glass, or shadow styling'
   )
   assertNoPattern(
     key,
     /oklch\(|rgba\(|#[0-9a-fA-F]{3,8}/,
     'public/editorial pages must use semantic tokens, not hardcoded colors'
+  )
+}
+
+for (const key of [
+  'pricingModalities',
+  'pricingCapabilities',
+  'pricingBreakdown',
+  'pricingPerformance',
+  'pricingApi',
+  'pricingDetails',
+  'pricingApps',
+  'pricingCharts',
+  'pricingQuickStats',
+  'pricingModelCard',
+  'pricingColumns',
+  'pricingSidebar',
+  'pricingToolbar',
+  'pricingTable',
+  'pricingSearch',
+]) {
+  assertNoPattern(
+    key,
+    /(?:emerald|amber|blue|orange|red|rose|sky|violet|purple|green|teal)-(?:50|100|200|300|400|500|600|700|800|900|950)/,
+    'pricing pages must use semantic tokens rather than palette utilities'
   )
 }
 

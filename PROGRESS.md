@@ -161,3 +161,27 @@ Target: `web/default` only
 - 截图自检：
   - 复看了 `artifacts/geili-editorial-screenshots/` 中的 `dashboard-light-final.png`、`usage-logs-light-final.png`、`usage-logs-dark-final.png`、`sign-in-light-final.png`、`sign-in-dark-final.png`。
   - 亮/暗纸面、Fraunces 标题、Inter 文案、朱砂主按钮、hairline 边界都正常；受限路由下的 usage-logs/dashboard 仍会回到登录页，这是已知的后台会话限制，不是新回归。
+
+## 2026-06-30 22:30 CST
+- 做了什么：继续收口 pricing 详情页及相邻组件的旧视觉残留，把 `model-details-*`、`dynamic-pricing-breakdown`、`model-card`、`pricing-columns`、`pricing-toolbar` 中的 emerald/amber/blue/orange/rose/slate palette utility、固定 hex/rgba chart 色、局部 `shadow-sm` 全部替换为语义 token（`success` / `warning` / `info` / `destructive` / `muted` / `chart-*`）。pricing 图表现在运行时读取 CSS theme variables，明暗模式跟随 `geili-editorial` token。
+- 证据路径：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details-modalities.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details-capabilities.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/dynamic-pricing-breakdown.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details-api.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details-performance.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details-apps.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details-charts.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-card.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/pricing-columns.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/pricing-toolbar.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/scripts/verify-geili-editorial-pages.mjs`
+- 静态门闸：扩展 `verify-geili-editorial-pages.mjs`，把 pricing detail、charts、quick stats、model card、columns、sidebar、toolbar、table、search 纳入 palette/gradient/glass/shadow/hardcoded color 检查；目录级 `rg` 扫描 `src/features/pricing/components` 的 palette utility、hex、rgba、旧阴影残留为空。
+- 验证命令：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-theme.mjs && bun scripts/verify-geili-editorial-components.mjs && bun scripts/verify-geili-editorial-pages.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run typecheck` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run build` 通过；产物继续包含 Inter、Fraunces、IBM Plex Mono 自托管字体。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint` 仍被既有 React hooks/query 基线债务阻塞，最新为 `101 errors, 4 warnings`，数量与 baseline 一致；本次未扩大该债务。
+- 截图自检：本次修改集中在 pricing 详情/表格/图表样式；本地 public pricing 路由仍受 `/api/status` 缺失影响无法展示真实 pricing 内容，需负责人用真实后端/session 做最终肉眼验收。
