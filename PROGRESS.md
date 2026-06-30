@@ -198,3 +198,30 @@ Target: `web/default` only
 - 当前阻塞：
   - 完成定义里的 `lint` 通过无法在"只改视觉层"前提下达成；需要负责人明确授权单独处理既有 lint 债务，或调整本 Goal 对 lint 的验收口径。
   - 受本地无真实后端/session 限制，dashboard、Keys、usage、billing、settings 等受保护路由仍需负责人在真实本地会话中做最终明暗截图/肉眼验收。
+
+## 2026-07-01 00:27 CST
+- 做了什么：继续推进此前卡住的截图 QA。Docker daemon 未运行，无法使用 `docker-compose.dev.yml`；改用本地临时 Go 后端运行态：因为 `main.go` embed 需要 `web/classic/dist`，临时创建了被 `.gitignore` 忽略的 `web/classic/dist/index.html` 占位，只用于本地编译启动，不进入提交、不改 `web/classic` 源码。
+- QA 环境：
+  - 后端：`/tmp/new-api-geili-check --port 3456`，SQLite 数据在 `/tmp/geili-newapi-qa/geili-qa.db`，临时初始化 root 账号用于本地截图。
+  - 前端：`web/default` 以 `VITE_REACT_APP_SERVER_URL=http://127.0.0.1:3456 bun run dev -- --port 3460 --host 127.0.0.1` 启动。
+  - 该环境只用于本地截图，不部署、不 push、不改真实站点配置。
+- 新增真实登录态截图 QA：
+  - `artifacts/geili-editorial-screenshots/dashboard-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/dashboard-dark-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/keys-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/keys-dark-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/usage-logs-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/usage-logs-dark-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/wallet-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/wallet-dark-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/models-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/models-dark-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/channels-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/channels-dark-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/system-settings-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/system-settings-dark-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/pricing-light-qa-auth.png`
+  - `artifacts/geili-editorial-screenshots/pricing-dark-qa-auth.png`
+- 结果：上述受保护路由均在真实本地 session 下打开，没有重定向回登录页；亮色截图 `htmlClass` 为 `font-inter light`，暗色截图为 `font-inter dark`。抽检 `dashboard-light/dark`、`keys-light`、`system-settings-dark`：暖纸/墨纸、Fraunces 标题、Inter 文案、IBM Plex Mono 标签、hairline 分区、单一朱砂焦点均可见。空数据库下 Keys/Usage/Channels/Models 等页面展示为空态，这是 QA 数据状态，不是视觉回归。
+- 登录页截图：未登录登录页本身没有主题设置入口；继续沿用前序 `sign-in-light-final.png` / `sign-in-dark-final.png` 作为登录页明暗截图证据。
+- 剩余阻塞：`bun run lint` 若仍失败，仍属于既有 React hooks/query 规则债务；修复需要进入行为/hook 重构，超出本 Goal visual-only 红线。
