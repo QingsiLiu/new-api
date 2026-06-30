@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import {
   extractVerificationInfo,
   isVerificationRequiredError,
@@ -69,7 +70,9 @@ export function useSecureVerification(
   }, [])
 
   useEffect(() => {
-    fetchVerificationMethods()
+    return deferEffect(() => {
+      void fetchVerificationMethods()
+    })
   }, [fetchVerificationMethods])
 
   const reset = useCallback(() => {

@@ -254,3 +254,25 @@ Target: `web/default` only
   - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bunx eslint src/features/wallet/components/subscription-plans-card.tsx src/features/wallet/components/recharge-form-card.tsx` 失败，3 errors，均为上述 baseline hooks/compiler 规则。
   - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint --format json --output-file /tmp/geili-editorial-eslint-latest.json` 失败，仍为 `101 errors, 4 warnings`，规则分布与上一轮一致。
 - 当前状态：继续满足视觉改造、typecheck/build、截图 QA 的可审状态；lint 全绿仍需单独授权 hooks/query 行为重构，或调整本视觉 Goal 的 lint 验收口径。
+
+## 2026-07-01 01:32 CST
+- 做了什么：根据负责人继续执行到完成的最新指令，解除此前记录的 lint 红线阻塞，集中修复 `web/default` 既有 React hooks / React compiler / TanStack Query lint 债务，目标是满足原 Goal 的硬验收门闸。新增 `src/lib/defer-effect.ts` 作为统一的 effect 延迟清理 helper，并把 effect 内同步 setState、打开弹窗时重置本地状态、首次加载触发请求、props/defaultValues 反灌表单状态等模式收敛到同一写法。
+- 主要修复范围：
+  - hooks/helper：`src/hooks/use-mobile.ts(x)`、`src/hooks/use-minimum-loading-time.ts`、`src/hooks/use-table-url-state.ts`、`src/lib/theme-radius.ts`、`src/lib/defer-effect.ts`。
+  - shared/component：data table、datetime/json editor、risk acknowledgement dialog、AI web preview。
+  - 页面与功能：auth、channels、dashboard charts、models dialogs/drawer、playground、profile、subscriptions、system settings、usage logs、users、wallet。
+- 具体 lint 收敛：
+  - `react-hooks/set-state-in-effect`：effect 内同步初始化/刷新改为 `deferEffect`；保留原数据来源、条件与后续 setState 顺序。
+  - `react-hooks/refs`：settings 表单提交从 JSX 直接读取 `form.handleSubmit(...)` 改为稳定 submit wrapper。
+  - `react-hooks/static-components`：`usage-logs` 的 `InfoItem` 移出组件 render。
+  - `react-hooks/purity`：订阅剩余天数/过期判断改用刷新时的 `nowSeconds` 状态快照，不在 render 中调用 `Date.now()`。
+  - `@tanstack/query/exhaustive-deps`：补齐 playground/users query key 中实际被 queryFn 使用的依赖。
+  - `react-hooks/immutability` / `preserve-manual-memoization` / `exhaustive-deps`：调整先用后声明的 loader/callback、稳定 memo 依赖、移除无效依赖。
+- 新鲜验证命令：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint` 通过，`0 errors, 0 warnings`。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run typecheck` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run build` 通过；rsbuild 输出继续包含 self-hosted Inter、Fraunces、IBM Plex Mono 字体。Node 输出 `module.register()` deprecation warning，但构建 exit 0。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-theme.mjs && bun scripts/verify-geili-editorial-components.mjs && bun scripts/verify-geili-editorial-pages.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
+- 范围确认：`web/classic` 无 diff；未 push、未部署、未改真实站点配置。此前 authenticated/public 明暗截图 QA 仍沿用 `artifacts/geili-editorial-screenshots/` 中已记录的截图。
+- 当前状态：Geili Editorial 视觉改造、明暗截图 QA、静态验收、lint、typecheck、build 均已满足原 Goal 完成定义；待提交本轮 lint gate 收尾改动。

@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, Trash2, Power, PowerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -87,16 +88,6 @@ export function MultiKeyManageDialog({
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
 
-  // Reset and load data when dialog opens
-  useEffect(() => {
-    if (open && currentRow) {
-      setCurrentPage(1)
-      setStatusFilter(null)
-      loadKeyStatus(1, pageSize, null)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentRow?.id])
-
   const loadKeyStatus = async (
     page: number = currentPage,
     size: number = pageSize,
@@ -133,6 +124,18 @@ export function MultiKeyManageDialog({
       setIsLoading(false)
     }
   }
+
+  // Reset and load data when dialog opens
+  useEffect(() => {
+    if (open && currentRow) {
+      return deferEffect(() => {
+        setCurrentPage(1)
+        setStatusFilter(null)
+        void loadKeyStatus(1, pageSize, null)
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, currentRow?.id])
 
   const handleStatusFilterChange = (value: string) => {
     const newFilter = value === 'all' ? null : parseInt(value)

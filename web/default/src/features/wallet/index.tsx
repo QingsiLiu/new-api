@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
+import { deferEffect } from '@/lib/defer-effect'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
@@ -120,25 +121,31 @@ export function Wallet(props: WalletProps) {
   }, [])
 
   useEffect(() => {
-    fetchUser()
+    return deferEffect(() => {
+      void fetchUser()
+    })
   }, [fetchUser])
 
   useEffect(() => {
     if (props.initialShowHistory) {
-      setBillingDialogOpen(true)
-      window.history.replaceState({}, '', window.location.pathname)
+      return deferEffect(() => {
+        setBillingDialogOpen(true)
+        window.history.replaceState({}, '', window.location.pathname)
+      })
     }
   }, [props.initialShowHistory])
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
     if (topupInfo && topupAmount === 0) {
-      const minTopup = getMinTopupAmount(topupInfo)
-      setTopupAmount(minTopup)
+      return deferEffect(() => {
+        const minTopup = getMinTopupAmount(topupInfo)
+        setTopupAmount(minTopup)
 
-      // Calculate initial payment amount with default payment type
-      const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+        // Calculate initial payment amount with default payment type
+        const defaultPaymentType = getDefaultPaymentType(topupInfo)
+        calculatePaymentAmount(minTopup, defaultPaymentType)
+      })
     }
   }, [topupInfo, topupAmount, calculatePaymentAmount])
 

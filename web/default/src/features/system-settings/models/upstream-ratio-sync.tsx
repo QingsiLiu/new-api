@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckSquare, RefreshCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import {
   fetchUpstreamRatios,
@@ -166,16 +167,18 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
 
   useEffect(() => {
     if (channels.length === 0) return
-    setChannelEndpoints((prev) => {
-      let mutated = false
-      const next = { ...prev }
-      for (const channel of channels) {
-        if (!next[channel.id]) {
-          next[channel.id] = getDefaultEndpointForChannel(channel)
-          mutated = true
+    return deferEffect(() => {
+      setChannelEndpoints((prev) => {
+        let mutated = false
+        const next = { ...prev }
+        for (const channel of channels) {
+          if (!next[channel.id]) {
+            next[channel.id] = getDefaultEndpointForChannel(channel)
+            mutated = true
+          }
         }
-      }
-      return mutated ? next : prev
+        return mutated ? next : prev
+      })
     })
   }, [channels])
 

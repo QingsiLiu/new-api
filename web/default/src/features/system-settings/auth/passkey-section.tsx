@@ -184,12 +184,16 @@ export function PasskeySection(props: PasskeySectionProps) {
     form.reset(buildFormDefaults(normalized))
   }
 
+  const submitForm = (event?: React.BaseSyntheticEvent) => {
+    void form.handleSubmit(onSubmit)(event)
+  }
+
   return (
     <SettingsSection title={t('Passkey Authentication')}>
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+        <SettingsForm onSubmit={submitForm}>
           <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
+            onSave={submitForm}
             isSaving={updateOption.isPending}
           />
           <FormField

@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -62,15 +63,17 @@ export function SyncWizardDialog({
 
   useEffect(() => {
     if (open) {
-      setLocale(syncWizardOptions.locale || 'zh')
-      const preferredSource = SYNC_SOURCE_OPTIONS.find(
-        (option) => option.value === syncWizardOptions.source
-      )
-      setSource(
-        preferredSource && !preferredSource.disabled
-          ? (preferredSource.value as SyncSource)
-          : 'official'
-      )
+      return deferEffect(() => {
+        setLocale(syncWizardOptions.locale || 'zh')
+        const preferredSource = SYNC_SOURCE_OPTIONS.find(
+          (option) => option.value === syncWizardOptions.source
+        )
+        setSource(
+          preferredSource && !preferredSource.disabled
+            ? (preferredSource.value as SyncSource)
+            : 'official'
+        )
+      })
     }
   }, [open, syncWizardOptions, SYNC_SOURCE_OPTIONS])
 

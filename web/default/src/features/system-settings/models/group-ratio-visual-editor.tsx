@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useMemo, useEffect, useCallback, memo } from 'react'
 import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -757,15 +758,17 @@ function GroupPricingTable({
   )
 
   useEffect(() => {
-    const incomingSignature = sourceGroupPricingSignature(
-      groupRatio,
-      userUsableGroups
-    )
-    setRows((currentRows) => {
-      if (groupPricingSignature(currentRows) === incomingSignature) {
-        return currentRows
-      }
-      return buildGroupPricingRows(groupRatio, userUsableGroups)
+    return deferEffect(() => {
+      const incomingSignature = sourceGroupPricingSignature(
+        groupRatio,
+        userUsableGroups
+      )
+      setRows((currentRows) => {
+        if (groupPricingSignature(currentRows) === incomingSignature) {
+          return currentRows
+        }
+        return buildGroupPricingRows(groupRatio, userUsableGroups)
+      })
     })
   }, [groupRatio, userUsableGroups])
 
@@ -981,14 +984,16 @@ function SimpleGroupDialog({
   const title = type === 'groupRatio' ? t('group ratio') : t('top-up ratio')
 
   useEffect(() => {
-    if (!open) {
-      setName('')
-      setValue('')
-      return
-    }
+    return deferEffect(() => {
+      if (!open) {
+        setName('')
+        setValue('')
+        return
+      }
 
-    setName(editData?.name ?? '')
-    setValue(editData?.value ?? '')
+      setName(editData?.name ?? '')
+      setValue(editData?.value ?? '')
+    })
   }, [editData, open])
 
   const handleSave = () => {
@@ -1070,14 +1075,16 @@ function GroupOverrideDialog({
   const [ratio, setRatio] = useState('')
 
   useEffect(() => {
-    if (!open) {
-      setTargetGroup('')
-      setRatio('')
-      return
-    }
+    return deferEffect(() => {
+      if (!open) {
+        setTargetGroup('')
+        setRatio('')
+        return
+      }
 
-    setTargetGroup(editData?.targetGroup ?? '')
-    setRatio(editData ? String(editData.ratio) : '')
+      setTargetGroup(editData?.targetGroup ?? '')
+      setRatio(editData ? String(editData.ratio) : '')
+    })
   }, [editData, open])
 
   const handleSave = () => {

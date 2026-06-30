@@ -22,6 +22,7 @@ import type {
   OnChangeFn,
   PaginationState,
 } from '@tanstack/react-table'
+import { deferEffect } from '@/lib/defer-effect'
 
 type SearchRecord = Record<string, unknown>
 
@@ -130,7 +131,7 @@ export function useTableUrlState(
 
   // URL 为单一数据源：仅当 search（URL）变化时同步，避免依赖 initialColumnFilters 造成死循环（config 常为内联引用）
   useEffect(() => {
-    setColumnFilters(initialColumnFilters)
+    return deferEffect(() => setColumnFilters(initialColumnFilters))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 

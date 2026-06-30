@@ -21,6 +21,7 @@ import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
+import { deferEffect } from '@/lib/defer-effect'
 import { formatQuota } from '@/lib/format'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -73,11 +74,13 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
 
   useEffect(() => {
-    if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-      setSelectedEpayMethod(props.epayMethods[0].type)
-    } else if (!props.open) {
-      setSelectedEpayMethod('')
-    }
+    return deferEffect(() => {
+      if (props.open && props.epayMethods && props.epayMethods.length > 0) {
+        setSelectedEpayMethod(props.epayMethods[0].type)
+      } else if (!props.open) {
+        setSelectedEpayMethod('')
+      }
+    })
   }, [props.open, props.epayMethods])
 
   const plan = props.plan?.plan

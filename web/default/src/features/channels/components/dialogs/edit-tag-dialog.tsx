@@ -21,6 +21,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -94,18 +95,20 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
   // Initialize form when tag changes
   useEffect(() => {
     if (open && currentTag) {
-      setNewTag(currentTag)
-      setModelMapping('')
-      setSelectedGroups([])
-      setCustomModel('')
+      return deferEffect(() => {
+        setNewTag(currentTag)
+        setModelMapping('')
+        setSelectedGroups([])
+        setCustomModel('')
 
-      // Load tag models
-      if (tagModelsData?.data) {
-        const models = tagModelsData.data.split(',').filter(Boolean)
-        setSelectedModels(models)
-      } else {
-        setSelectedModels([])
-      }
+        // Load tag models
+        if (tagModelsData?.data) {
+          const models = tagModelsData.data.split(',').filter(Boolean)
+          setSelectedModels(models)
+        } else {
+          setSelectedModels([])
+        }
+      })
     }
   }, [open, currentTag, tagModelsData])
 

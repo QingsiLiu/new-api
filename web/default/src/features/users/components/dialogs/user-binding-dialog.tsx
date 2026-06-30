@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 import { SiGithub, SiDiscord } from 'react-icons/si'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -202,14 +203,16 @@ export function UserBindingDialog(props: Props) {
   }, [props.userId, t])
 
   useEffect(() => {
-    if (props.open && props.userId) {
-      setShowBoundOnly(true)
-      fetchData()
-    } else {
-      setUser(null)
-      setOauthBindings([])
-      setStatusInfo({})
-    }
+    return deferEffect(() => {
+      if (props.open && props.userId) {
+        setShowBoundOnly(true)
+        void fetchData()
+      } else {
+        setUser(null)
+        setOauthBindings([])
+        setStatusInfo({})
+      }
+    })
   }, [props.open, props.userId, fetchData])
 
   const allBindings = useMemo<BindingItem[]>(() => {

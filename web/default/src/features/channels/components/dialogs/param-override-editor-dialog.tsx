@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -1114,34 +1115,39 @@ export function ParamOverrideEditorDialog(
   // Initialize state when dialog opens
   useEffect(() => {
     if (!props.open) return
-    const state = parseInitialState(props.value)
-    setEditMode(state.editMode)
-    setVisualMode(state.visualMode)
-    setLegacyValue(state.legacyValue)
-    setOperations(state.operations)
-    setJsonText(state.jsonText)
-    setJsonError(state.jsonError)
-    setOperationSearch('')
-    setSelectedOperationId(state.operations[0]?.id || '')
-    setExpandedConditions({})
-    setDraggedOperationId('')
-    setDragOverOperationId('')
-    setDragOverPosition('before')
-    if (state.visualMode === 'legacy') {
-      setTemplatePresetKey('legacy_default')
-    } else {
-      setTemplatePresetKey('operations_default')
-    }
+    return deferEffect(() => {
+      const state = parseInitialState(props.value)
+      setEditMode(state.editMode)
+      setVisualMode(state.visualMode)
+      setLegacyValue(state.legacyValue)
+      setOperations(state.operations)
+      setJsonText(state.jsonText)
+      setJsonError(state.jsonError)
+      setOperationSearch('')
+      setSelectedOperationId(state.operations[0]?.id || '')
+      setExpandedConditions({})
+      setDraggedOperationId('')
+      setDragOverOperationId('')
+      setDragOverPosition('before')
+      if (state.visualMode === 'legacy') {
+        setTemplatePresetKey('legacy_default')
+      } else {
+        setTemplatePresetKey('operations_default')
+      }
+    })
   }, [props.open, props.value])
 
   // Keep selectedOperationId valid
   useEffect(() => {
     if (operations.length === 0) {
-      setSelectedOperationId('')
-      return
+      return deferEffect(() => {
+        setSelectedOperationId('')
+      })
     }
     if (!operations.some((o) => o.id === selectedOperationId)) {
-      setSelectedOperationId(operations[0].id)
+      return deferEffect(() => {
+        setSelectedOperationId(operations[0].id)
+      })
     }
   }, [operations, selectedOperationId])
 

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import {
   AlertDialog,
@@ -90,15 +91,28 @@ export function RiskAcknowledgementDialog({
   const normalizedRequiredTextParts = useMemo<
     NormalizedRequiredTextPart[]
   >(() => {
-    let inputIndex = 0
-    return requiredTextParts.map((part) => {
-      if (part.type === 'input') {
-        const normalizedPart = { ...part, inputIndex }
-        inputIndex += 1
-        return normalizedPart
-      }
-      return part
-    })
+    return requiredTextParts.reduce<{
+      parts: NormalizedRequiredTextPart[]
+      inputCount: number
+    }>(
+      (accumulator, part) => {
+        if (part.type === 'input') {
+          return {
+            parts: [
+              ...accumulator.parts,
+              { ...part, inputIndex: accumulator.inputCount },
+            ],
+            inputCount: accumulator.inputCount + 1,
+          }
+        }
+
+        return {
+          parts: [...accumulator.parts, part],
+          inputCount: accumulator.inputCount,
+        }
+      },
+      { parts: [], inputCount: 0 }
+    ).parts
   }, [requiredTextParts])
 
   const requiredTextInputCount = useMemo(
@@ -114,9 +128,11 @@ export function RiskAcknowledgementDialog({
 
   useEffect(() => {
     if (!open) return
-    setCheckedItems(Array(checklist.length).fill(false))
-    setTypedText('')
-    setTypedTextParts(Array(requiredTextInputCount).fill(''))
+    return deferEffect(() => {
+      setCheckedItems(Array(checklist.length).fill(false))
+      setTypedText('')
+      setTypedTextParts(Array(requiredTextInputCount).fill(''))
+    })
   }, [open, checklist.length, requiredTextInputCount])
 
   const allChecked = useMemo(() => {
