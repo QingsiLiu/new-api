@@ -74,7 +74,7 @@ export const textColorMap = {
 export type StatusVariant = keyof typeof dotColorMap
 
 /** Controls the visual style of the badge.
- * - `badge`    — default pill with background and padding (default)
+ * - `badge`    — default editorial chip with dot and mono text (default)
  * - `text`     — plain text, no background or padding, only color
  * - `underline`— plain text with a bottom border underline
  */
@@ -86,14 +86,14 @@ export const StatusBadgeTypeContext =
   React.createContext<StatusBadgeType>('badge')
 
 const sizeMap = {
-  sm: 'h-5 gap-1 px-1.5 text-xs leading-none',
-  md: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  sm: 'h-5 gap-1.5 px-1.5 text-[0.6875rem] leading-none',
+  md: 'h-5 gap-1.5 px-1.5 text-[0.6875rem] leading-none',
   lg: 'h-6 gap-1.5 px-2 text-xs leading-none',
 } as const
 
 const textSizeMap = {
-  sm: 'gap-1 text-xs leading-none',
-  md: 'gap-1 text-xs leading-none',
+  sm: 'gap-1.5 text-[0.6875rem] leading-none',
+  md: 'gap-1.5 text-[0.6875rem] leading-none',
   lg: 'gap-1.5 text-xs leading-none',
 } as const
 
@@ -105,7 +105,7 @@ export interface StatusBadgeProps extends Omit<
   children?: React.ReactNode
   icon?: LucideIcon
   pulse?: boolean
-  /** Kept for compatibility. Badges no longer render leading dots. */
+  /** Kept for compatibility; badges render a leading dot by default. */
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
@@ -123,7 +123,7 @@ export function StatusBadge({
   variant,
   size = 'sm',
   pulse = false,
-  showDot = false,
+  showDot = true,
   copyable = true,
   copyText,
   autoColor,
@@ -164,8 +164,12 @@ export function StatusBadge({
       data-slot='status-badge'
       className={cn(
         'inline-flex w-fit max-w-full min-w-0 shrink items-center font-medium tracking-normal whitespace-nowrap transition-colors',
+        'font-mono tracking-[0.12em] uppercase',
         isBadge
-          ? cn('rounded-4xl', sizeMap[size ?? 'sm'])
+          ? cn(
+              'border-border rounded-full border bg-transparent',
+              sizeMap[size ?? 'sm']
+            )
           : cn(
               textSizeMap[size ?? 'sm'],
               type === 'underline' && 'border-b border-current pb-px'

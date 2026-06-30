@@ -62,6 +62,25 @@ Target: `web/default` only
   - `bun run typecheck` in `web/default`: passed.
   - `bun run build` in `web/default`: passed.
 
+## Stage 4 - Shared Components And App Shell Skin
+
+- Restyled shared primitives in `web/default/src/components/ui/` for the editorial system:
+  - Buttons are squarer, smaller, semantic-token based, and use primary only for intentional default actions.
+  - Cards, tables, empty states, tabs, inputs, selects, comboboxes, command menus, dropdowns, context menus, hover cards, dialogs, sheets, popovers, menubars, keyboard hints, and chart tooltips now rely on hairline borders and token backgrounds instead of shadow/glass stacking.
+  - Status badges now default to an editorial dot + mono uppercase label pattern; group/provider badges inherit that treatment.
+- Restyled shared data-table surfaces:
+  - Table headers use mono labels, stronger top hairline, tokenized hover/selected rows, card-toned table containers, and hairline pinned columns instead of HSL shadow edges.
+  - Bulk action floating toolbar now uses popover tokens and no heavy shadow/scale.
+- Restyled app shell basics:
+  - Header now has a translucent paper/ink hairline.
+  - Sidebar nav labels/items use mono uppercase text and a small tokenized primary active marker instead of filled active blocks.
+  - Section page headers use Fraunces titles with larger editorial spacing.
+  - System brand still uses the configured backend logo/system name; only its surrounding frame/typography changed.
+- Verification after Stage 4:
+  - `bunx prettier --write ...` for all touched shared component files in `web/default`: passed.
+  - `bun run typecheck` in `web/default`: passed.
+  - `bun run build` in `web/default`: passed.
+
 ## Next
 
-- Stage 4: restyle shared UI, layout, data table, status, and overlay components without changing business logic.
+- Stage 5: add dedicated editorial stat/label/status components, then begin page-level passes.

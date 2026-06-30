@@ -45,7 +45,7 @@ export function ProviderBadge({
         label={label}
         autoColor={label}
         size='sm'
-        className={cn('min-w-0 shrink overflow-hidden', !icon && 'pl-0')}
+        className={cn('min-w-0 shrink overflow-hidden', !icon && 'pl-1')}
         {...badgeProps}
       />
     </div>

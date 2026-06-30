@@ -47,7 +47,7 @@ export function DataTableColumnHeader<TData, TValue>({
 }: DataTableColumnHeaderProps<TData, TValue>) {
   const { t } = useTranslation()
   if (!column.getCanSort()) {
-    return <div className={cn(className)}>{title}</div>
+    return <div className={cn('editorial-label', className)}>{title}</div>
   }
 
   return (
@@ -58,7 +58,7 @@ export function DataTableColumnHeader<TData, TValue>({
             <Button
               variant='ghost'
               size='sm'
-              className='data-popup-open:bg-accent -ms-3 h-8'
+              className='editorial-label data-popup-open:bg-accent text-muted-foreground hover:text-foreground -ms-3 h-8'
             />
           }
         >
