@@ -185,3 +185,16 @@ Target: `web/default` only
   - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
   - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint` 仍被既有 React hooks/query 基线债务阻塞，最新为 `101 errors, 4 warnings`，数量与 baseline 一致；本次未扩大该债务。
 - 截图自检：本次修改集中在 pricing 详情/表格/图表样式；本地 public pricing 路由仍受 `/api/status` 缺失影响无法展示真实 pricing 内容，需负责人用真实后端/session 做最终肉眼验收。
+
+## 2026-07-01 00:04 CST
+- 做了什么：恢复上个执行会话中为尝试清理 lint 而产生的未提交实验改动，涉及 data-table hook/mobile card、risk acknowledgement dialog、loading/mobile hooks、theme radius hook。这些改动会进入 React hooks 行为层，超出本 Goal "只改视觉层"边界，因此未保留。
+- 工作树状态：恢复后 `git status --short` 为空，当前可交付视觉成果仍停留在已提交的 `beff08d style(web): finish pricing editorial token cleanup` 之上。
+- 新鲜验证命令：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-theme.mjs && bun scripts/verify-geili-editorial-components.mjs && bun scripts/verify-geili-editorial-pages.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run typecheck` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run build` 通过；构建产物继续包含 Inter、Fraunces、IBM Plex Mono 自托管字体。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint` 失败，输出 `105 problems (101 errors, 4 warnings)`；错误仍集中在既有 React hooks/query 规则，如 `react-hooks/set-state-in-effect`、`react-hooks/refs`、`react-hooks/purity`、`react-hooks/immutability`、`@tanstack/query/exhaustive-deps`。继续修复需要跨入行为/hook 重构，不符合本视觉-only Goal 的红线。
+- 当前阻塞：
+  - 完成定义里的 `lint` 通过无法在"只改视觉层"前提下达成；需要负责人明确授权单独处理既有 lint 债务，或调整本 Goal 对 lint 的验收口径。
+  - 受本地无真实后端/session 限制，dashboard、Keys、usage、billing、settings 等受保护路由仍需负责人在真实本地会话中做最终明暗截图/肉眼验收。
