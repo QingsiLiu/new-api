@@ -225,3 +225,21 @@ Target: `web/default` only
 - 结果：上述受保护路由均在真实本地 session 下打开，没有重定向回登录页；亮色截图 `htmlClass` 为 `font-inter light`，暗色截图为 `font-inter dark`。抽检 `dashboard-light/dark`、`keys-light`、`system-settings-dark`：暖纸/墨纸、Fraunces 标题、Inter 文案、IBM Plex Mono 标签、hairline 分区、单一朱砂焦点均可见。空数据库下 Keys/Usage/Channels/Models 等页面展示为空态，这是 QA 数据状态，不是视觉回归。
 - 登录页截图：未登录登录页本身没有主题设置入口；继续沿用前序 `sign-in-light-final.png` / `sign-in-dark-final.png` 作为登录页明暗截图证据。
 - 剩余阻塞：`bun run lint` 若仍失败，仍属于既有 React hooks/query 规则债务；修复需要进入行为/hook 重构，超出本 Goal visual-only 红线。
+
+## 2026-07-01 00:45 CST
+- 做了什么：接续被中断的 goal，重新确认 worktree/branch 仍为 `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui` / `codex/geili-editorial-ui`，并复核 Goal 与 Parent 规范。未做业务逻辑改动。
+- 中断根因复核：上一次卡点不是目标丢失，也不是分支错误，而是完成定义要求 `bun run lint` 通过；当前仓库 baseline 已存在 React hooks/query lint 债务。继续把所有 lint 修绿需要进入 hooks/query 行为重构，超出本 Goal "只改视觉层"红线。
+- 新鲜验证命令：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-theme.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-components.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-pages.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run typecheck` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run build` 通过，产物继续包含 Inter、Fraunces、IBM Plex Mono 自托管字体。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint --format json --output-file /tmp/geili-editorial-eslint-fresh.json` 失败，`101 errors, 4 warnings`。规则分布：`react-hooks/set-state-in-effect` 64、`react-hooks/refs` 13、`react-hooks/static-components` 9、`react-hooks/immutability` 6、`@tanstack/query/exhaustive-deps` 3、其余 hooks/refresh 规则少量。
+- 分支归因：
+  - changed-file lint errors 仅 3 个，位于 `src/features/wallet/components/recharge-form-card.tsx` 与 `src/features/wallet/components/subscription-plans-card.tsx`。
+  - 对比 `origin/main` 后确认这些 hooks/purity 报错代码在默认分支已存在；本视觉分支在这两个文件只做了语义色/阴影 class 调整（如 `text-green-600` -> `text-success`、移除 `shadow-sm`），未引入这些 lint 失败。
+- 当前状态：
+  - Geili Editorial 视觉改造、静态验收、typecheck/build、截图 QA 均已收口到可审状态。
+  - 唯一未满足的原始完成定义是 `lint` 全绿；在不越过 visual-only 边界的前提下无法继续修复。建议后续单独授权 hooks/query lint debt 目标，或将本 Goal 的 lint 验收改为"无新增 lint 债务 + baseline 已记录"。
