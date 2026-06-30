@@ -30,6 +30,23 @@ Target: `web/default` only
   - `bun run build` in `web/default`: passed.
   - Build output includes bundled `inter-*`, `fraunces-*`, and `ibm-plex-mono-*` font assets.
 
+## Stage 2 - Geili Editorial Preset
+
+- Added `geili-editorial` to `THEME_PRESETS` and set `DEFAULT_THEME_CUSTOMIZATION.preset` to it.
+- Updated the theme customization provider so the `geili-editorial` default still writes `data-theme-preset="geili-editorial"` to `<body>`.
+- Added complete light and dark token blocks in `web/default/src/styles/theme-presets.css` for:
+  - warm paper / ink paper backgrounds,
+  - cinnabar `--primary`,
+  - muted semantic status colors,
+  - chart, sidebar, skeleton, border, input, and radius tokens.
+- Kept the old neutral `default` preset available for manual selection.
+- Added localized preset labels for `preset.geili-editorial`.
+- Added `web/default/scripts/verify-geili-editorial-theme.mjs` to statically verify preset registration, default selection, and full light/dark token coverage.
+- Verification after Stage 2:
+  - `bun scripts/verify-geili-editorial-theme.mjs` in `web/default`: passed.
+  - `bun run typecheck` in `web/default`: passed.
+  - `bun run build` in `web/default`: passed.
+
 ## Next
 
-- Stage 2: add the `geili-editorial` preset tokens, register it in the preset picker, and make it the default theme customization.
+- Stage 3: add global editorial typography, hairline, spacing, and motion base rules.
