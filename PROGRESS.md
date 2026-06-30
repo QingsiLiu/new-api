@@ -141,3 +141,23 @@ Target: `web/default` only
 - Stages 1-6 are implemented in `web/default`; Stage 7/8 static and public visual QA are complete within the local environment limits.
 - Remaining human QA item: authenticated dashboard/admin pages need a real backend/session for screenshot verification.
 - Remaining repository-wide gate: full `bun run lint` is still blocked by pre-existing baseline lint debt, unchanged in count from the baseline noted above.
+
+## 2026-06-30 21:45 CST
+- 做了什么：继续收口 Geili Editorial 的最后一批语义色替换，把 dashboard 图表悬停/选中、模型 uptime/性能徽章、usage logs 的行底色/统计徽章/移动端卡片全部从硬编码红蓝橙绿切到主题语义 token（`success` / `warning` / `info` / `destructive` / `border` / `chart-*`），让明暗两套主题都能稳定吃到同一套 editorial 颜色口径。
+- 证据路径：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/dashboard/lib/charts.ts`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-details-uptime-sparkline.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/pricing/components/model-perf-badge.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/usage-logs/components/columns/common-logs-columns.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/usage-logs/components/common-logs-stats.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/usage-logs/components/usage-logs-mobile-card.tsx`
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default/src/features/usage-logs/components/usage-logs-table.tsx`
+- 验证命令：
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run typecheck` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run build` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun scripts/verify-geili-editorial-theme.mjs && bun scripts/verify-geili-editorial-components.mjs && bun scripts/verify-geili-editorial-pages.mjs` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
+  - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui/web/default`: `bun run lint` 仍然被仓库既有 React hooks/query 基线债务阻塞，错误数与 Stage 7/8 记录一致。
+- 截图自检：
+  - 复看了 `artifacts/geili-editorial-screenshots/` 中的 `dashboard-light-final.png`、`usage-logs-light-final.png`、`usage-logs-dark-final.png`、`sign-in-light-final.png`、`sign-in-dark-final.png`。
+  - 亮/暗纸面、Fraunces 标题、Inter 文案、朱砂主按钮、hairline 边界都正常；受限路由下的 usage-logs/dashboard 仍会回到登录页，这是已知的后台会话限制，不是新回归。

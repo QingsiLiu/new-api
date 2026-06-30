@@ -559,14 +559,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           : 'neutral'
 
         const timingBgMap: Record<string, string> = {
-          success:
-            'border border-emerald-200/40 bg-emerald-50/35 dark:border-emerald-900/40 dark:bg-emerald-950/15',
-          warning:
-            'border border-amber-200/45 bg-amber-50/35 dark:border-amber-900/40 dark:bg-amber-950/15',
-          danger:
-            'border border-rose-200/50 bg-rose-50/35 dark:border-rose-900/40 dark:bg-rose-950/15',
-          neutral:
-            'border border-border/60 bg-muted/30 dark:border-border/40 dark:bg-muted/20',
+          success: 'border border-success/20 bg-success/10',
+          warning: 'border border-warning/25 bg-warning/10',
+          danger: 'border border-destructive/25 bg-destructive/10',
+          neutral: 'border border-border/60 bg-muted/30',
         }
 
         return (
@@ -774,7 +770,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     primary.muted
                       ? 'text-muted-foreground/60'
                       : primary.danger
-                        ? 'text-red-600 dark:text-red-400'
+                        ? 'text-destructive'
                         : 'text-foreground'
                   )}
                 >
