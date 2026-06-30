@@ -1450,6 +1450,62 @@ func TestAsyncProductImageTaskRouteReturnsPaymentRequiredWhenQuotaInsufficient(t
 	require.Zero(t, taskCount)
 }
 
+func TestAsyncProductTaskContentReturnsNotFoundBeforeSuccess(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("upstream should not be called by content lookup for queued task: %s", r.URL.Path)
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	task := &model.Task{
+		TaskID:     "task_content_missing",
+		UserId:     2001,
+		ChannelId:  4001,
+		Platform:   asyncTaskPlatformOpenAI,
+		Action:     asyncTaskActionGenerate,
+		Status:     model.TaskStatusQueued,
+		SubmitTime: time.Now().Unix(),
+		CreatedAt:  time.Now().Unix(),
+		UpdatedAt:  time.Now().Unix(),
+	}
+	task.SetData(asyncTaskData{Kind: asyncTaskKindImage, Action: asyncTaskActionGenerate, Model: "gpt-image-2"})
+	require.NoError(t, model.DB.Create(task).Error)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/tasks/"+task.TaskID+"/content", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "content not found")
+}
+
+func TestAsyncProductImageTaskRouteReturnsTooManyRequestsWhenRunnerRejects(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("upstream should not be called when runner rejects queueing: %s", r.URL.Path)
+	}))
+	defer upstream.Close()
+	restoreRunner := setAsyncTaskRunnerForTest(func(taskID string, channelID int, execution asyncTaskExecution) error {
+		return fmt.Errorf("queue full")
+	})
+	defer restoreRunner()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"product route image while queue is full"},
+		"parameters":{"quality":"high","size":"1024x1024","n":1}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusTooManyRequests, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "queued_limit_exceeded")
+}
+
 func TestAsyncProductRouteCanChargeTargetUserWhenServiceProxyEnabled(t *testing.T) {
 	previous := operation_setting.AsyncTaskServiceUserProxyEnabled
 	operation_setting.AsyncTaskServiceUserProxyEnabled = true
