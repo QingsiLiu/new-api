@@ -20,6 +20,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { ROLE } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -91,23 +92,25 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
   useEffect(() => {
     if (profile?.setting) {
-      const parsed = parseUserSettings(profile.setting)
-      setSettings({
-        notify_type: normalizeNotifyType(parsed.notify_type),
-        quota_warning_threshold:
-          parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
-        notification_email: parsed.notification_email ?? '',
-        webhook_url: parsed.webhook_url ?? '',
-        webhook_secret: parsed.webhook_secret ?? '',
-        bark_url: parsed.bark_url ?? '',
-        gotify_url: parsed.gotify_url ?? '',
-        gotify_token: parsed.gotify_token ?? '',
-        gotify_priority: parsed.gotify_priority ?? 5,
-        accept_unset_model_ratio_model:
-          parsed.accept_unset_model_ratio_model || false,
-        record_ip_log: parsed.record_ip_log || false,
-        upstream_model_update_notify_enabled:
-          parsed.upstream_model_update_notify_enabled || false,
+      return deferEffect(() => {
+        const parsed = parseUserSettings(profile.setting)
+        setSettings({
+          notify_type: normalizeNotifyType(parsed.notify_type),
+          quota_warning_threshold:
+            parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
+          notification_email: parsed.notification_email ?? '',
+          webhook_url: parsed.webhook_url ?? '',
+          webhook_secret: parsed.webhook_secret ?? '',
+          bark_url: parsed.bark_url ?? '',
+          gotify_url: parsed.gotify_url ?? '',
+          gotify_token: parsed.gotify_token ?? '',
+          gotify_priority: parsed.gotify_priority ?? 5,
+          accept_unset_model_ratio_model:
+            parsed.accept_unset_model_ratio_model || false,
+          record_ip_log: parsed.record_ip_log || false,
+          upstream_model_update_notify_enabled:
+            parsed.upstream_model_update_notify_enabled || false,
+        })
       })
     }
   }, [profile])

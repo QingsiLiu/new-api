@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
 import { toast } from 'sonner'
 import { IconDiscord } from '@/assets/brand-icons'
+import { deferEffect } from '@/lib/defer-effect'
 import {
   handleGitHubOAuth,
   handleOIDCOAuth,
@@ -86,7 +87,9 @@ export function AccountBindingsTab({
   }, [customProviders])
 
   useEffect(() => {
-    fetchCustomBindings()
+    return deferEffect(() => {
+      void fetchCustomBindings()
+    })
   }, [fetchCustomBindings])
 
   const handleUnbindCustom = async () => {
@@ -115,7 +118,9 @@ export function AccountBindingsTab({
 
   const handleBindCustomOAuth = (provider: { id: string; name: string }) => {
     const redirectUrl = `${window.location.origin}/oauth/${provider.id}?bind=true`
-    window.location.href = `/api/oauth/${provider.id}?redirect=${encodeURIComponent(redirectUrl)}`
+    window.location.assign(
+      `/api/oauth/${provider.id}?redirect=${encodeURIComponent(redirectUrl)}`
+    )
   }
 
   useEffect(() => {
@@ -135,11 +140,13 @@ export function AccountBindingsTab({
       } catch {
         // ignore malformed payloads
       }
-      try {
-        window.localStorage.removeItem(OAUTH_BIND_STORAGE_KEY)
-      } catch {
-        // ignore cleanup failure
-      }
+      void deferEffect(() => {
+        try {
+          window.localStorage.removeItem(OAUTH_BIND_STORAGE_KEY)
+        } catch {
+          // ignore cleanup failure
+        }
+      })
     }
 
     window.addEventListener('storage', handleStorage)

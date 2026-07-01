@@ -21,7 +21,7 @@ import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
-type StatCardTone = 'rose' | 'teal' | 'gray'
+type StatCardTone = 'primary' | 'success' | 'neutral'
 type StatCardSparklineVariant = 'bars' | 'line'
 type StatCardDetailTone =
   | 'default'
@@ -51,15 +51,15 @@ interface StatCardProps {
 }
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
-  rose: 'from-rose-500/80 via-rose-300/70 to-rose-200/20 dark:from-rose-400/70 dark:via-rose-500/30 dark:to-rose-500/5',
-  teal: 'from-teal-500/80 via-teal-300/70 to-teal-200/20 dark:from-teal-400/70 dark:via-teal-500/30 dark:to-teal-500/5',
-  gray: 'from-muted-foreground/50 via-muted-foreground/20 to-transparent dark:from-muted-foreground/40 dark:via-muted-foreground/20',
+  primary: 'bg-primary',
+  success: 'bg-success',
+  neutral: 'bg-muted-foreground',
 }
 
 const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
-  rose: 'text-warning',
-  teal: 'text-primary',
-  gray: 'text-muted-foreground',
+  primary: 'text-primary',
+  success: 'text-success',
+  neutral: 'text-muted-foreground',
 }
 
 const DETAIL_TONE_CLASSES: Record<StatCardDetailTone, string> = {
@@ -165,7 +165,7 @@ function BarSparkline(props: { values?: number[]; tone: StatCardTone }) {
         <span
           key={`spark-${index}`}
           className={cn(
-            'flex-1 rounded-t-sm bg-linear-to-t',
+            'flex-1 rounded-t-sm',
             height <= 0 && 'opacity-20',
             TONE_CLASSES[props.tone]
           )}
@@ -204,7 +204,7 @@ function StatCardDetails(props: { details: StatCardDetail[] }) {
 
 export function StatCard(props: StatCardProps) {
   const Icon = props.icon
-  const tone = props.tone ?? 'gray'
+  const tone = props.tone ?? 'neutral'
   const sparklineVariant = props.sparklineVariant ?? 'bars'
 
   return (
@@ -236,7 +236,7 @@ export function StatCard(props: StatCardProps) {
         </div>
       ) : (
         <div className='flex flex-col gap-1'>
-          <div className='text-foreground font-mono text-2xl font-semibold tracking-tight break-all tabular-nums'>
+          <div className='editorial-stat-value text-foreground text-2xl break-all'>
             {props.value}
           </div>
           <p className='text-muted-foreground/60 text-xs leading-relaxed'>

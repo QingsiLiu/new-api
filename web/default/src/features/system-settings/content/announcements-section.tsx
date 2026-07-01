@@ -24,6 +24,7 @@ import { Plus, Edit, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import dayjs from '@/lib/dayjs'
+import { deferEffect } from '@/lib/defer-effect'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -153,23 +154,27 @@ export function AnnouncementsSection({
   })
 
   useEffect(() => {
-    try {
-      const parsed = JSON.parse(data || '[]')
-      if (Array.isArray(parsed)) {
-        setAnnouncements(
-          parsed.map((item, idx) => ({
-            ...item,
-            id: item.id || idx + 1,
-          }))
-        )
+    return deferEffect(() => {
+      try {
+        const parsed = JSON.parse(data || '[]')
+        if (Array.isArray(parsed)) {
+          setAnnouncements(
+            parsed.map((item, idx) => ({
+              ...item,
+              id: item.id || idx + 1,
+            }))
+          )
+        }
+      } catch {
+        setAnnouncements([])
       }
-    } catch {
-      setAnnouncements([])
-    }
+    })
   }, [data])
 
   useEffect(() => {
-    setIsEnabled(enabled)
+    return deferEffect(() => {
+      setIsEnabled(enabled)
+    })
   }, [enabled])
 
   const handleToggleEnabled = async (checked: boolean) => {

@@ -45,7 +45,7 @@ function Menubar({ className, ...props }: MenubarPrimitive.Props) {
     <MenubarPrimitive
       data-slot='menubar'
       className={cn(
-        'flex h-8 items-center gap-0.5 rounded-lg border p-[3px]',
+        'border-border flex h-8 items-center gap-0.5 rounded-lg border bg-transparent p-[3px]',
         className
       )}
       {...props}
@@ -77,7 +77,7 @@ function MenubarTrigger({
     <DropdownMenuTrigger
       data-slot='menubar-trigger'
       className={cn(
-        'hover:bg-muted aria-expanded:bg-muted flex items-center rounded-sm px-1.5 py-[2px] text-sm font-medium outline-hidden select-none',
+        'hover:bg-accent aria-expanded:bg-accent flex items-center rounded-sm px-1.5 py-[2px] font-mono text-[0.6875rem] font-medium tracking-[0.12em] uppercase outline-hidden select-none',
         className
       )}
       {...props}
@@ -99,7 +99,7 @@ function MenubarContent({
       alignOffset={alignOffset}
       sideOffset={sideOffset}
       className={cn(
-        'dark bg-popover text-popover-foreground ring-foreground/10 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 min-w-36 rounded-lg p-1 shadow-md ring-1 duration-100',
+        'bg-popover text-popover-foreground border-border data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 min-w-36 rounded-xl border p-1.5 shadow-none duration-150',
         className
       )}
       {...props}
@@ -202,10 +202,7 @@ function MenubarLabel({
     <DropdownMenuLabel
       data-slot='menubar-label'
       data-inset={inset}
-      className={cn(
-        'px-1.5 py-1 text-sm font-medium data-inset:pl-7',
-        className
-      )}
+      className={cn('editorial-label px-1.5 py-1 data-inset:pl-7', className)}
       {...props}
     />
   )
@@ -232,7 +229,7 @@ function MenubarShortcut({
     <DropdownMenuShortcut
       data-slot='menubar-shortcut'
       className={cn(
-        'text-muted-foreground group-focus/menubar-item:text-accent-foreground ml-auto text-xs tracking-widest',
+        'text-muted-foreground group-focus/menubar-item:text-accent-foreground ml-auto font-mono text-[0.6875rem] tracking-[0.14em]',
         className
       )}
       {...props}
@@ -274,7 +271,7 @@ function MenubarSubContent({
     <DropdownMenuSubContent
       data-slot='menubar-sub-content'
       className={cn(
-        'dark bg-popover text-popover-foreground ring-foreground/10 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 min-w-32 rounded-lg p-1 shadow-lg ring-1 duration-100',
+        'bg-popover text-popover-foreground border-border data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 min-w-32 rounded-xl border p-1.5 shadow-none duration-150',
         className
       )}
       {...props}

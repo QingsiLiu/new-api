@@ -108,7 +108,7 @@ export function StatusCodeRiskDialog({
     >
       <div className='space-y-4'>
         {detailItems.length > 0 && (
-          <div className='border-destructive/30 bg-destructive/5 rounded-lg border p-3'>
+          <div className='border-destructive/25 bg-destructive/10 rounded-lg border p-3'>
             <p className='mb-2 text-sm font-medium'>
               {t('Detected high-risk status code redirect rules')}
             </p>

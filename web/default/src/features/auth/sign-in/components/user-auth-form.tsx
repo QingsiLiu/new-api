@@ -29,6 +29,7 @@ import {
   prepareCredentialRequestOptions,
   isPasskeySupported as detectPasskeySupport,
 } from '@/lib/passkey'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -107,11 +108,9 @@ export function UserAuthForm({
     passkeyLoginEnabled || hasWeChatLogin || hasOAuthLogin
 
   useEffect(() => {
-    if (requiresLegalConsent) {
-      setAgreedToLegal(false)
-    } else {
-      setAgreedToLegal(true)
-    }
+    return deferEffect(() => {
+      setAgreedToLegal(!requiresLegalConsent)
+    })
   }, [requiresLegalConsent])
 
   useEffect(() => {

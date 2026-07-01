@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -144,7 +145,9 @@ export function SidebarModulesCard() {
   }, [])
 
   useEffect(() => {
-    loadConfig()
+    return deferEffect(() => {
+      void loadConfig()
+    })
   }, [loadConfig])
 
   const toggleSection = (sectionKey: string, val: boolean) => {

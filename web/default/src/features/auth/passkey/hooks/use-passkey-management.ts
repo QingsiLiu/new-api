@@ -32,6 +32,7 @@ import {
   getPasskeyStatus,
 } from '../api'
 import type { PasskeyStatus } from '../types'
+import { deferEffect } from '@/lib/defer-effect'
 
 interface UsePasskeyManagementOptions {
   onStatusChange?: (status: PasskeyStatus | null) => void
@@ -70,7 +71,9 @@ export function usePasskeyManagement(
   }, [onStatusChange])
 
   useEffect(() => {
-    fetchStatus()
+    return deferEffect(() => {
+      void fetchStatus()
+    })
   }, [fetchStatus])
 
   useEffect(() => {

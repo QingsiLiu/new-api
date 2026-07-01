@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -122,9 +123,11 @@ export function UpstreamConflictDialog({
 
   useEffect(() => {
     if (open) {
-      setRowSelection({})
-      setSearch('')
-      setPageIndex(0)
+      return deferEffect(() => {
+        setRowSelection({})
+        setSearch('')
+        setPageIndex(0)
+      })
     }
   }, [open, upstreamConflicts])
 
@@ -355,7 +358,9 @@ export function UpstreamConflictDialog({
     totalFilteredFields === 0 ? 1 : Math.ceil(totalFilteredFields / pageSize)
 
   useEffect(() => {
-    setPageIndex((prev) => Math.min(prev, Math.max(0, totalPages - 1)))
+    return deferEffect(() => {
+      setPageIndex((prev) => Math.min(prev, Math.max(0, totalPages - 1)))
+    })
   }, [totalPages])
 
   const pageStart = pageIndex * pageSize

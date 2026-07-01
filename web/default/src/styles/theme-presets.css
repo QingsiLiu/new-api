@@ -32,6 +32,111 @@ For commercial licensing, please contact support@quantumnous.com
  *   blocks so an explicit user choice overrides the preset's default radius.
  */
 
+/* ── Geili Editorial ──────────────────────────────────────────────────── */
+[data-theme-preset='geili-editorial'] {
+  --background: #f4f1e8;
+  --foreground: #18160f;
+  --card: #f8f5ec;
+  --card-foreground: #18160f;
+  --popover: #faf7ef;
+  --popover-foreground: #18160f;
+
+  --primary: #c8432a;
+  --primary-foreground: #fbf3e6;
+  --secondary: #e7e2d5;
+  --secondary-foreground: #2a271e;
+  --muted: #ece7db;
+  --muted-foreground: #8c8676;
+  --accent: #ede8dc;
+  --accent-foreground: #18160f;
+
+  --destructive: #9e2b22;
+  --destructive-foreground: #fbf3e6;
+  --success: #1f7a4d;
+  --success-foreground: #f4f1e8;
+  --warning: #9b6a24;
+  --warning-foreground: #18160f;
+  --info: #516f83;
+  --info-foreground: #f4f1e8;
+  --neutral: #a6a096;
+  --neutral-foreground: #18160f;
+
+  --border: #dcd6c8;
+  --input: #d6d0c1;
+  --ring: #c8432a;
+
+  --chart-1: #18160f;
+  --chart-2: #8c8676;
+  --chart-3: #c8432a;
+  --chart-4: #1f7a4d;
+  --chart-5: #a6a096;
+
+  --sidebar: #f1ede3;
+  --sidebar-foreground: #2a271e;
+  --sidebar-primary: #c8432a;
+  --sidebar-primary-foreground: #fbf3e6;
+  --sidebar-accent: #e7e2d5;
+  --sidebar-accent-foreground: #18160f;
+  --sidebar-border: #dcd6c8;
+  --sidebar-ring: #c8432a;
+
+  --skeleton-base: #e7e2d5;
+  --skeleton-highlight: #faf7ef;
+  --radius: 0.4rem;
+}
+
+.dark [data-theme-preset='geili-editorial'] {
+  --background: #15130d;
+  --foreground: #ece6d7;
+  --card: #1b1812;
+  --card-foreground: #ece6d7;
+  --popover: #1e1b14;
+  --popover-foreground: #ece6d7;
+
+  --primary: #e1542f;
+  --primary-foreground: #fcefe3;
+  --secondary: #262219;
+  --secondary-foreground: #ece6d7;
+  --muted: #221f18;
+  --muted-foreground: #928c7b;
+  --accent: #2a2519;
+  --accent-foreground: #ece6d7;
+
+  --destructive: #d14a33;
+  --destructive-foreground: #fcefe3;
+  --success: #3fa76b;
+  --success-foreground: #15130d;
+  --warning: #d39a45;
+  --warning-foreground: #15130d;
+  --info: #87a7b8;
+  --info-foreground: #15130d;
+  --neutral: #7c7768;
+  --neutral-foreground: #15130d;
+
+  --border: #312c22;
+  --input: #34301f;
+  --ring: #e1542f;
+
+  --chart-1: #ece6d7;
+  --chart-2: #928c7b;
+  --chart-3: #e1542f;
+  --chart-4: #3fa76b;
+  --chart-5: #7c7768;
+
+  --sidebar: #17150f;
+  --sidebar-foreground: #ece6d7;
+  --sidebar-primary: #e1542f;
+  --sidebar-primary-foreground: #fcefe3;
+  --sidebar-accent: #262219;
+  --sidebar-accent-foreground: #ece6d7;
+  --sidebar-border: #312c22;
+  --sidebar-ring: #e1542f;
+
+  --skeleton-base: #221f18;
+  --skeleton-highlight: #2a2519;
+  --radius: 0.4rem;
+}
+
 /* ── Underground ──────────────────────────────────────────────────────── */
 [data-theme-preset='underground'] {
   --primary: oklch(0.5315 0.0694 156.19);
@@ -414,13 +519,17 @@ For commercial licensing, please contact support@quantumnous.com
  *
  * Opt-outs:
  *   - `default`: keeps neutral surfaces from :root.
+ *   - `geili-editorial`: warm paper / ink paper surfaces are deliberately
+ *     specified token-by-token instead of derived from the cinnabar accent.
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
  *     cards/borders rather than tinting them with the clay accent).
  *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
-    [data-theme-preset='anthropic']
-  ):not([data-theme-preset='simple-large']) {
+    [data-theme-preset='geili-editorial']
+  ):not([data-theme-preset='anthropic']):not(
+    [data-theme-preset='simple-large']
+  ) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -444,8 +553,10 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
-    [data-theme-preset='anthropic']
-  ):not([data-theme-preset='simple-large']) {
+    [data-theme-preset='geili-editorial']
+  ):not([data-theme-preset='anthropic']):not(
+    [data-theme-preset='simple-large']
+  ) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 12%, var(--background));

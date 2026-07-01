@@ -24,6 +24,7 @@ import {
 import { Languages, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { useAuthStore } from '@/stores/auth-store'
 import {
   Select,
@@ -56,7 +57,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   const [currentLanguage, setCurrentLanguage] = useState(savedLanguage)
 
   useEffect(() => {
-    setCurrentLanguage(savedLanguage)
+    return deferEffect(() => setCurrentLanguage(savedLanguage))
   }, [savedLanguage])
 
   const handleLanguageChange = async (language: string | null) => {

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 
 export function resolveThemeRadiusPx(
   cssVariable = '--radius-md'
@@ -39,13 +39,16 @@ export function resolveThemeRadiusPx(
 
 export function useThemeRadiusPx(
   cssVariable = '--radius-md',
-  refreshKey?: string
+  _refreshKey?: string
 ): number | undefined {
-  const [radius, setRadius] = useState<number | undefined>()
+  const getSnapshot = useCallback(
+    () => resolveThemeRadiusPx(cssVariable),
+    [cssVariable]
+  )
 
-  useEffect(() => {
-    setRadius(resolveThemeRadiusPx(cssVariable))
-  }, [cssVariable, refreshKey])
-
-  return radius
+  return useSyncExternalStore(
+    () => () => undefined,
+    getSnapshot,
+    () => undefined
+  )
 }

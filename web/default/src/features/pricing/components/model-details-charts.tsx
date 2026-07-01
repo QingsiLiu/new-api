@@ -48,15 +48,37 @@ function formatDayLabel(date: string): string {
 }
 
 function getChartThemeTokens(resolvedTheme: string) {
+  if (typeof document === 'undefined') {
+    return {
+      textColor: 'var(--muted-foreground)',
+      gridColor: 'var(--border)',
+      pointStrokeColor: 'var(--background)',
+      successColor: 'var(--success)',
+      warningColor: 'var(--warning)',
+      destructiveColor: 'var(--destructive)',
+      accentColor: 'var(--chart-3)',
+    }
+  }
+
+  void resolvedTheme
+
+  const bodyStyle = window.getComputedStyle(document.body)
+  const rootStyle = window.getComputedStyle(document.documentElement)
+  const token = (name: string, fallback: string) =>
+    (
+      bodyStyle.getPropertyValue(name) ||
+      rootStyle.getPropertyValue(name) ||
+      fallback
+    ).trim()
+
   return {
-    textColor:
-      resolvedTheme === 'dark'
-        ? 'rgba(255, 255, 255, 0.68)'
-        : 'rgba(15, 23, 42, 0.58)',
-    gridColor:
-      resolvedTheme === 'dark'
-        ? 'rgba(255, 255, 255, 0.12)'
-        : 'rgba(15, 23, 42, 0.12)',
+    textColor: token('--muted-foreground', 'var(--muted-foreground)'),
+    gridColor: token('--border', 'var(--border)'),
+    pointStrokeColor: token('--background', 'var(--background)'),
+    successColor: token('--success', 'var(--success)'),
+    warningColor: token('--warning', 'var(--warning)'),
+    destructiveColor: token('--destructive', 'var(--destructive)'),
+    accentColor: token('--chart-3', 'var(--chart-3)'),
   }
 }
 
@@ -70,7 +92,8 @@ export function LatencyTrendChart(props: {
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { textColor, gridColor } = getChartThemeTokens(resolvedTheme)
+  const { textColor, gridColor, pointStrokeColor } =
+    getChartThemeTokens(resolvedTheme)
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
@@ -88,7 +111,7 @@ export function LatencyTrendChart(props: {
       smooth: true,
       point: {
         visible: true,
-        style: { size: 5, stroke: '#ffffff', lineWidth: 1.5 },
+        style: { size: 5, stroke: pointStrokeColor, lineWidth: 1.5 },
       },
       line: {
         style: { lineWidth: 2 },
@@ -126,7 +149,7 @@ export function LatencyTrendChart(props: {
         },
       ],
     }
-  }, [gridColor, props.series, t, textColor])
+  }, [gridColor, pointStrokeColor, props.series, t, textColor])
 
   if (props.series.length === 0) {
     return (
@@ -168,7 +191,14 @@ export function UptimeTrendChart(props: {
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { textColor, gridColor } = getChartThemeTokens(resolvedTheme)
+  const {
+    textColor,
+    gridColor,
+    pointStrokeColor,
+    successColor,
+    warningColor,
+    destructiveColor,
+  } = getChartThemeTokens(resolvedTheme)
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
@@ -187,18 +217,18 @@ export function UptimeTrendChart(props: {
       yField: 'uptime',
       smooth: true,
       line: {
-        style: { stroke: '#10b981', lineWidth: 2 },
+        style: { stroke: successColor, lineWidth: 2 },
       },
       point: {
         visible: true,
         style: {
           size: 5,
-          stroke: '#ffffff',
+          stroke: pointStrokeColor,
           lineWidth: 1.5,
           fill: (datum: { uptime: number }) => {
-            if (datum.uptime >= 99.9) return '#10b981'
-            if (datum.uptime >= 99.0) return '#f59e0b'
-            return '#ef4444'
+            if (datum.uptime >= 99.9) return successColor
+            if (datum.uptime >= 99.0) return warningColor
+            return destructiveColor
           },
         },
       },
@@ -245,7 +275,16 @@ export function UptimeTrendChart(props: {
         },
       ],
     }
-  }, [gridColor, props.series, t, textColor])
+  }, [
+    destructiveColor,
+    gridColor,
+    pointStrokeColor,
+    props.series,
+    successColor,
+    t,
+    textColor,
+    warningColor,
+  ])
 
   if (props.series.length === 0) {
     return (
@@ -287,7 +326,8 @@ export function ThroughputBarChart(props: {
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { textColor, gridColor } = getChartThemeTokens(resolvedTheme)
+  const { textColor, gridColor, accentColor } =
+    getChartThemeTokens(resolvedTheme)
   const { customization } = useThemeCustomization()
   const barRadius = useThemeRadiusPx(
     '--radius-sm',
@@ -309,7 +349,7 @@ export function ThroughputBarChart(props: {
       yField: 'group',
       bar: {
         style: {
-          fill: '#6366f1',
+          fill: accentColor,
           ...(barRadius == null ? {} : { cornerRadius: barRadius }),
         },
       },
@@ -347,7 +387,7 @@ export function ThroughputBarChart(props: {
         },
       },
     }
-  }, [barRadius, filtered, gridColor, t, textColor])
+  }, [accentColor, barRadius, filtered, gridColor, t, textColor])
 
   if (filtered.length === 0) {
     return null

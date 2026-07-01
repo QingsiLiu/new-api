@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -125,8 +126,10 @@ export function PrefillGroupManagementDialog({
 
   useEffect(() => {
     if (!open) {
-      setDeleteState({ open: false, group: null })
-      setIsDeleting(false)
+      return deferEffect(() => {
+        setDeleteState({ open: false, group: null })
+        setIsDeleting(false)
+      })
     }
   }, [open])
 

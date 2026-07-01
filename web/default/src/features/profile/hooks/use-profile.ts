@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { getUserProfile, updateUserProfile, updateUserSettings } from '../api'
 import type {
   UserProfile,
@@ -120,7 +121,9 @@ export function useProfile() {
 
   // Initial fetch
   useEffect(() => {
-    fetchProfile()
+    return deferEffect(() => {
+      void fetchProfile()
+    })
   }, [fetchProfile])
 
   return {

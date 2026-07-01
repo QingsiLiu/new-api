@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import { deferEffect } from '@/lib/defer-effect'
 import { getOAuthState } from '../api'
 import {
   buildGitHubOAuthUrl,
@@ -47,9 +48,12 @@ export function useOAuthLogin(status: SystemStatus | null) {
   const { auth } = useAuthStore()
 
   useEffect(() => {
-    setGithubButtonText(t('Continue with GitHub'))
+    const cleanup = deferEffect(() => {
+      setGithubButtonText(t('Continue with GitHub'))
+    })
 
     return () => {
+      cleanup()
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current)
       }

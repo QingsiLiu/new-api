@@ -81,7 +81,7 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
           />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex w-full flex-col gap-4'>{props.children}</div>
+          <div className='editorial-stack w-full'>{props.children}</div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
     </SettingsPageProvider>

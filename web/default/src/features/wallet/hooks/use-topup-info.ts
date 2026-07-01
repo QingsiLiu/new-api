@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect } from 'react'
+import { deferEffect } from '@/lib/defer-effect'
 import { getTopupInfo } from '../api'
 import {
   generatePresetAmounts,
@@ -214,7 +215,9 @@ export function useTopupInfo() {
   }
 
   useEffect(() => {
-    fetchTopupInfo()
+    return deferEffect(() => {
+      void fetchTopupInfo()
+    })
   }, [])
 
   return {

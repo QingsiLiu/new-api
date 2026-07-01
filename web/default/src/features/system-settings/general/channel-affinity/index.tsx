@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -165,28 +166,30 @@ export function ChannelAffinitySection(props: Props) {
   const [fillTemplateDialogOpen, setFillTemplateDialogOpen] = useState(false)
 
   useEffect(() => {
-    setEnabled(props.defaultValues['channel_affinity_setting.enabled'])
-    setSwitchOnSuccess(
-      props.defaultValues['channel_affinity_setting.switch_on_success']
-    )
-    setKeepOnChannelDisabled(
-      props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
-    )
-    setMaxEntries(props.defaultValues['channel_affinity_setting.max_entries'])
-    setDefaultTtl(
-      props.defaultValues['channel_affinity_setting.default_ttl_seconds']
-    )
-    const parsed = parseRules(
-      props.defaultValues['channel_affinity_setting.rules']
-    )
-    setRules(parsed)
-    setJsonText(
-      JSON.stringify(
-        parsed.map(({ id: _, ...r }) => r),
-        null,
-        2
+    return deferEffect(() => {
+      setEnabled(props.defaultValues['channel_affinity_setting.enabled'])
+      setSwitchOnSuccess(
+        props.defaultValues['channel_affinity_setting.switch_on_success']
       )
-    )
+      setKeepOnChannelDisabled(
+        props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
+      )
+      setMaxEntries(props.defaultValues['channel_affinity_setting.max_entries'])
+      setDefaultTtl(
+        props.defaultValues['channel_affinity_setting.default_ttl_seconds']
+      )
+      const parsed = parseRules(
+        props.defaultValues['channel_affinity_setting.rules']
+      )
+      setRules(parsed)
+      setJsonText(
+        JSON.stringify(
+          parsed.map(({ id: _, ...r }) => r),
+          null,
+          2
+        )
+      )
+    })
   }, [props.defaultValues])
 
   const refreshCache = useCallback(async () => {
@@ -202,7 +205,9 @@ export function ChannelAffinitySection(props: Props) {
   }, [t])
 
   useEffect(() => {
-    refreshCache()
+    return deferEffect(() => {
+      void refreshCache()
+    })
   }, [refreshCache])
 
   const appendCliTemplates = () => {

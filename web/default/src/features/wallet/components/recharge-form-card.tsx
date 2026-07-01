@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -113,7 +114,7 @@ export function RechargeFormCard({
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
   useEffect(() => {
-    setLocalAmount(topupAmount.toString())
+    return deferEffect(() => setLocalAmount(topupAmount.toString()))
   }, [topupAmount])
 
   const handleAmountChange = (value: string) => {
@@ -251,7 +252,7 @@ export function RechargeFormCard({
                               {formatNumber(displayValue)}
                             </div>
                             {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
+                              <div className='text-success text-xs font-medium'>
                                 {getDiscountLabel(discount)}
                               </div>
                             )}
@@ -259,7 +260,7 @@ export function RechargeFormCard({
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
                             Pay {formatCurrency(actualPrice)}
                             {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
+                              <span className='text-success'>
                                 {' '}
                                 • Save {formatCurrency(savedAmount)}
                               </span>

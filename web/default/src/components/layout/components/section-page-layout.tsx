@@ -78,18 +78,18 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
   return (
     <PageFooterProvider container={footerContainer}>
       <Main>
-        <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'>
+        <div className='shrink-0 px-5 pt-6 pb-4 sm:px-7 sm:pt-8 sm:pb-5'>
           {breadcrumb != null && (
             <div className='mb-2 sm:mb-3'>{breadcrumb}</div>
           )}
           <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4'>
             <div className='min-w-0 flex-1'>
-              <h2 className='truncate text-base font-bold tracking-tight sm:text-lg'>
+              <h2 className='truncate font-serif text-[1.875rem] leading-none font-medium tracking-normal sm:text-[2.5rem]'>
                 {title}
               </h2>
             </div>
             {actions != null && (
-              <div className='flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-x-4'>
+              <div className='flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-x-3'>
                 {actions}
               </div>
             )}
@@ -99,8 +99,8 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
         <div
           className={
             props.fixedContent
-              ? 'min-h-0 flex-1 overflow-hidden px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
-              : 'min-h-0 flex-1 overflow-auto px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
+              ? 'min-h-0 flex-1 overflow-hidden px-5 pt-1 pb-5 sm:px-7 sm:pt-2 sm:pb-7'
+              : 'min-h-0 flex-1 overflow-auto px-5 pt-1 pb-5 sm:px-7 sm:pt-2 sm:pb-7'
           }
         >
           {content}
@@ -108,7 +108,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
 
         <div
           ref={setFooterContainer}
-          className='bg-background shrink-0 border-t px-3 py-2.5 empty:hidden sm:px-4 sm:py-3'
+          className='bg-background shrink-0 border-t px-5 py-3 empty:hidden sm:px-7 sm:py-4'
         />
       </Main>
     </PageFooterProvider>

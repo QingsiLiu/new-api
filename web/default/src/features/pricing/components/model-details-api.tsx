@@ -584,7 +584,7 @@ function SupportedParametersSection(props: { model: PricingModel }) {
                 {p.required && (
                   <Badge
                     variant='outline'
-                    className='h-6 border-rose-500/40 px-2 text-sm text-rose-600 dark:text-rose-400'
+                    className='border-destructive/30 text-destructive h-6 px-2 text-sm'
                   >
                     {t('required')}
                   </Badge>
@@ -776,11 +776,11 @@ export function ModelDetailsProviderInfo(props: { model: PricingModel }) {
               className={cn(
                 'h-4 w-fit px-1.5 text-[9px] font-medium',
                 info.license_kind === 'open' &&
-                  'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
+                  'border-success/30 text-success',
                 info.license_kind === 'open-weight' &&
-                  'border-sky-500/40 text-sky-600 dark:text-sky-400',
+                  'border-info/30 text-info',
                 info.license_kind === 'proprietary' &&
-                  'border-amber-500/40 text-amber-600 dark:text-amber-400'
+                  'border-warning/30 text-warning'
               )}
             >
               {info.license_kind === 'open'

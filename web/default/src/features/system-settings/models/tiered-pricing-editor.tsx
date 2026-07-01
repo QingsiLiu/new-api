@@ -31,6 +31,7 @@ import {
 import { ChevronDown, Copy, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -369,7 +370,9 @@ function DraftNumberInput({
 
   useEffect(() => {
     if (!focused) {
-      setDraft(formatNumberDraft(value))
+      return deferEffect(() => {
+        setDraft(formatNumberDraft(value))
+      })
     }
   }, [focused, value])
 
@@ -595,7 +598,11 @@ function VisualTierCard({
   const [mediaOpen, setMediaOpen] = useState(hasMediaPricing)
 
   useEffect(() => {
-    if (hasMediaPricing) setMediaOpen(true)
+    if (hasMediaPricing) {
+      return deferEffect(() => {
+        setMediaOpen(true)
+      })
+    }
   }, [hasMediaPricing])
 
   const renderPriceVariable = (

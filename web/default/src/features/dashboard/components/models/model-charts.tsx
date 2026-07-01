@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -72,7 +73,12 @@ export function ModelCharts(props: ModelChartsProps) {
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
 
   useEffect(() => {
-    if (props.defaultChartTab) setActiveTab(props.defaultChartTab)
+    const defaultChartTab = props.defaultChartTab
+    if (defaultChartTab) {
+      return deferEffect(() => {
+        setActiveTab(defaultChartTab)
+      })
+    }
   }, [props.defaultChartTab])
 
   useEffect(() => {

@@ -22,6 +22,7 @@ import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatCurrencyFromUSD } from '@/lib/currency'
+import { deferEffect } from '@/lib/defer-effect'
 import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/dialog'
@@ -77,7 +78,9 @@ export function BalanceQueryDialog({
   useEffect(() => {
     if (!isCodex) return
     if (!open) return
-    handleQueryCodexUsage()
+    return deferEffect(() => {
+      void handleQueryCodexUsage()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isCodex])
 

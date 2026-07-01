@@ -18,12 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /**
  * List of available font names (visit the url `/settings/appearance`).
- * This array is used to generate dynamic font classes (e.g., `font-inter`, `font-manrope`).
+ * This array is used to generate dynamic font classes (e.g., `font-inter`).
  *
  * 📝 How to Add a New Font (Tailwind v4+):
  * 1. Add the font name here.
- * 2. Update the `<link>` tag in 'index.html' to include the new font from CDN or other source.
- * 3. Add the new font family to 'theme.css' using the `@theme inline` and `font-family` CSS variable.
+ * 2. Self-host the font under `public/fonts`.
+ * 3. Add the new font family to 'theme.css' using `@font-face` and the
+ *    `@theme inline` font-family CSS variable.
  *
  * Example:
  * fonts.ts           → Add 'roboto' to this array.
@@ -34,4 +35,4 @@ For commercial licensing, please contact support@quantumnous.com
  *      --font-roboto: 'Roboto', var(--font-sans);
  *   }
  */
-export const fonts = ['inter', 'manrope', 'system'] as const
+export const fonts = ['inter', 'system'] as const

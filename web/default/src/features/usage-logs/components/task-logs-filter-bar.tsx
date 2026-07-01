@@ -21,6 +21,7 @@ import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -77,28 +78,30 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   })
 
   useEffect(() => {
-    const { start, end } = getDefaultTimeRange()
-    const baseFilters = {
-      startTime: searchParams.startTime
-        ? new Date(searchParams.startTime)
-        : start,
-      endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
-      ...(searchParams.channel
-        ? { channel: String(searchParams.channel) }
-        : {}),
-    }
-    const next: TaskLogsFilters =
-      props.logCategory === 'drawing'
-        ? {
-            ...baseFilters,
-            ...(searchParams.filter ? { mjId: searchParams.filter } : {}),
-          }
-        : {
-            ...baseFilters,
-            ...(searchParams.filter ? { taskId: searchParams.filter } : {}),
-          }
+    return deferEffect(() => {
+      const { start, end } = getDefaultTimeRange()
+      const baseFilters = {
+        startTime: searchParams.startTime
+          ? new Date(searchParams.startTime)
+          : start,
+        endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
+        ...(searchParams.channel
+          ? { channel: String(searchParams.channel) }
+          : {}),
+      }
+      const next: TaskLogsFilters =
+        props.logCategory === 'drawing'
+          ? {
+              ...baseFilters,
+              ...(searchParams.filter ? { mjId: searchParams.filter } : {}),
+            }
+          : {
+              ...baseFilters,
+              ...(searchParams.filter ? { taskId: searchParams.filter } : {}),
+            }
 
-    setFilters(next)
+      setFilters(next)
+    })
   }, [
     props.logCategory,
     searchParams.startTime,
