@@ -363,6 +363,20 @@ func TestAsyncGeminiImageSizeMapsCavasQualities(t *testing.T) {
 	}
 }
 
+func TestAsyncGeminiImageConfigUsesResolutionBeforeQuality(t *testing.T) {
+	configBytes, err := asyncGeminiImageConfig(map[string]interface{}{
+		"size":       "2048x2048",
+		"resolution": "4K",
+		"quality":    "low",
+	})
+
+	require.NoError(t, err)
+	var imageConfig map[string]string
+	require.NoError(t, common.Unmarshal(configBytes, &imageConfig))
+	require.Equal(t, "1:1", imageConfig["aspectRatio"])
+	require.Equal(t, "4K", imageConfig["imageSize"])
+}
+
 func TestAsyncMultipartFileContentTypeSniffsImageWhenHeaderUnknown(t *testing.T) {
 	header := &multipart.FileHeader{
 		Header: textproto.MIMEHeader{"Content-Type": []string{"application/octet-stream"}},
@@ -754,8 +768,20 @@ func TestAsyncImageGenerationUsesMappedUpstreamModel(t *testing.T) {
 	require.Equal(t, "upstream-image-real", task.Properties.UpstreamModelName)
 }
 
-func TestAsyncImageGenerationSpecPricingUsesFreePlaceholderQuota(t *testing.T) {
+func TestAsyncImageGenerationSpecPricingUsesConfiguredCNYPerImage(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{
+					"1k":{"cny_per_image":0.11},
+					"2k":{"cny_per_image":0.18},
+					"4k":{"cny_per_image":0.29}
+				},
+				"default_cny_per_image":0.11
+			}
+		}
+	}`, 1000)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/images/generations", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -763,44 +789,48 @@ func TestAsyncImageGenerationSpecPricingUsesFreePlaceholderQuota(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	var baseQuota, highQualityQuota, largeSizeQuota, countQuota int
-	t.Run("base", func(t *testing.T) {
-		baseQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
-			"quality": "standard",
-			"size":    "1024x1024",
-			"n":       1,
+	var oneKQuota, twoKQuota, fourKQuota, countQuota int
+	t.Run("one-k-size", func(t *testing.T) {
+		oneKQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+			"size": "1024x1024",
+			"n":    1,
 		})
 	})
-	t.Run("high-quality", func(t *testing.T) {
-		highQualityQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
-			"quality": "high",
-			"size":    "1024x1024",
-			"n":       1,
+	t.Run("two-k-size", func(t *testing.T) {
+		twoKQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+			"size": "2048x2048",
+			"n":    1,
 		})
 	})
-	t.Run("large-size", func(t *testing.T) {
-		largeSizeQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
-			"quality": "standard",
-			"size":    "1792x1024",
-			"n":       1,
+	t.Run("four-k-size", func(t *testing.T) {
+		fourKQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+			"size": "4096x2048",
+			"n":    1,
 		})
 	})
 	t.Run("count", func(t *testing.T) {
 		countQuota = asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
-			"quality": "standard",
-			"size":    "1024x1024",
-			"n":       2,
+			"size": "2048x2048",
+			"n":    2,
 		})
 	})
 
-	require.Zero(t, baseQuota)
-	require.Zero(t, highQualityQuota)
-	require.Zero(t, largeSizeQuota)
-	require.Zero(t, countQuota)
+	require.Equal(t, 110, oneKQuota)
+	require.Equal(t, 180, twoKQuota)
+	require.Equal(t, 290, fourKQuota)
+	require.Equal(t, 360, countQuota)
 }
 
-func TestAsyncPricingEstimateMatchesFreePlaceholderTaskQuotaWithoutSideEffects(t *testing.T) {
+func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"2k":{"cny_per_image":0.18}},
+				"default_cny_per_image":0.11
+			}
+		}
+	}`, 1000)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/images/generations", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -814,7 +844,7 @@ func TestAsyncPricingEstimateMatchesFreePlaceholderTaskQuotaWithoutSideEffects(t
 		"action":"generate",
 		"model":"gpt-image-2",
 		"input":{"prompt":"estimate product image"},
-		"parameters":{"quality":"high","size":"1792x1024","n":2}
+		"parameters":{"size":"2048x2048","n":2}
 	}`
 
 	estimateRecorder := httptest.NewRecorder()
@@ -827,8 +857,14 @@ func TestAsyncPricingEstimateMatchesFreePlaceholderTaskQuotaWithoutSideEffects(t
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
 	require.Equal(t, "quota", estimate.Unit)
-	require.Zero(t, estimate.Quota)
-	require.Equal(t, map[string]float64{"placeholder_free": 0}, estimate.Breakdown.OtherRatios)
+	require.Equal(t, 360, estimate.Quota)
+	require.Equal(t, map[string]float64{
+		"spec_priced":    1,
+		"spec_total_cny": 0.36,
+		"spec_unit_cny":  0.18,
+		"spec_quota":     360,
+		"quota_per_cny":  1000,
+	}, estimate.Breakdown.OtherRatios)
 
 	var taskCount int64
 	require.NoError(t, model.DB.Model(&model.Task{}).Count(&taskCount).Error)
@@ -855,16 +891,217 @@ func TestAsyncPricingEstimateMatchesFreePlaceholderTaskQuotaWithoutSideEffects(t
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
 	require.Equal(t, estimate.Quota, task.Quota)
-	require.Zero(t, task.Quota)
+	require.NotNil(t, task.PrivateData.BillingContext)
+	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
+	require.True(t, task.PrivateData.BillingContext.SpecPricing.Priced)
+	require.Equal(t, "2k", task.PrivateData.BillingContext.SpecPricing.SpecKey)
 	require.NoError(t, model.DB.First(&user, 2001).Error)
-	require.Equal(t, 1000000, user.Quota)
-	require.Zero(t, user.UsedQuota)
+	require.Equal(t, 1000000-task.Quota, user.Quota)
+	require.Equal(t, task.Quota, user.UsedQuota)
 	require.NoError(t, model.DB.First(&storedToken, 3001).Error)
-	require.Equal(t, 1000000, storedToken.RemainQuota)
+	require.Equal(t, 1000000-task.Quota, storedToken.RemainQuota)
+
+	var consumeLogs []model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeConsume).Find(&consumeLogs).Error)
+	require.Len(t, consumeLogs, 1)
+	require.Contains(t, consumeLogs[0].Other, `"spec_priced":true`)
+	require.Contains(t, consumeLogs[0].Other, `"spec_key":"2k"`)
+	require.Contains(t, consumeLogs[0].Other, `"spec_total_cny":0.36`)
 }
 
-func TestAsyncFreePlaceholderTaskCanRunWithZeroWalletQuota(t *testing.T) {
+func TestAsyncPricingEstimateUsesMultipartImageResolution(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"4k":{"cny_per_image":0.49}},
+				"default_cny_per_image":0.11
+			}
+		}
+	}`, 1000)
+
+	engine, token := setupAsyncTaskProductRouterTest(t, "https://upstream.example", "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	require.NoError(t, writer.WriteField("kind", "image"))
+	require.NoError(t, writer.WriteField("action", "generate"))
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "estimate product image"))
+	require.NoError(t, writer.WriteField("resolution", "4K"))
+	require.NoError(t, writer.WriteField("n", "1"))
+	require.NoError(t, writer.Close())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", body)
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &estimate))
+	require.Equal(t, 490, estimate.Quota)
+	require.Equal(t, float64(490), estimate.Breakdown.OtherRatios["spec_quota"])
+}
+
+func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, operation_setting.AsyncSpecPricing2JSONString(), 1000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, strings.Join([]string{
+		"gemini-2.5-flash-image",
+		"gemini-3.1-flash-image-preview",
+		"gemini-3-pro-image-preview",
+		"gpt-image-2",
+	}, ","), constant.ChannelTypeOpenAI, "")
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{
+		"gemini-2.5-flash-image":0.01,
+		"gemini-3.1-flash-image-preview":0.01,
+		"gemini-3-pro-image-preview":0.01,
+		"gpt-image-2":0.01
+	}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+
+	tests := []struct {
+		name       string
+		model      string
+		parameters map[string]interface{}
+		wantQuota  int
+		wantKey    string
+	}{
+		{
+			name:       "gemini-2.5-default",
+			model:      "gemini-2.5-flash-image",
+			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
+			wantQuota:  120,
+			wantKey:    "default",
+		},
+		{
+			name:       "gemini-3.1-1k",
+			model:      "gemini-3.1-flash-image-preview",
+			parameters: map[string]interface{}{"resolution": "1K", "n": 1},
+			wantQuota:  180,
+			wantKey:    "1k",
+		},
+		{
+			name:       "gemini-3.1-2k",
+			model:      "gemini-3.1-flash-image-preview",
+			parameters: map[string]interface{}{"resolution": "2K", "n": 1},
+			wantQuota:  280,
+			wantKey:    "2k",
+		},
+		{
+			name:       "gemini-3.1-4k",
+			model:      "gemini-3.1-flash-image-preview",
+			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
+			wantQuota:  420,
+			wantKey:    "4k",
+		},
+		{
+			name:       "gemini-3-pro-1k",
+			model:      "gemini-3-pro-image-preview",
+			parameters: map[string]interface{}{"resolution": "1K", "n": 1},
+			wantQuota:  320,
+			wantKey:    "1k",
+		},
+		{
+			name:       "gemini-3-pro-2k",
+			model:      "gemini-3-pro-image-preview",
+			parameters: map[string]interface{}{"resolution": "2K", "n": 1},
+			wantQuota:  320,
+			wantKey:    "2k",
+		},
+		{
+			name:       "gemini-3-pro-4k",
+			model:      "gemini-3-pro-image-preview",
+			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
+			wantQuota:  490,
+			wantKey:    "4k",
+		},
+		{
+			name:       "gpt-image-2-1k",
+			model:      "gpt-image-2",
+			parameters: map[string]interface{}{"size": "1024x1024", "n": 1},
+			wantQuota:  110,
+			wantKey:    "1k",
+		},
+		{
+			name:       "gpt-image-2-2k",
+			model:      "gpt-image-2",
+			parameters: map[string]interface{}{"size": "2048x2048", "n": 1},
+			wantQuota:  180,
+			wantKey:    "2k",
+		},
+		{
+			name:       "gpt-image-2-4k",
+			model:      "gpt-image-2",
+			parameters: map[string]interface{}{"size": "4096x2048", "n": 1},
+			wantQuota:  290,
+			wantKey:    "4k",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payloadBytes, err := common.Marshal(map[string]interface{}{
+				"kind":       "image",
+				"action":     "generate",
+				"model":      tt.model,
+				"input":      map[string]interface{}{"prompt": "real spec price matrix"},
+				"parameters": tt.parameters,
+			})
+			require.NoError(t, err)
+			payload := string(payloadBytes)
+
+			estimateRecorder := httptest.NewRecorder()
+			estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+			estimateRequest.Header.Set("Authorization", "Bearer "+token)
+			estimateRequest.Header.Set("Content-Type", "application/json")
+			engine.ServeHTTP(estimateRecorder, estimateRequest)
+			require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+
+			var estimate asyncTaskPricingEstimateResponse
+			require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+			require.Equal(t, tt.wantQuota, estimate.Quota)
+			require.Equal(t, float64(tt.wantQuota), estimate.Breakdown.OtherRatios["spec_quota"])
+
+			createRecorder := httptest.NewRecorder()
+			createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
+			createRequest.Header.Set("Authorization", "Bearer "+token)
+			createRequest.Header.Set("Content-Type", "application/json")
+			engine.ServeHTTP(createRecorder, createRequest)
+			require.Equal(t, http.StatusOK, createRecorder.Code, createRecorder.Body.String())
+
+			var created asyncTaskResponse
+			require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
+			var task model.Task
+			require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+			require.Equal(t, estimate.Quota, task.Quota)
+			require.NotNil(t, task.PrivateData.BillingContext)
+			require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
+			require.Equal(t, tt.model, task.PrivateData.BillingContext.SpecPricing.Model)
+			require.Equal(t, tt.wantKey, task.PrivateData.BillingContext.SpecPricing.SpecKey)
+		})
+	}
+}
+
+func TestAsyncSpecZeroPriceTaskCanRunWithZeroWalletQuota(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"2k":{"cny_per_image":0}}
+			}
+		}
+	}`, 1000)
 	resultURLServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write([]byte("free-img-bytes"))
@@ -888,8 +1125,8 @@ func TestAsyncFreePlaceholderTaskCanRunWithZeroWalletQuota(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
 		"action":"generate",
 		"model":"gpt-image-2",
-		"input":{"prompt":"free placeholder image"},
-		"parameters":{"quality":"high","size":"1792x1024","n":2}
+		"input":{"prompt":"zero price spec image"},
+		"parameters":{"size":"2048x2048","n":2}
 	}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
@@ -973,8 +1210,19 @@ func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {
 	require.Equal(t, 1000000, storedToken.RemainQuota)
 }
 
-func TestAsyncVideoGenerationSpecPricingUsesFreePlaceholderQuota(t *testing.T) {
+func TestAsyncVideoGenerationSpecPricingUsesConfiguredCNYPerSecond(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"video":{
+			"bytedance/seedance-2-fast":{
+				"resolutions":{
+					"480p":{"cny_per_second":0.2},
+					"1080p":{"cny_per_second":0.4}
+				},
+				"default_cny_per_second":0.1
+			}
+		}
+	}`, 1000)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/jobs/createTask":
@@ -1014,13 +1262,21 @@ func TestAsyncVideoGenerationSpecPricingUsesFreePlaceholderQuota(t *testing.T) {
 		})
 	})
 
-	require.Zero(t, baseQuota)
-	require.Zero(t, highResolutionQuota)
-	require.Zero(t, longDurationQuota)
+	require.Equal(t, 800, baseQuota)
+	require.Equal(t, 1600, highResolutionQuota)
+	require.Equal(t, 2000, longDurationQuota)
 }
 
 func TestAsyncImageSpecPricingIsDisabledByDefault(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, false)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"2k":{"cny_per_image":0.18}},
+				"default_cny_per_image":0.1
+			}
+		}
+	}`, 1000)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/images/generations", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -1035,11 +1291,36 @@ func TestAsyncImageSpecPricingIsDisabledByDefault(t *testing.T) {
 	})
 	highQuota := asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
 		"quality": "high",
-		"size":    "1792x1024",
+		"size":    "2048x2048",
 		"n":       2,
 	})
 
 	require.Equal(t, baseQuota, highQuota)
+}
+
+func TestAsyncImageSpecPricingFallsBackToPerModelWhenModelUnconfigured(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"other-image-model":{
+				"default_cny_per_image":0
+			}
+		}
+	}`, 1000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	quota := asyncTaskQuotaForImageRequest(t, upstream.URL, map[string]interface{}{
+		"quality": "high",
+		"size":    "1792x1024",
+		"n":       2,
+	})
+
+	require.Equal(t, int(0.01*common.QuotaPerUnit), quota)
 }
 
 func TestAsyncKieSeedanceVideoTaskPollsAndProxiesContent(t *testing.T) {
@@ -2048,8 +2329,15 @@ func TestAsyncTaskFailureRefundsPreConsumedQuotaOnce(t *testing.T) {
 
 func TestAsyncTaskZeroPriceFailureDoesNotRefundOrChangeQuota(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"2k":{"cny_per_image":0}}
+			}
+		}
+	}`, 1000)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"error":{"message":"free placeholder upstream exploded"}}`, http.StatusBadGateway)
+		http.Error(w, `{"error":{"message":"zero price spec upstream exploded"}}`, http.StatusBadGateway)
 	}))
 	defer upstream.Close()
 
@@ -2059,8 +2347,8 @@ func TestAsyncTaskZeroPriceFailureDoesNotRefundOrChangeQuota(t *testing.T) {
 		"kind":"image",
 		"action":"generate",
 		"model":"gpt-image-2",
-		"input":{"prompt":"free placeholder failure"},
-		"parameters":{"quality":"high","size":"1792x1024","n":2}
+		"input":{"prompt":"zero price spec failure"},
+		"parameters":{"size":"2048x2048","n":2}
 	}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
@@ -2136,6 +2424,19 @@ func withAsyncTaskSpecPricingEnabled(t *testing.T, enabled bool) {
 	operation_setting.AsyncTaskSpecPricingEnabled = enabled
 	t.Cleanup(func() {
 		operation_setting.AsyncTaskSpecPricingEnabled = original
+	})
+}
+
+func withAsyncSpecPricingForTest(t *testing.T, pricingJSON string, quotaPerCNY float64) {
+	t.Helper()
+
+	previousPricing := operation_setting.AsyncSpecPricing2JSONString()
+	previousQuotaPerCNY := operation_setting.QuotaPerCNY
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(pricingJSON))
+	operation_setting.QuotaPerCNY = quotaPerCNY
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(previousPricing))
+		operation_setting.QuotaPerCNY = previousQuotaPerCNY
 	})
 }
 
@@ -2444,13 +2745,15 @@ func setupAsyncTaskRouterTestWithChannelAndMapping(t *testing.T, upstreamURL str
 		Group:        "default",
 		ModelMapping: optionalStringPointer(modelMapping),
 	}).Error)
-	require.NoError(t, db.Create(&model.Ability{
-		Group:     "default",
-		Model:     modelName,
-		ChannelId: 4001,
-		Enabled:   true,
-		Weight:    1,
-	}).Error)
+	for _, abilityModel := range asyncTaskTestModelNames(modelName) {
+		require.NoError(t, db.Create(&model.Ability{
+			Group:     "default",
+			Model:     abilityModel,
+			ChannelId: 4001,
+			Enabled:   true,
+			Weight:    1,
+		}).Error)
+	}
 	model.InitChannelCache()
 
 	engine := gin.New()
@@ -2480,13 +2783,15 @@ func setupAsyncTaskProductRouterTest(t *testing.T, upstreamURL string, modelName
 		Group:        "default",
 		ModelMapping: optionalStringPointer(modelMapping),
 	}).Error)
-	require.NoError(t, db.Create(&model.Ability{
-		Group:     "default",
-		Model:     modelName,
-		ChannelId: 4001,
-		Enabled:   true,
-		Weight:    1,
-	}).Error)
+	for _, abilityModel := range asyncTaskTestModelNames(modelName) {
+		require.NoError(t, db.Create(&model.Ability{
+			Group:     "default",
+			Model:     abilityModel,
+			ChannelId: 4001,
+			Enabled:   true,
+			Weight:    1,
+		}).Error)
+	}
 	model.InitChannelCache()
 
 	engine := gin.New()
@@ -2503,6 +2808,18 @@ func setupAsyncTaskProductRouterTest(t *testing.T, upstreamURL string, modelName
 		productRouter.GET("/billing/usage", GetAsyncBillingUsage)
 	}
 	return engine, "sk-cavas"
+}
+
+func asyncTaskTestModelNames(modelNames string) []string {
+	parts := strings.Split(modelNames, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }
 
 func createAsyncTaskForTest(t *testing.T, engine *gin.Engine, token string, prompt string, idempotencyKey string) asyncTaskResponse {

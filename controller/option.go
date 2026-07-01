@@ -241,6 +241,24 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "QuotaPerCNY":
+		quotaPerCNY, err := strconv.ParseFloat(option.Value.(string), 64)
+		if err != nil || quotaPerCNY <= 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "QuotaPerCNY must be greater than 0",
+			})
+			return
+		}
+	case "AsyncSpecPricing":
+		err = operation_setting.ValidateAsyncSpecPricingJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "规格定价设置失败: " + err.Error(),
+			})
+			return
+		}
 	case "AudioRatio":
 		err = ratio_setting.UpdateAudioRatioByJSONString(option.Value.(string))
 		if err != nil {

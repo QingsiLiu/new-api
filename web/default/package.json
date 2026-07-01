@@ -7,6 +7,7 @@
     "dev": "rsbuild dev",
     "build": "rsbuild build",
     "build:check": "tsc -b && rsbuild build",
+    "verify:design": "node scripts/verify-async-spec-pricing-design.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "rsbuild preview",

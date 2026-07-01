@@ -20,6 +20,7 @@ import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
+import { AsyncSpecPricingSettings } from '../models/async-spec-pricing-settings'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
@@ -110,6 +111,16 @@ const BILLING_SECTIONS = [
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
         visibleTabs={['models', 'tool-prices', 'upstream-sync']}
+      />
+    ),
+  },
+  {
+    id: 'spec-pricing',
+    titleKey: 'Spec Pricing',
+    build: (settings: BillingSettings) => (
+      <AsyncSpecPricingSettings
+        pricingDefault={settings.AsyncSpecPricing}
+        quotaPerCNYDefault={settings.QuotaPerCNY}
       />
     ),
   },

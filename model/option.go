@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -167,6 +168,8 @@ func InitOptionMap() {
 	common.OptionMap["AsyncTaskSpecPricingEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskSpecPricingEnabled)
 	common.OptionMap["AsyncTaskProductRoutesEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskProductRoutesEnabled)
 	common.OptionMap["AsyncTaskServiceUserProxyEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskServiceUserProxyEnabled)
+	common.OptionMap["AsyncSpecPricing"] = operation_setting.AsyncSpecPricing2JSONString()
+	common.OptionMap["QuotaPerCNY"] = strconv.FormatFloat(operation_setting.QuotaPerCNY, 'f', -1, 64)
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(setting.ModelRequestRateLimitEnabled)
 	common.OptionMap["CheckSensitiveOnPromptEnabled"] = strconv.FormatBool(setting.CheckSensitiveOnPromptEnabled)
 	common.OptionMap["StopOnSensitiveEnabled"] = strconv.FormatBool(setting.StopOnSensitiveEnabled)
@@ -211,6 +214,9 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if err := validateOptionBeforePersist(key, value); err != nil {
+		return err
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -224,6 +230,19 @@ func UpdateOption(key string, value string) error {
 	DB.Save(&option)
 	// Update OptionMap
 	return updateOptionMap(key, value)
+}
+
+func validateOptionBeforePersist(key string, value string) error {
+	switch key {
+	case "QuotaPerCNY":
+		quotaPerCNY, parseErr := strconv.ParseFloat(value, 64)
+		if parseErr != nil || quotaPerCNY <= 0 {
+			return fmt.Errorf("QuotaPerCNY must be greater than 0")
+		}
+	case "AsyncSpecPricing":
+		return operation_setting.ValidateAsyncSpecPricingJSONString(value)
+	}
+	return nil
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
@@ -564,6 +583,14 @@ func updateOptionMap(key string, value string) (err error) {
 		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
 	case "QuotaPerUnit":
 		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
+	case "QuotaPerCNY":
+		quotaPerCNY, parseErr := strconv.ParseFloat(value, 64)
+		if parseErr != nil || quotaPerCNY <= 0 {
+			return fmt.Errorf("QuotaPerCNY must be greater than 0")
+		}
+		operation_setting.QuotaPerCNY = quotaPerCNY
+	case "AsyncSpecPricing":
+		err = operation_setting.UpdateAsyncSpecPricingByJSONString(value)
 	case "SensitiveWords":
 		setting.SensitiveWordsFromString(value)
 	case "AutomaticDisableKeywords":

@@ -193,6 +193,7 @@ export type BillingSettings = {
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
   QuotaPerUnit: number
+  QuotaPerCNY: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string
   'general_setting.custom_currency_symbol': string
@@ -207,6 +208,7 @@ export type BillingSettings = {
   ImageRatio: string
   AudioRatio: string
   AudioCompletionRatio: string
+  AsyncSpecPricing: string
   ExposeRatioEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string

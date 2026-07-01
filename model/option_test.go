@@ -15,17 +15,42 @@ func TestInitOptionMapIncludesAsyncTaskSpecPricingEnabled(t *testing.T) {
 	InitOptionMap()
 
 	require.Equal(t, "false", common.OptionMap["AsyncTaskSpecPricingEnabled"])
+	require.Contains(t, common.OptionMap["AsyncSpecPricing"], "gpt-image-2")
+	require.Contains(t, common.OptionMap["AsyncSpecPricing"], "gemini-3-pro-image-preview")
+	imageResult := operation_setting.ResolveImageSpecQuota("gpt-image-2", "2048x2048", "", "", 1)
+	require.True(t, imageResult.Matched)
+	require.Equal(t, "2k", imageResult.SpecKey)
+	require.NotEmpty(t, common.OptionMap["QuotaPerCNY"])
 }
 
 func TestUpdateOptionMapUpdatesAsyncTaskSpecPricingEnabled(t *testing.T) {
 	truncateTables(t)
 	operation_setting.AsyncTaskSpecPricingEnabled = false
+	previousPricing := operation_setting.AsyncSpecPricing2JSONString()
+	previousQuotaPerCNY := operation_setting.QuotaPerCNY
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(previousPricing))
+		operation_setting.QuotaPerCNY = previousQuotaPerCNY
+	})
 
 	require.NoError(t, updateOptionMap("AsyncTaskSpecPricingEnabled", "true"))
 	require.True(t, operation_setting.AsyncTaskSpecPricingEnabled)
 
 	require.NoError(t, updateOptionMap("AsyncTaskSpecPricingEnabled", "false"))
 	require.False(t, operation_setting.AsyncTaskSpecPricingEnabled)
+
+	require.NoError(t, updateOptionMap("QuotaPerCNY", "1000"))
+	require.Equal(t, 1000.0, operation_setting.QuotaPerCNY)
+	require.Error(t, updateOptionMap("QuotaPerCNY", "0"))
+	require.Equal(t, 1000.0, operation_setting.QuotaPerCNY)
+	require.Error(t, updateOptionMap("QuotaPerCNY", "not-a-number"))
+	require.Equal(t, 1000.0, operation_setting.QuotaPerCNY)
+
+	specJSON := `{"video":{"seedance-2.0-fast":{"default_cny_per_second":0.25}}}`
+	require.NoError(t, updateOptionMap("AsyncSpecPricing", specJSON))
+	result := operation_setting.ResolveVideoSpecQuota("seedance-2.0-fast", "720p", 4)
+	require.True(t, result.Matched)
+	require.Equal(t, 1000, result.Quota)
 }
 
 func TestUpdateOptionPersistsAsyncTaskSpecPricingEnabled(t *testing.T) {
@@ -38,6 +63,17 @@ func TestUpdateOptionPersistsAsyncTaskSpecPricingEnabled(t *testing.T) {
 	var option Option
 	require.NoError(t, DB.First(&option, "key = ?", "AsyncTaskSpecPricingEnabled").Error)
 	require.Equal(t, "true", option.Value)
+}
+
+func TestUpdateOptionRejectsInvalidAsyncSpecPricingOptionsBeforePersisting(t *testing.T) {
+	truncateTables(t)
+
+	require.Error(t, UpdateOption("QuotaPerCNY", "0"))
+	require.Error(t, UpdateOption("AsyncSpecPricing", "{bad-json"))
+
+	var count int64
+	require.NoError(t, DB.Model(&Option{}).Where("key IN ?", []string{"QuotaPerCNY", "AsyncSpecPricing"}).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestInitOptionMapIncludesAsyncTaskProductRoutesEnabled(t *testing.T) {

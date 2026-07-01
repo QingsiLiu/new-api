@@ -33,6 +33,7 @@ const defaultBillingSettings: BillingSettings = {
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,
   QuotaPerUnit: 500000,
+  QuotaPerCNY: 69444.44444444444,
   USDExchangeRate: 7,
   'general_setting.quota_display_type': 'USD',
   'general_setting.custom_currency_symbol': '¤',
@@ -47,6 +48,8 @@ const defaultBillingSettings: BillingSettings = {
   ImageRatio: '',
   AudioRatio: '',
   AudioCompletionRatio: '',
+  AsyncSpecPricing:
+    '{"currency":"CNY","image":{"gemini-2.5-flash-image":{"unit":"per_image","default_cny_per_image":0.12},"gemini-3.1-flash-image-preview":{"unit":"per_image","resolutions":{"1k":{"cny_per_image":0.18},"2k":{"cny_per_image":0.28},"4k":{"cny_per_image":0.42}},"default_cny_per_image":0.18},"gemini-3-pro-image-preview":{"unit":"per_image","resolutions":{"1k":{"cny_per_image":0.32},"2k":{"cny_per_image":0.32},"4k":{"cny_per_image":0.49}},"default_cny_per_image":0.32},"gpt-image-2":{"unit":"per_image","resolutions":{"1k":{"cny_per_image":0.11},"2k":{"cny_per_image":0.18},"4k":{"cny_per_image":0.29}},"default_cny_per_image":0.11}}}',
   ExposeRatioEnabled: false,
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',

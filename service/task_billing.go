@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -46,6 +47,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	injectSpecPricingOther(other, info.PriceData.SpecPricing)
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
@@ -130,6 +132,7 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				other[k] = v
 			}
 		}
+		injectTaskSpecPricingOther(other, bc.SpecPricing)
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
@@ -137,6 +140,34 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
 	return other
+}
+
+func injectSpecPricingOther(other map[string]interface{}, info *types.SpecPricingInfo) {
+	if info == nil || !info.Priced {
+		return
+	}
+	other["spec_priced"] = true
+	other["spec_kind"] = info.Kind
+	other["spec_model"] = info.Model
+	other["spec_key"] = info.SpecKey
+	other["spec_unit_cny"] = info.UnitCNY
+	other["spec_total_cny"] = info.TotalCNY
+	other["spec_quota"] = info.Quota
+	other["quota_per_cny"] = info.QuotaPerCNY
+}
+
+func injectTaskSpecPricingOther(other map[string]interface{}, info *model.TaskSpecPricing) {
+	if info == nil || !info.Priced {
+		return
+	}
+	other["spec_priced"] = true
+	other["spec_kind"] = info.Kind
+	other["spec_model"] = info.Model
+	other["spec_key"] = info.SpecKey
+	other["spec_unit_cny"] = info.UnitCNY
+	other["spec_total_cny"] = info.TotalCNY
+	other["spec_quota"] = info.Quota
+	other["quota_per_cny"] = info.QuotaPerCNY
 }
 
 // taskModelName 从 BillingContext 或 Properties 中获取模型名称。

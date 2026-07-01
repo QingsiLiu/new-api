@@ -218,6 +218,35 @@ Target: `web/default` only
   - `artifacts/geili-editorial-screenshots/models-dark-qa-auth.png`
   - `artifacts/geili-editorial-screenshots/channels-light-qa-auth.png`
   - `artifacts/geili-editorial-screenshots/channels-dark-qa-auth.png`
+
+## 2026-07-02 01:02 CST - Async Spec Pricing
+- Goal: implement configurable async image/video specification pricing from `/Users/tedliu/Documents/GeiliAPI/docs/superpowers/specs/2026-07-01-async-spec-pricing-design.md` on branch `codex/async-spec-pricing` from `release/newapi-unified-2026-07-01`. No deploy and no push.
+- Phase 1 complete: replaced the zero async pricing stub with `AsyncSpecPricing` JSON cache, `QuotaPerCNY`, video/image resolvers, CNY-to-quota rounding, resolution/quality alias normalization, default tiers, video min/max, explicit zero-price matches, and bad-JSON safe fallback.
+- Phase 2 complete: `estimateAsyncTaskBilling` and `prepareAsyncTaskBilling` share the same resolver path. When `AsyncTaskSpecPricingEnabled` is on and a model spec matches, `PriceData.Quota` is absolutely replaced by the spec quota; unmatched models and disabled switch keep the existing per-model path. Task billing context freezes spec pricing for logs/refunds.
+- Phase 3 complete: added `web/default` billing section `spec-pricing` with a dense visual editor for video CNY/second, image CNY/image, defaults, video min/max, `QuotaPerCNY`, JSON escape hatch, and live quota previews. `web/classic` was not modified.
+- Phase 4 complete: tests cover estimate==charge, image/video spec pricing, disabled-switch fallback, unconfigured-model fallback, zero-price execution/refund behavior, bad JSON fallback, aliases, min/max, invalid/non-positive `QuotaPerCNY` protection, API/model pre-persist validation for bad spec config, and spec log fields (`spec_priced`, `spec_key`, `spec_total_cny`, `quota_per_cny`).
+- Verification:
+  - `/Users/tedliu/code/new-api`: `go test ./setting/operation_setting ./model ./controller ./service` passed.
+  - `/Users/tedliu/code/new-api`: `go test ./...` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run lint` exited 0 with one pre-existing warning in `src/lib/lobe-icon.tsx`.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run typecheck` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run build` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run build:check` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run verify:design` passed.
+  - `/Users/tedliu/code/new-api`: `git diff --check` passed.
+- Pending owner inputs before production use: fill real CNY prices in `AsyncSpecPricing`, set/confirm `QuotaPerCNY`, enable `AsyncTaskSpecPricingEnabled`, then audit and deploy through the separate production deployment goal.
+
+## 2026-07-02 01:57 CST - Async Spec Pricing Image Resolution Correction
+- Goal continuation: corrected image spec pricing from quality tiers to resolution tiers per `/Users/tedliu/Documents/GeiliAPI/docs/superpowers/specs/2026-07-01-async-spec-pricing-design.md` owner update. Deployment and production flag enablement are still pending.
+- Backend correction: `ResolveImageSpecQuota` now takes `size`, `resolution`, `quality`, and `n`; it resolves image prices by `size` then `resolution` normalized to `1k/2k/4k`, falls back to legacy `quality`, then default image price, then per-model. `size`/`resolution` normalization covers explicit `1K/2K/4K`, numeric `1024/2048/4096`, and `WxH` by max dimension (`<=1024 => 1k`, `<=2048 => 2k`, `>2048 => 4k`).
+- Request plumbing: async multipart requests now preserve `resolution` in `Parameters`; Gemini image config uses `resolution` before `quality` for `imageSize`, keeping charged spec and upstream requested size aligned.
+- Real default `AsyncSpecPricing` values are now present for `gemini-2.5-flash-image` (default ¥0.12), `gemini-3.1-flash-image-preview` (1k ¥0.18 / 2k ¥0.28 / 4k ¥0.42 / default ¥0.18), `gemini-3-pro-image-preview` (1k ¥0.32 / 2k ¥0.32 / 4k ¥0.49 / default ¥0.32), and `gpt-image-2` (1k ¥0.11 / 2k ¥0.18 / 4k ¥0.29 / default ¥0.11). Video remains empty in the default spec table.
+- Frontend correction: `web/default` spec-pricing editor now writes image `resolutions` (`1k/2k/4k`) instead of image `qualities`; the JSON escape hatch still tolerates old `qualities` configs for compatibility. `web/classic` remains untouched.
+- Tests added/updated: resolver tests cover resolution candidates, `WxH` thresholds, quality fallback, default fallback, bad JSON fallback, native `gpt-image-1` coexistence, and default `QuotaPerCNY`; controller tests cover multipart `resolution`, Gemini resolution precedence, disabled flag fallback, unconfigured-model fallback, zero-price behavior, and a real-price matrix proving `/v1/pricing/estimate` quota equals created task quota for all configured image models/tiers.
+- Fresh verification:
+  - `/Users/tedliu/code/new-api`: `go test ./...` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run lint && bun run typecheck && bun run build && bun run verify:design` passed; lint still reports one pre-existing warning in `src/lib/lobe-icon.tsx`.
+  - `/Users/tedliu/code/new-api`: `git diff --check` passed.
   - `artifacts/geili-editorial-screenshots/system-settings-light-qa-auth.png`
   - `artifacts/geili-editorial-screenshots/system-settings-dark-qa-auth.png`
   - `artifacts/geili-editorial-screenshots/pricing-light-qa-auth.png`

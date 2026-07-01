@@ -245,6 +245,7 @@ func CreateAsyncTask(c *gin.Context) {
 			OtherRatios:     relayInfo.PriceData.OtherRatios,
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			SpecPricing:     asyncTaskSpecPricingForTask(relayInfo.PriceData.SpecPricing),
 		}
 	}
 	task.SetData(asyncTaskData{Kind: request.Kind, Action: request.Action, Model: request.Model})
@@ -465,6 +466,7 @@ func readAsyncMultipartTaskRequest(c *gin.Context) (asyncTaskRequest, error) {
 			"n":               asyncParamInt(c.PostForm("n")),
 			"quality":         c.PostForm("quality"),
 			"size":            c.PostForm("size"),
+			"resolution":      c.PostForm("resolution"),
 			"response_format": c.PostForm("response_format"),
 			"output_format":   c.PostForm("output_format"),
 		},
@@ -641,7 +643,7 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		return
 	}
 
-	quota := operation_setting.AsyncTaskSpecPricingPlaceholderQuota
+	var result operation_setting.AsyncSpecQuotaResult
 	switch request.Kind {
 	case asyncTaskKindVideo:
 		resolution := asyncParamString(request.Parameters, "resolution")
@@ -655,18 +657,52 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		if seconds <= 0 {
 			seconds = 0
 		}
-		quota = operation_setting.GetAsyncVideoSpecQuota(resolution, seconds)
+		result = operation_setting.ResolveVideoSpecQuota(relayInfo.OriginModelName, resolution, seconds)
 	default:
 		quality := asyncParamString(request.Parameters, "quality")
 		size := asyncParamString(request.Parameters, "size")
+		resolution := asyncParamString(request.Parameters, "resolution")
 		count := asyncParamIntValue(request.Parameters, "n", 1)
-		quota = operation_setting.GetAsyncImageSpecQuota(quality, size, count)
+		result = operation_setting.ResolveImageSpecQuota(relayInfo.OriginModelName, size, resolution, quality, count)
+	}
+	if !result.Matched {
+		return
 	}
 
-	relayInfo.PriceData.Quota = quota
-	relayInfo.PriceData.QuotaToPreConsume = quota
+	relayInfo.PriceData.Quota = result.Quota
+	relayInfo.PriceData.QuotaToPreConsume = result.Quota
+	relayInfo.PriceData.SpecPricing = &types.SpecPricingInfo{
+		Priced:      true,
+		Kind:        result.Kind,
+		Model:       result.Model,
+		SpecKey:     result.SpecKey,
+		UnitCNY:     result.UnitCNY,
+		TotalCNY:    result.TotalCNY,
+		Quota:       result.Quota,
+		QuotaPerCNY: result.QuotaPerCNY,
+	}
 	relayInfo.PriceData.OtherRatios = map[string]float64{
-		"placeholder_free": float64(quota),
+		"spec_priced":    1,
+		"spec_quota":     float64(result.Quota),
+		"spec_unit_cny":  result.UnitCNY,
+		"spec_total_cny": result.TotalCNY,
+		"quota_per_cny":  result.QuotaPerCNY,
+	}
+}
+
+func asyncTaskSpecPricingForTask(info *types.SpecPricingInfo) *model.TaskSpecPricing {
+	if info == nil {
+		return nil
+	}
+	return &model.TaskSpecPricing{
+		Priced:      info.Priced,
+		Kind:        info.Kind,
+		Model:       info.Model,
+		SpecKey:     info.SpecKey,
+		UnitCNY:     info.UnitCNY,
+		TotalCNY:    info.TotalCNY,
+		Quota:       info.Quota,
+		QuotaPerCNY: info.QuotaPerCNY,
 	}
 }
 
@@ -1382,7 +1418,11 @@ func asyncGeminiImageConfig(parameters map[string]interface{}) (jsonBytes []byte
 	if aspectRatio := asyncGeminiAspectRatio(asyncParamString(parameters, "size")); aspectRatio != "" {
 		config["aspectRatio"] = aspectRatio
 	}
-	if imageSize := asyncGeminiImageSize(asyncParamString(parameters, "quality")); imageSize != "" {
+	imageSizeSource := asyncParamString(parameters, "resolution")
+	if imageSizeSource == "" {
+		imageSizeSource = asyncParamString(parameters, "quality")
+	}
+	if imageSize := asyncGeminiImageSize(imageSizeSource); imageSize != "" {
 		config["imageSize"] = imageSize
 	}
 	if len(config) == 0 {

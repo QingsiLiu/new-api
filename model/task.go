@@ -117,6 +117,18 @@ type TaskBillingContext struct {
 	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+	SpecPricing     *TaskSpecPricing   `json:"spec_pricing,omitempty"`      // 规格绝对价计费快照
+}
+
+type TaskSpecPricing struct {
+	Priced      bool    `json:"spec_priced,omitempty"`
+	Kind        string  `json:"spec_kind,omitempty"`
+	Model       string  `json:"spec_model,omitempty"`
+	SpecKey     string  `json:"spec_key,omitempty"`
+	UnitCNY     float64 `json:"spec_unit_cny,omitempty"`
+	TotalCNY    float64 `json:"spec_total_cny,omitempty"`
+	Quota       int     `json:"spec_quota,omitempty"`
+	QuotaPerCNY float64 `json:"quota_per_cny,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
