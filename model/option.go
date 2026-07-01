@@ -195,6 +195,11 @@ func loadOptionsFromDatabase() {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+	if DB != nil && DB.Migrator().HasTable(&GroupRegistry{}) {
+		if err := ReconcileGroupRegistry(); err != nil {
+			common.SysLog("failed to reconcile group registry: " + err.Error())
+		}
+	}
 }
 
 func SyncOptions(frequency int) {

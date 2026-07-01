@@ -63,16 +63,28 @@ func GetPricing(c *gin.Context) {
 			delete(groupRatio, group)
 		}
 	}
+	groupCodes := make([]string, 0, len(groupRatio))
+	for group := range groupRatio {
+		groupCodes = append(groupCodes, group)
+	}
+	usableGroupCodes := make([]string, 0, len(usableGroup))
+	for group := range usableGroup {
+		usableGroupCodes = append(usableGroupCodes, group)
+	}
+	autoGroups := service.GetUserAutoGroup(group)
 
 	c.JSON(200, gin.H{
-		"success":            true,
-		"data":               pricing,
-		"vendors":            model.GetVendors(),
-		"group_ratio":        groupRatio,
-		"usable_group":       usableGroup,
-		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
-		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
+		"success":              true,
+		"data":                 pricing,
+		"vendors":              model.GetVendors(),
+		"group_ratio":          groupRatio,
+		"group_display":        model.ResolveGroupDisplayBatch(groupCodes),
+		"usable_group":         usableGroup,
+		"usable_group_display": model.ResolveGroupDisplayBatch(usableGroupCodes),
+		"supported_endpoint":   model.GetSupportedEndpointMap(),
+		"auto_groups":          autoGroups,
+		"auto_groups_display":  model.ResolveGroupDisplays(autoGroups),
+		"pricing_version":      "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }
 

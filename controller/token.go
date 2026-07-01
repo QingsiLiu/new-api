@@ -24,6 +24,7 @@ func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	}
 	maskedToken := *token
 	maskedToken.Key = token.GetMaskedKey()
+	maskedToken.GroupDisplay = model.ResolveGroupDisplay(token.Group)
 	return &maskedToken
 }
 

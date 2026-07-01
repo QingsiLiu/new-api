@@ -104,6 +104,8 @@ import {
   SecureVerificationDialog,
   useSecureVerification,
 } from '@/features/auth/secure-verification'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import {
   fetchModels,
   getAllModels,
@@ -274,6 +276,7 @@ export function ChannelMutateDrawer({
   currentRow,
 }: ChannelMutateDrawerProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const queryClient = useQueryClient()
   const { setOpen } = useChannels()
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
@@ -433,13 +436,16 @@ export function ChannelMutateDrawer({
 
   // Transform groups to multi-select options
   const groupOptions = useMemo(() => {
-    if (!groupsData?.data) return []
-    const allGroups = new Set([...groupsData.data, ...(currentGroups || [])])
+    const registryGroups = normalizeGroupRegistryItems(groupsData)
+    const allGroups = new Set([
+      ...registryGroups.map((group) => group.code),
+      ...(currentGroups || []),
+    ])
     return Array.from(allGroups).map((group) => ({
       value: group,
-      label: group,
+      label: getDisplayName(group),
     }))
-  }, [groupsData, currentGroups])
+  }, [groupsData, currentGroups, getDisplayName])
 
   // Parse current models as array
   const currentModelsArray = useMemo(

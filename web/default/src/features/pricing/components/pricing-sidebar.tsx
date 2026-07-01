@@ -37,6 +37,7 @@ import {
 } from '../constants'
 import { parseTags } from '../lib/filters'
 import type { PricingModel, PricingVendor } from '../types'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 
 type FilterOption = {
   value: string
@@ -156,6 +157,7 @@ function FilterSection(props: FilterSectionProps) {
 
 export function PricingSidebar(props: PricingSidebarProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const quotaTypeLabels = getQuotaTypeLabels(t)
   const endpointTypeLabels = getEndpointTypeLabels(t)
 
@@ -185,7 +187,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
     },
     ...props.groups.map((group) => ({
       value: group,
-      label: group,
+      label: getDisplayName(group),
       suffix: formatGroupRatio(props.groupRatios?.[group]),
     })),
   ]

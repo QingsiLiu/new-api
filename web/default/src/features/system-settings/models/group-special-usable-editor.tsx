@@ -33,6 +33,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
+import { GroupSelect } from '@/features/groups/components/group-select'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import {
   Select,
   SelectContent,
@@ -144,6 +146,7 @@ type GroupSectionProps = {
   onRemove: (id: string) => void
   onAdd: (groupName: string) => void
   onRemoveGroup: (groupName: string) => void
+  getDisplayName: (code?: string | null) => string
 }
 
 function GroupSection(props: GroupSectionProps) {
@@ -166,7 +169,9 @@ function GroupSection(props: GroupSectionProps) {
                 <ChevronDown className='h-4 w-4' />
               )}
             </CollapsibleTrigger>
-            <span className='font-semibold'>{props.groupName}</span>
+            <span className='font-semibold'>
+              {props.getDisplayName(props.groupName)}
+            </span>
             <StatusBadge variant='neutral' copyable={false}>
               {props.items.length} {t('rules')}
             </StatusBadge>
@@ -267,12 +272,12 @@ function GroupSection(props: GroupSectionProps) {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <Input
+                <GroupSelect
                   className='flex-1'
                   value={rule.targetGroup}
-                  placeholder={t('Group name')}
-                  onChange={(e) =>
-                    props.onUpdate(rule._id, 'targetGroup', e.target.value)
+                  placeholder={t('Select a group')}
+                  onValueChange={(value) =>
+                    props.onUpdate(rule._id, 'targetGroup', value)
                   }
                 />
                 {rule.op !== OP_REMOVE ? (
@@ -310,6 +315,7 @@ export function GroupSpecialUsableRulesEditor(
   props: GroupSpecialUsableRulesEditorProps
 ) {
   const { t } = useTranslation()
+  const groupRegistry = useGroupRegistry()
   const [rules, setRules] = useState<Rule[]>(() =>
     flattenRules(safeParseJson(props.value))
   )
@@ -425,22 +431,17 @@ export function GroupSpecialUsableRulesEditor(
                 onRemove={removeRule}
                 onAdd={addRuleToGroup}
                 onRemoveGroup={removeGroup}
+                getDisplayName={groupRegistry.getDisplayName}
               />
             ))
           )}
 
           <div className='flex items-center justify-center gap-2 pt-2'>
-            <Input
+            <GroupSelect
               className='w-[200px]'
               value={newGroupName}
-              placeholder={t('User group name')}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addNewGroup()
-                }
-              }}
+              placeholder={t('Select a group')}
+              onValueChange={setNewGroupName}
             />
             <Button variant='outline' size='sm' onClick={addNewGroup}>
               <Plus className='mr-1 h-4 w-4' />

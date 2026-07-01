@@ -49,6 +49,7 @@ type Log struct {
 	ChannelName       string `json:"channel_name" gorm:"->"`
 	TokenId           int    `json:"token_id" gorm:"default:0;index"`
 	Group             string `json:"group" gorm:"index"`
+	GroupDisplay      string `json:"group_display,omitempty" gorm:"-"`
 	Ip                string `json:"ip" gorm:"index;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
@@ -70,6 +71,7 @@ const (
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelName = ""
+		logs[i].GroupDisplay = ResolveGroupDisplay(logs[i].Group)
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
@@ -82,6 +84,15 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1
+	}
+}
+
+func attachLogGroupDisplays(logs []*Log) {
+	for _, log := range logs {
+		if log == nil {
+			continue
+		}
+		log.GroupDisplay = ResolveGroupDisplay(log.Group)
 	}
 }
 
@@ -469,6 +480,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 			logs[i].ChannelName = channelMap[logs[i].ChannelId]
 		}
 	}
+	attachLogGroupDisplays(logs)
 
 	return logs, total, err
 }
