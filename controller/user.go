@@ -23,8 +23,8 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm/clause"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type LoginRequest struct {
@@ -148,12 +148,13 @@ func setupLogin(user *model.User, c *gin.Context) {
 		"message": "",
 		"success": true,
 		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
+			"id":            user.Id,
+			"username":      user.Username,
+			"display_name":  user.DisplayName,
+			"role":          user.Role,
+			"status":        user.Status,
+			"group":         user.Group,
+			"group_display": model.ResolveGroupDisplay(user.Group),
 		},
 	})
 }
@@ -280,6 +281,7 @@ func GetAllUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	attachUserGroupDisplays(users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -309,11 +311,25 @@ func SearchUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	attachUserGroupDisplays(users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func attachUserGroupDisplay(user *model.User) {
+	if user == nil {
+		return
+	}
+	user.GroupDisplay = model.ResolveGroupDisplay(user.Group)
+}
+
+func attachUserGroupDisplays(users []*model.User) {
+	for _, user := range users {
+		attachUserGroupDisplay(user)
+	}
 }
 
 func canManageTargetRole(myRole int, targetRole int) bool {
@@ -336,6 +352,7 @@ func GetUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
 		return
 	}
+	attachUserGroupDisplay(user)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -463,6 +480,7 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":         user.WeChatId,
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
+		"group_display":     model.ResolveGroupDisplay(user.Group),
 		"quota":             user.Quota,
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,

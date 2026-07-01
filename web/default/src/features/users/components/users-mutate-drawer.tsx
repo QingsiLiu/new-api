@@ -74,6 +74,8 @@ import {
 import { type User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 
 type UsersMutateDrawerProps = {
   open: boolean
@@ -87,6 +89,7 @@ export function UsersMutateDrawer({
   currentRow,
 }: UsersMutateDrawerProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -99,7 +102,7 @@ export function UsersMutateDrawer({
     staleTime: 5 * 60 * 1000,
   })
 
-  const groups = groupsData?.data || []
+  const groups = normalizeGroupRegistryItems(groupsData)
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -329,8 +332,8 @@ export function UsersMutateDrawer({
                         <Select
                           items={[
                             ...groups.map((group) => ({
-                              value: group,
-                              label: group,
+                              value: group.code,
+                              label: group.display_name || getDisplayName(group.code),
                             })),
                           ]}
                           onValueChange={field.onChange}
@@ -344,8 +347,8 @@ export function UsersMutateDrawer({
                           <SelectContent alignItemWithTrigger={false}>
                             <SelectGroup>
                               {groups.map((group) => (
-                                <SelectItem key={group} value={group}>
-                                  {group}
+                                <SelectItem key={group.code} value={group.code}>
+                                  {group.display_name || getDisplayName(group.code)}
                                 </SelectItem>
                               ))}
                             </SelectGroup>

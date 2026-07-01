@@ -35,6 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 
 export type ApiKeyGroupOption = {
   value: string
@@ -103,15 +104,24 @@ export function ApiKeyGroupCombobox({
   disabled,
 }: ApiKeyGroupComboboxProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const selectedOption = options.find((option) => option.value === value)
+  const decoratedOptions = useMemo(
+    () =>
+      options.map((option) => ({
+        ...option,
+        label: option.label || getDisplayName(option.value),
+      })),
+    [options, getDisplayName]
+  )
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
-    if (!search) return options
+    if (!search) return decoratedOptions
 
-    return options.filter((option) => {
+    return decoratedOptions.filter((option) => {
       const ratioText = String(option.ratio ?? '').toLowerCase()
       return (
         option.value.toLowerCase().includes(search) ||
@@ -120,7 +130,7 @@ export function ApiKeyGroupCombobox({
         ratioText.includes(search)
       )
     })
-  }, [options, searchValue])
+  }, [decoratedOptions, searchValue])
 
   const handleSelect = (selectedValue: string) => {
     onValueChange(selectedValue)
@@ -145,7 +155,7 @@ export function ApiKeyGroupCombobox({
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
             <span className='block truncate font-medium'>
-              {selectedOption?.label || placeholder || t('Select a group')}
+              {selectedOption?.label || getDisplayName(value) || placeholder || t('Select a group')}
             </span>
             {selectedOption?.desc && (
               <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>

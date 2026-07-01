@@ -27,6 +27,7 @@ import type {
   ManageUserQuotaPayload,
   ApiResponse,
 } from './types'
+import type { GroupRegistryResponse } from '@/features/groups/types'
 
 // ============================================================================
 // User Management APIs
@@ -144,7 +145,7 @@ export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
 /**
  * Get all available groups
  */
-export async function getGroups(): Promise<ApiResponse<string[]>> {
+export async function getGroups(): Promise<GroupRegistryResponse> {
   const res = await api.get('/api/group/')
   return res.data
 }

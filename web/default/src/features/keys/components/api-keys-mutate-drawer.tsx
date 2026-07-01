@@ -27,6 +27,7 @@ import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -93,6 +94,7 @@ export function ApiKeysMutateDrawer({
   currentRow,
 }: ApiKeyMutateDrawerProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
@@ -121,7 +123,7 @@ export function ApiKeysMutateDrawer({
   const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
     ([key, info]) => ({
       value: key,
-      label: key,
+      label: info.display_name || getDisplayName(key),
       desc: info.desc || key,
       ratio: info.ratio,
     })

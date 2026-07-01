@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 
 type GroupBadgeProps = Omit<
@@ -54,6 +55,7 @@ function getGroupLabel(params: {
 
 export function GroupBadge(props: GroupBadgeProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const {
     group,
     label: labelOverride,
@@ -69,7 +71,7 @@ export function GroupBadge(props: GroupBadgeProps) {
   const isSpecialGroup = isAutoGroup || isEmptyGroup
   const label = getGroupLabel({
     labelOverride,
-    groupName,
+    groupName: getDisplayName(groupName),
     isAutoGroup,
     isEmptyGroup,
     t,

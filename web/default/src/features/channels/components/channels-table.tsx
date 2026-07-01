@@ -53,6 +53,8 @@ import type { Channel, ChannelSortBy } from '../types'
 import { useChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 
 const route = getRouteApi('/_authenticated/channels/')
 
@@ -74,6 +76,7 @@ function isDisabledChannelRow(channel: Channel) {
 export function ChannelsTable() {
   const { t } = useTranslation()
   const { enableTagMode, idSort } = useChannels()
+  const { getDisplayName } = useGroupRegistry()
   const isMobile = useMediaQuery('(max-width: 640px)')
 
   // Table state
@@ -162,11 +165,11 @@ export function ChannelsTable() {
 
   const groupOptions = useMemo(
     () =>
-      (groupsData?.data || []).map((g) => ({
-        label: g,
-        value: g,
+      normalizeGroupRegistryItems(groupsData).map((g) => ({
+        label: g.display_name || getDisplayName(g.code),
+        value: g.code,
       })),
-    [groupsData]
+    [groupsData, getDisplayName]
   )
 
   // Fetch channels data

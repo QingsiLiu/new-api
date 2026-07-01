@@ -40,6 +40,8 @@ import { channelsQueryKeys } from '../../lib'
 import type { TagOperationParams } from '../../types'
 import { useChannels } from '../channels-provider'
 import { ModelMappingEditor } from '../model-mapping-editor'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 
 type TagBatchEditDialogProps = {
   open: boolean
@@ -52,6 +54,7 @@ export function TagBatchEditDialog({
 }: TagBatchEditDialogProps) {
   const { t } = useTranslation()
   const { currentTag } = useChannels()
+  const { getDisplayName } = useGroupRegistry()
   const queryClient = useQueryClient()
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -70,13 +73,17 @@ export function TagBatchEditDialog({
 
   // Transform groups to multi-select options
   const groupOptions = useMemo(() => {
-    if (!groupsData?.data) return []
-    const allGroups = new Set([...groupsData.data, ...groups])
+    const registryGroups = normalizeGroupRegistryItems(groupsData)
+    if (!registryGroups.length) return []
+    const allGroups = new Set([
+      ...registryGroups.map((group) => group.code),
+      ...groups,
+    ])
     return Array.from(allGroups).map((group) => ({
       value: group,
-      label: group,
+      label: getDisplayName(group),
     }))
-  }, [groupsData, groups])
+  }, [groupsData, groups, getDisplayName])
 
   const loadTagData = useCallback(async () => {
     if (!currentTag) return
