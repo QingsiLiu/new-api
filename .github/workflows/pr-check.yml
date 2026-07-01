@@ -6,11 +6,14 @@ permissions:
   pull-requests: read
 
 on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
   pull_request_target:
     types: [opened, reopened]
 
 jobs:
   pr-quality:
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
       - uses: peakoss/anti-slop@v0.2.1
@@ -31,3 +34,26 @@ jobs:
           failure-add-pr-labels: "pr-check-failed"
           failure-pr-message: "感谢您的提交。由于该 PR 未遵循我们的贡献模板，且被识别为缺乏人工参与的纯 AI 生成内容 (AI Slop)，我们将先予以关闭。我们更欢迎经过人工审核、验证并带有个人思考的贡献。如果您认为这其中存在误解，请回复告知。/ Thank you for your submission. This PR has been closed because it does not follow our contribution template and has been identified as purely AI-generated content (AI Slop) without meaningful human involvement. We prioritize contributions that are human-verified and reflect individual effort. If you believe this is a mistake, please let us know by replying to this comment."
           close-pr: true
+
+  web-default:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/default
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Verify Geili Editorial design guardrails
+        run: bun run verify:design
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck and build
+        run: bun run build:check
