@@ -865,10 +865,10 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
                       <JsonEditor
                         value={field.value || ''}
                         onChange={field.onChange}
-                        keyPlaceholder='endpoint_type'
+                        keyPlaceholder={t('endpoint_type')}
                         valuePlaceholder='{"path": "/v1/...", "method": "POST"}'
-                        keyLabel='Endpoint Type'
-                        valueLabel='Configuration'
+                        keyLabel={t('Endpoint Type')}
+                        valueLabel={t('Configuration')}
                         valueType='any'
                         emptyMessage={t(
                           'No endpoints configured. Switch to JSON mode or add rows to define endpoints.'
@@ -961,10 +961,10 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
               <JsonEditor
                 value={currentPricingJson}
                 onChange={() => undefined}
-                keyPlaceholder='key'
-                valuePlaceholder='value'
-                keyLabel='Pricing key'
-                valueLabel='Pricing value'
+                keyPlaceholder={t('key')}
+                valuePlaceholder={t('value')}
+                keyLabel={t('Pricing key')}
+                valueLabel={t('Pricing value')}
                 valueType='any'
                 emptyMessage={t('No pricing config generated.')}
                 disabled
