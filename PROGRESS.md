@@ -414,3 +414,9 @@ Target: `web/default` only
 - Public health check still succeeds: `https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
 - A single lightweight SSH probe `ssh ctbuk "printf ok"` still failed with `Connection reset by 118.193.38.230 port 8443`. Per redline, stopped immediately: no compose read, no source transfer, no image build, no service restart, no compose edit, no prune.
 - Next safe step remains unchanged: when ctbuk SSH is healthy, verify current `relay-new-api` image, transfer committed `HEAD` only, build fixed tag from the then-current branch HEAD, back up compose, switch only `relay-new-api`, then require production parity `trusted=true` and `mismatch_count=0`.
+
+## 2026-07-02 22:29 CST - Unified Model Management blocked on ctbuk SSH
+- Current local and remote branch state: `codex/unified-model-management` at `b35dc9555ba4c2d4b55d1eb5764f153f9332c381`; `web/classic` has no diff; unrelated local `web/default` docs/home/nav changes remain unstaged and excluded.
+- Public health check still succeeds: `https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
+- A single lightweight SSH probe `ssh ctbuk "printf ok"` timed out after 20 seconds. This is the third consecutive goal continuation blocked on the same production SSH entrypoint (`ctbuk` port 8443 reset/timeout). Per redline, stopped immediately: no compose read, no source transfer, no image build, no service restart, no compose edit, no prune.
+- Goal status should remain blocked until ctbuk SSH/proxy access is healthy. Resume from committed `HEAD`: verify current `relay-new-api` image, transfer committed source only, build a fixed tag, back up compose, switch only `relay-new-api`, then require production parity `trusted=true` and `mismatch_count=0`.
