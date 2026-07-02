@@ -394,3 +394,17 @@ Target: `web/default` only
   - `/Users/tedliu/code/new-api/web/default`: `bun run verify:design` passed.
   - `/Users/tedliu/code/new-api`: `git diff --check` and `git diff --cached --check` passed; `web/classic` has no diff.
 - Current blocker before redeploy: GitHub push is not reachable from this machine. `git push origin codex/unified-model-management` timed out over SSH/22, direct HTTPS push timed out, and SSH-over-443 (`ssh.github.com:443`) also timed out. Per deploy order, production was not switched again after this fix because the new commit is not yet pushed to `origin`.
+
+## 2026-07-02 22:16 CST - Unified Model Management push recovered, deploy paused on SSH
+- Push recovered via non-interactive HTTPS: `GIT_TERMINAL_PROMPT=0 git push https://github.com/QingsiLiu/new-api.git HEAD:refs/heads/codex/unified-model-management` succeeded, and `ls-remote` confirmed `origin/codex/unified-model-management` at `4ea01d8d2b5f3d183a7000a6ffaba48cb109236b`.
+- Fresh predeploy verification after push:
+  - `/Users/tedliu/code/new-api`: `go test ./...` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run lint` passed with the existing `src/lib/lobe-icon.tsx` fast-refresh warning only.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run typecheck` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run build` passed with the existing Node `module.register()` deprecation warning.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run verify:design` passed.
+  - `/Users/tedliu/code/new-api`: `git diff --check` passed; `web/classic` has no diff.
+- Superset hard check passed locally: online base `568704f488326bb6dcc7049bdf15babce7d0d066` is an ancestor of `HEAD`.
+- Public predeploy health check: `https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
+- Deployment paused before any production change: `ssh ctbuk` reset while reading `/opt/geili-relay/docker-compose.yml` / `docker ps` (`Connection reset by 118.193.38.230 port 8443`). Per redline, no source transfer, no image build, no compose edit, no service restart, and no prune were attempted after the reset.
+- Next safe step once ctbuk SSH is healthy: verify current relay-new-api image, transfer `git archive HEAD`, build a new fixed tag from `4ea01d8`, back up compose, switch only `relay-new-api`, then read `/api/model/pricing-parity` with admin credentials and require `trusted=true`/`mismatch_count=0`.
