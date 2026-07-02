@@ -263,6 +263,9 @@ function ModelHeader(props: { model: PricingModel }) {
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
+  const modelAlias = model.alias?.trim()
+  const hasAlias = Boolean(modelAlias)
+  const displayName = modelAlias || model.model_name
   const description = model.description || model.vendor_description || null
   const tags = parseTags(model.tags)
   const isSpecialExpression =
@@ -272,19 +275,45 @@ function ModelHeader(props: { model: PricingModel }) {
 
   return (
     <header className='pb-4'>
-      <div className='flex items-center gap-2.5'>
+      <div className='flex items-start gap-2.5'>
         {modelIcon}
-        <h1 className='font-mono text-xl font-bold tracking-tight sm:text-2xl'>
-          {model.model_name}
-        </h1>
-        <CopyButton
-          value={model.model_name || ''}
-          className='size-6'
-          iconClassName='size-3'
-          tooltip={t('Copy model name')}
-          successTooltip={t('Copied!')}
-          aria-label={t('Copy model name')}
-        />
+        <div className='min-w-0'>
+          <div className='flex min-w-0 items-center gap-2'>
+            <h1
+              className={cn(
+                'truncate text-xl font-bold tracking-tight sm:text-2xl',
+                hasAlias ? 'font-semibold' : 'font-mono'
+              )}
+            >
+              {displayName}
+            </h1>
+            {!hasAlias && (
+              <CopyButton
+                value={model.model_name || ''}
+                className='size-6'
+                iconClassName='size-3'
+                tooltip={t('Copy model ID')}
+                successTooltip={t('Copied!')}
+                aria-label={t('Copy model ID')}
+              />
+            )}
+          </div>
+          {hasAlias && (
+            <div className='mt-1 flex min-w-0 items-center gap-1.5'>
+              <code className='text-muted-foreground/70 truncate font-mono text-xs'>
+                {model.model_name}
+              </code>
+              <CopyButton
+                value={model.model_name || ''}
+                className='size-6'
+                iconClassName='size-3'
+                tooltip={t('Copy model ID')}
+                successTooltip={t('Copied!')}
+                aria-label={t('Copy model ID')}
+              />
+            </div>
+          )}
+        </div>
       </div>
       <div className='mt-1 flex flex-wrap items-center gap-1.5 text-xs'>
         {model.vendor_name && (
@@ -1003,7 +1032,9 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
         )}
       >
         <SheetHeader className='sr-only'>
-          <SheetTitle>{props.model.model_name}</SheetTitle>
+          <SheetTitle>
+            {props.model.alias?.trim() || props.model.model_name}
+          </SheetTitle>
           <SheetDescription>{t('Model details')}</SheetDescription>
         </SheetHeader>
         <div className='flex-1 overflow-y-auto px-4 pt-11 pb-5 sm:px-6 sm:pt-12 sm:pb-6'>

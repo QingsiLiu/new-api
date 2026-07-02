@@ -35,6 +35,7 @@ type Model struct {
 	Id                 int            `json:"id"`
 	ModelName          string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
 	Description        string         `json:"description,omitempty" gorm:"type:text"`
+	Alias              string         `json:"alias,omitempty" gorm:"type:varchar(128);default:''"`
 	Icon               string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
 	Tags               string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
 	VendorID           int            `json:"vendor_id,omitempty" gorm:"index"`
@@ -107,7 +108,7 @@ func (mi *Model) Update() error {
 
 	// 使用 Select 强制更新所有字段，包括零值
 	if err := tx.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "modal", "pricing_mode", "pricing_config", "pricing_updated_time", "updated_time").
+		Select("model_name", "description", "alias", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "modal", "pricing_mode", "pricing_config", "pricing_updated_time", "updated_time").
 		Updates(mi).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -251,7 +252,7 @@ func applyModelListFilters(db *gorm.DB, filters ModelListFilters) *gorm.DB {
 	keyword := strings.TrimSpace(filters.Keyword)
 	if keyword != "" {
 		like := "%" + keyword + "%"
-		db = db.Where("model_name LIKE ? OR description LIKE ? OR tags LIKE ?", like, like, like)
+		db = db.Where("model_name LIKE ? OR alias LIKE ? OR description LIKE ? OR tags LIKE ?", like, like, like, like)
 	}
 	vendor := strings.TrimSpace(filters.Vendor)
 	if vendor != "" {
@@ -280,4 +281,24 @@ func applyModelListFilters(db *gorm.DB, filters ModelListFilters) *gorm.DB {
 		db = db.Where("models.pricing_mode = ?", pricingMode)
 	}
 	return db
+}
+
+var initialModelAliases = map[string]string{
+	"gemini-2.5-flash-image":         "Nano Banana",
+	"gemini-3.1-flash-image-preview": "Nano Banana 2",
+	"gemini-3-pro-image-preview":     "Nano Banana Pro",
+}
+
+func SeedInitialModelAliases() error {
+	if DB == nil || !DB.Migrator().HasTable(&Model{}) {
+		return nil
+	}
+	for modelName, alias := range initialModelAliases {
+		if err := DB.Model(&Model{}).
+			Where("model_name = ? AND (alias = '' OR alias IS NULL)", modelName).
+			Update("alias", alias).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

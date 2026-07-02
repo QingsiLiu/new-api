@@ -58,7 +58,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const endpoints = props.model.supported_endpoint_types || []
   const modelIconKey = props.model.icon || props.model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null
-  const initial = props.model.model_name?.charAt(0).toUpperCase() || '?'
+  const modelAlias = props.model.alias?.trim()
+  const hasAlias = Boolean(modelAlias)
+  const displayName = modelAlias || props.model.model_name
+  const initial = displayName?.charAt(0).toUpperCase() || '?'
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
@@ -103,9 +106,30 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             )}
           </div>
           <div className='min-w-0'>
-            <h3 className='text-foreground truncate font-mono text-[15px] leading-tight font-bold'>
-              {props.model.model_name}
+            <h3
+              className={cn(
+                'text-foreground truncate text-[15px] leading-tight font-bold',
+                hasAlias ? 'font-semibold' : 'font-mono'
+              )}
+            >
+              {displayName}
             </h3>
+            {hasAlias && (
+              <div className='mt-1 flex min-w-0 items-center gap-1.5'>
+                <code className='text-muted-foreground/70 truncate font-mono text-[11px] leading-4'>
+                  {props.model.model_name}
+                </code>
+                <button
+                  type='button'
+                  onClick={handleCopy}
+                  className='text-muted-foreground/70 hover:text-foreground hover:bg-muted inline-flex size-5 shrink-0 items-center justify-center rounded-md transition-colors'
+                  title={t('Copy model ID')}
+                  aria-label={t('Copy model ID')}
+                >
+                  <Copy className='size-3' />
+                </button>
+              </div>
+            )}
             <div className='mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs sm:mt-1 sm:gap-x-3'>
               {dynamicSummary ? (
                 dynamicSummary.isSpecialExpression ? (
@@ -209,14 +233,17 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             {t('Details')}
             <ChevronRight className='size-3.5' />
           </button>
-          <button
-            type='button'
-            onClick={handleCopy}
-            className='text-muted-foreground hover:text-foreground hover:bg-muted rounded-md border p-1.5 transition-colors'
-            title={t('Copy')}
-          >
-            <Copy className='size-3.5' />
-          </button>
+          {!hasAlias && (
+            <button
+              type='button'
+              onClick={handleCopy}
+              className='text-muted-foreground hover:text-foreground hover:bg-muted rounded-md border p-1.5 transition-colors'
+              title={t('Copy model ID')}
+              aria-label={t('Copy model ID')}
+            >
+              <Copy className='size-3.5' />
+            </button>
+          )}
         </div>
       </div>
 

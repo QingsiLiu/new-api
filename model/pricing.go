@@ -17,6 +17,7 @@ import (
 
 type Pricing struct {
 	ModelName              string                  `json:"model_name"`
+	Alias                  string                  `json:"alias,omitempty"`
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
@@ -299,6 +300,7 @@ func updatePricing() {
 			if meta.Status != 1 {
 				continue
 			}
+			pricing.Alias = meta.Alias
 			pricing.Description = meta.Description
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags

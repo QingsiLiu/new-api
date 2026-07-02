@@ -271,6 +271,169 @@ func TestGetAllModelsMetaFiltersByModalAndPricingMode(t *testing.T) {
 	require.Equal(t, "image-spec-filter-model", payload.Data.Items[0].ModelName)
 }
 
+func TestSearchModelsMetaReturnsAlias(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:    "gemini-2.5-flash-image",
+		Alias:        "Nano Banana",
+		Status:       1,
+		SyncOfficial: 1,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/models/search?keyword=Nano&p=1&page_size=10", nil)
+
+	SearchModelsMeta(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload adminModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Equal(t, 1, payload.Data.Total)
+	require.Len(t, payload.Data.Items, 1)
+	require.Equal(t, "gemini-2.5-flash-image", payload.Data.Items[0].ModelName)
+	require.Equal(t, "Nano Banana", payload.Data.Items[0].Alias)
+}
+
+func TestPricingIncludesAliasFromExactAndRuleMetadata(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     1,
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "sk-test",
+		Status: common.ChannelStatusEnabled,
+		Name:   "alias-channel",
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "exact-alias-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "prefix-alias-model-v2", ChannelId: 1, Enabled: true},
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Model{
+		{
+			ModelName:    "exact-alias-model",
+			Alias:        "Exact Display",
+			Status:       1,
+			SyncOfficial: 1,
+			NameRule:     model.NameRuleExact,
+		},
+		{
+			ModelName:    "prefix-alias-model",
+			Alias:        "Prefix Display",
+			Status:       1,
+			SyncOfficial: 1,
+			NameRule:     model.NameRulePrefix,
+		},
+	}).Error)
+	model.InvalidatePricingCache()
+
+	pricingByName := pricingByModelName(model.GetPricing())
+	require.Equal(t, "Exact Display", pricingByName["exact-alias-model"].Alias)
+	require.Equal(t, "Prefix Display", pricingByName["prefix-alias-model-v2"].Alias)
+}
+
+func TestSeedInitialModelAliasesOnlyFillsEmptyExistingAliases(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Model{
+		{ModelName: "gemini-2.5-flash-image", Status: 1},
+		{ModelName: "gemini-3.1-flash-image-preview", Alias: "Custom Banana", Status: 1},
+	}).Error)
+
+	require.NoError(t, model.SeedInitialModelAliases())
+
+	var seeded model.Model
+	require.NoError(t, db.First(&seeded, "model_name = ?", "gemini-2.5-flash-image").Error)
+	require.Equal(t, "Nano Banana", seeded.Alias)
+
+	var custom model.Model
+	require.NoError(t, db.First(&custom, "model_name = ?", "gemini-3.1-flash-image-preview").Error)
+	require.Equal(t, "Custom Banana", custom.Alias)
+
+	var count int64
+	require.NoError(t, db.Model(&model.Model{}).Where("model_name = ?", "gemini-3-pro-image-preview").Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestSyncUpstreamModelsPreservesLocalAlias(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:    "sync-alias-model",
+		Alias:        "Local Display",
+		Description:  "local description",
+		Status:       1,
+		SyncOfficial: 1,
+	}).Error)
+
+	cacheMutex.Lock()
+	etagCache = make(map[string]string)
+	bodyCache = make(map[string][]byte)
+	cacheMutex.Unlock()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload any
+		switch r.URL.Path {
+		case "/api/newapi/models.json":
+			payload = gin.H{
+				"success": true,
+				"data": []gin.H{{
+					"model_name":  "sync-alias-model",
+					"description": "upstream description",
+					"icon":        "Gemini",
+					"tags":        "image,preview",
+					"vendor_name": "Gemini",
+					"name_rule":   model.NameRuleExact,
+					"status":      1,
+				}},
+			}
+		case "/api/newapi/vendors.json":
+			payload = gin.H{
+				"success": true,
+				"data": []gin.H{{
+					"name":        "Gemini",
+					"description": "Gemini vendor",
+					"icon":        "Gemini",
+					"status":      1,
+				}},
+			}
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		data, err := common.Marshal(payload)
+		require.NoError(t, err)
+		_, err = w.Write(data)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+	t.Setenv("SYNC_UPSTREAM_BASE", server.URL)
+	t.Setenv("SYNC_HTTP_RETRY", "1")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/models/sync", strings.NewReader(`{"overwrite":[{"model_name":"sync-alias-model","fields":["description","icon","tags","vendor","name_rule","status"]}]}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	SyncUpstreamModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool `json:"success"`
+		Data    struct {
+			UpdatedModels int `json:"updated_models"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Equal(t, 1, payload.Data.UpdatedModels)
+
+	var updated model.Model
+	require.NoError(t, db.First(&updated, "model_name = ?", "sync-alias-model").Error)
+	require.Equal(t, "Local Display", updated.Alias)
+	require.Equal(t, "upstream description", updated.Description)
+	require.Equal(t, "Gemini", updated.Icon)
+}
+
 func TestGetModelPricingParityReturnsSavedReport(t *testing.T) {
 	report := model.PricingCompareReport{
 		CheckedTextModels:        3,

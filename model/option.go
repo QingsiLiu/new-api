@@ -206,6 +206,9 @@ func loadOptionsFromDatabase() {
 		}
 	}
 	AutoMigrateModelPricingConfigsFromOptions()
+	if err := SeedInitialModelAliases(); err != nil {
+		common.SysLog("failed to seed initial model aliases: " + err.Error())
+	}
 }
 
 func ensureAsyncSpecPricingOptionSeeded() {

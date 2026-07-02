@@ -16,9 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { type MouseEvent } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
+import { Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import {
   BadgeCell,
   BadgeListCell,
@@ -55,6 +59,7 @@ export function usePricingColumns(
   options: PricingColumnsOptions = {}
 ): ColumnDef<PricingModel>[] {
   const { t } = useTranslation()
+  const { copyToClipboard } = useCopyToClipboard()
   const {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
@@ -63,6 +68,13 @@ export function usePricingColumns(
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
+  const handleCopyModelID = (
+    event: MouseEvent<HTMLButtonElement>,
+    modelName: string
+  ) => {
+    event.stopPropagation()
+    void copyToClipboard(modelName)
+  }
 
   return [
     // Model column
@@ -76,13 +88,41 @@ export function usePricingColumns(
         const model = row.original
         const modelIconKey = model.icon || model.vendor_icon
         const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 14) : null
+        const modelAlias = model.alias?.trim()
+        const hasAlias = Boolean(modelAlias)
+        const displayName = modelAlias || model.model_name
 
         return (
-          <div className='flex max-w-full min-w-0 items-center gap-2'>
+          <div className='flex max-w-full min-w-0 items-start gap-2'>
             {modelIcon}
-            <span className='truncate font-mono text-sm font-medium'>
-              {model.model_name}
-            </span>
+            <div className='min-w-0'>
+              <div
+                className={cn(
+                  'truncate text-sm font-medium',
+                  hasAlias ? 'font-semibold' : 'font-mono'
+                )}
+              >
+                {displayName}
+              </div>
+              {hasAlias && (
+                <div className='mt-0.5 flex min-w-0 items-center gap-1.5'>
+                  <code className='text-muted-foreground/70 truncate font-mono text-[11px] leading-4'>
+                    {model.model_name}
+                  </code>
+                  <button
+                    type='button'
+                    onClick={(event) =>
+                      handleCopyModelID(event, model.model_name || '')
+                    }
+                    className='text-muted-foreground/70 hover:text-foreground hover:bg-muted inline-flex size-5 shrink-0 items-center justify-center rounded-md transition-colors'
+                    title={t('Copy model ID')}
+                    aria-label={t('Copy model ID')}
+                  >
+                    <Copy className='size-3' />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )
       },

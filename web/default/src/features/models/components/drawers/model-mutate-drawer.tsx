@@ -113,6 +113,7 @@ import type { Model } from '../../types'
 const modelFormSchema = z.object({
   id: z.number().optional(),
   model_name: z.string().min(1, 'Model name is required'),
+  alias: z.string().max(128, 'Alias must be at most 128 characters'),
   description: z.string(),
   icon: z.string(),
   tags: z.array(z.string()),
@@ -326,6 +327,7 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
     resolver: zodResolver(modelFormSchema),
     defaultValues: {
       model_name: '',
+      alias: '',
       description: '',
       icon: '',
       tags: [],
@@ -434,6 +436,7 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
       form.reset({
         id: source?.id,
         model_name: source?.model_name || props.currentRow?.model_name || '',
+        alias: source?.alias || '',
         description: source?.description || '',
         icon: source?.icon || '',
         tags: parseModelTags(source?.tags),
@@ -517,6 +520,7 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
         const payload = {
           id: isEditing ? props.currentRow!.id : undefined,
           model_name: values.model_name,
+          alias: values.alias.trim(),
           description: values.description || '',
           icon: values.icon || '',
           tags: values.tags.filter(Boolean).join(','),
@@ -628,6 +632,25 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
                           {...field}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='alias'
+                  render={({ field }) => (
+                    <FormItem className='md:col-span-2'>
+                      <FormLabel>{t('Display alias')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='Nano Banana' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Only used for display. Requests still use the real model ID.'
+                        )}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

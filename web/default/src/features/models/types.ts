@@ -37,6 +37,7 @@ export interface BoundChannel {
 export interface Model {
   id: number
   model_name: string
+  alias?: string
   description?: string
   icon?: string
   tags?: string
