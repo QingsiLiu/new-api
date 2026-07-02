@@ -360,3 +360,22 @@ Target: `web/default` only
 - Public health before deploy: `curl -fsS https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
 - Deployment stopped before any production change: `ssh ctbuk` failed while trying to read `/opt/geili-relay/docker-compose.yml` / `docker ps` (`timeout` and `Connection reset by 118.193.38.230 port 8443`). Per redline, did not retry transfer/build/deploy, did not touch compose, and did not restart any service.
 - No production parity result yet: `/api/model/pricing-parity` is implemented in code, but not deployed because server access failed. Need retry once ctbuk SSH/proxy is healthy, then perform authoritative online commit superset check, build fixed tag, switch only `relay-new-api`, and curl the new endpoint with admin credentials.
+
+## 2026-07-02 21:27 CST - Unified Model Management production parity rollback
+- Continued deployment from committed `HEAD` (`ad280634ad76c8c5387fbb4cd1842e82f1292319`, `docs: record parity deploy handoff`) on branch `codex/unified-model-management`; unrelated local `web/default` docs/home/nav changes remained unstaged and were not used. `web/classic` still has no diff.
+- Superset/release safety: online release base `568704f488326bb6dcc7049bdf15babce7d0d066` is an ancestor of `HEAD` (checked before transfer/build in the deploy handoff). Source snapshot was transferred from `git archive HEAD`, not from the dirty working tree.
+- New fixed image built on the server: `geili/new-api:unified-model-parity-20260702T131833Z-ad28063` (`8fd79be1e3b3`). Previous rollback anchor: `geili/new-api:api-docs-copy-20260702T105639Z-568704f`.
+- Compose backup created before switching: `/opt/geili-relay/docker-compose.yml.before-unified-model-parity-20260702T131833Z-ad28063`.
+- Switched only `relay-new-api` to the new tag with `docker compose up -d --no-deps relay-new-api`; did not touch Cavas/postgres/redis/cli-proxy and did not prune images. Container became healthy and public `https://all.geiliapi.com/api/status` returned HTTP 200. Frontend CSS marker check found `geili-editorial` count `1`.
+- Critical production parity result: startup real-data compare reported `model pricing parity MISMATCH: 8 处` and automatically kept `ModelPricingConfigTrusted=false`, so billing fell back to legacy options instead of using `models.pricing_config`. Unauthenticated curl to `https://all.geiliapi.com/api/model/pricing-parity` returned HTTP 401 as expected; no admin credential was read or printed.
+- Mismatch details from safe service log:
+  - `text gemini-2.5-flash-image`: legacy `75000`, new `0`, `legacy_ok=true`, `new_ok=false`.
+  - `text gemini-2.5-flash-lite-preview-thinking-*`: legacy `0`, new `150`, `legacy_ok=false`, `new_ok=true`.
+  - `text gemini-3-pro-image-preview`: legacy `75000`, new `0`, `legacy_ok=true`, `new_ok=false`.
+  - `text gemini-3.1-flash-image-preview`: legacy `75000`, new `0`, `legacy_ok=true`, `new_ok=false`.
+  - `text gpt-5.5`: legacy `2000`, new `750`, `legacy_ok=true`, `new_ok=true`.
+  - `text gpt-image-2`: legacy `75000`, new `0`, `legacy_ok=true`, `new_ok=false`.
+  - `text seedance-2.0`: legacy `41500000`, new `0`, `legacy_ok=true`, `new_ok=false`.
+  - `text seedance-2.0-fast`: legacy `32500000`, new `0`, `legacy_ok=true`, `new_ok=false`.
+- Per redline, did not force trust and did not continue rollout. Restored the compose backup and restarted only `relay-new-api`; production is back on `geili/new-api:api-docs-copy-20260702T105639Z-568704f`, healthy, with public health 200 and `geili-editorial` CSS marker count `1`.
+- Current blocker: production data is not zero-drift under the migration compare, so the unified pricing config cannot be trusted or deployed as the active pricing source. Need负责人 review/fix the 8 mismatches (likely model-mode/source precedence or wildcard handling around image/video models represented in text pricing) before another deploy attempt. Phase 4 cleanup remains explicitly pending; old options are still intact.
