@@ -379,3 +379,18 @@ Target: `web/default` only
   - `text seedance-2.0-fast`: legacy `32500000`, new `0`, `legacy_ok=true`, `new_ok=false`.
 - Per redline, did not force trust and did not continue rollout. Restored the compose backup and restarted only `relay-new-api`; production is back on `geili/new-api:api-docs-copy-20260702T105639Z-568704f`, healthy, with public health 200 and `geili-editorial` CSS marker count `1`.
 - Current blocker: production data is not zero-drift under the migration compare, so the unified pricing config cannot be trusted or deployed as the active pricing source. Need负责人 review/fix the 8 mismatches (likely model-mode/source precedence or wildcard handling around image/video models represented in text pricing) before another deploy attempt. Phase 4 cleanup remains explicitly pending; old options are still intact.
+
+## 2026-07-02 22:03 CST - Unified Model Management parity fix, local gate green
+- Root cause narrowed from the production mismatch logs: some real models have both spec pricing (`image_spec`/`video_matrix`) and legacy token/per-call pricing, but the migrated config previously stored only the spec mode; text/per-call parity then compared legacy quota against a spec-only config and produced `new=0`. A second mismatch class was ineffective legacy wildcard keys such as `gemini-2.5-flash-lite-preview-thinking-*`, where legacy `FormatMatchingModelName` does not activate the key but the migration had turned it into an active model config.
+- Fix committed locally as `c04fce32ff0c46b4a8ea2582c7d7fc4fd57bf694` (`fix: preserve legacy pricing parity for spec models`): spec configs now embed effective legacy ratio/per-call fields with `use_ratio`/`use_price`; ineffective legacy ratio keys migrate to `inherit` instead of becoming newly billable; existing non-empty configs are repaired to legacy-equivalent JSON when they differ, which covers stale production configs left by the rolled-back attempt.
+- Billing behavior updated: generic token/per-call helpers use embedded ratio/per-call fields from trusted spec configs, while async spec preconsume still keeps the spec placeholder path so estimate/charge remains resolved by the spec resolver. Spec-only configs without embedded ratio still fall back safely.
+- Frontend preservation updated in `web/default`: model pricing config type includes `use_ratio`; saving an existing `image_spec`/`video_matrix` config preserves embedded ratio fields when present, without adding token pricing to pure spec models.
+- New regression tests cover spec+text dual pricing, ineffective wildcard keys, stale config repair, token preconsume from embedded spec ratio, and generic per-call embedded spec ratio.
+- Fresh local verification:
+  - `/Users/tedliu/code/new-api`: `go test ./...` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run lint` passed with the existing `src/lib/lobe-icon.tsx` fast-refresh warning only.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run typecheck` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run build` passed with the existing Node `module.register()` deprecation warning.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run verify:design` passed.
+  - `/Users/tedliu/code/new-api`: `git diff --check` and `git diff --cached --check` passed; `web/classic` has no diff.
+- Current blocker before redeploy: GitHub push is not reachable from this machine. `git push origin codex/unified-model-management` timed out over SSH/22, direct HTTPS push timed out, and SSH-over-443 (`ssh.github.com:443`) also timed out. Per deploy order, production was not switched again after this fix because the new commit is not yet pushed to `origin`.
