@@ -17,7 +17,7 @@ var (
 	AsyncTaskProductRoutesEnabled    = false
 	AsyncTaskServiceUserProxyEnabled = false
 	QuotaPerCNY                      = common.QuotaPerUnit / defaultUSDCNY
-	asyncSpecPricing                 = defaultAsyncSpecPricing()
+	asyncSpecPricing                 = emptyAsyncSpecPricing()
 )
 
 type AsyncSpecPricing struct {
@@ -72,7 +72,19 @@ func AsyncSpecPricing2JSONString() string {
 	return string(bytes)
 }
 
-func defaultAsyncSpecPricing() AsyncSpecPricing {
+func AsyncSpecPricingSeedJSONString() string {
+	bytes, err := common.Marshal(seedAsyncSpecPricing())
+	if err != nil {
+		return "{}"
+	}
+	return string(bytes)
+}
+
+func emptyAsyncSpecPricing() AsyncSpecPricing {
+	return AsyncSpecPricing{Currency: "CNY"}
+}
+
+func seedAsyncSpecPricing() AsyncSpecPricing {
 	return AsyncSpecPricing{
 		Currency: "CNY",
 		Image: map[string]AsyncImageSpecPrice{

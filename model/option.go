@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -191,6 +192,7 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
+	ensureAsyncSpecPricingOptionSeeded()
 	options, _ := AllOption()
 	for _, option := range options {
 		err := updateOptionMap(option.Key, option.Value)
@@ -201,6 +203,28 @@ func loadOptionsFromDatabase() {
 	if DB != nil && DB.Migrator().HasTable(&GroupRegistry{}) {
 		if err := ReconcileGroupRegistry(); err != nil {
 			common.SysLog("failed to reconcile group registry: " + err.Error())
+		}
+	}
+}
+
+func ensureAsyncSpecPricingOptionSeeded() {
+	if DB == nil || !DB.Migrator().HasTable(&Option{}) {
+		return
+	}
+	seedValue := operation_setting.AsyncSpecPricingSeedJSONString()
+	var option Option
+	err := DB.First(&option, "key = ?", "AsyncSpecPricing").Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		if err := DB.Create(&Option{Key: "AsyncSpecPricing", Value: seedValue}).Error; err != nil {
+			common.SysLog("failed to seed AsyncSpecPricing option: " + err.Error())
+		}
+	case err != nil:
+		common.SysLog("failed to load AsyncSpecPricing option: " + err.Error())
+	case strings.TrimSpace(option.Value) == "":
+		option.Value = seedValue
+		if err := DB.Save(&option).Error; err != nil {
+			common.SysLog("failed to seed empty AsyncSpecPricing option: " + err.Error())
 		}
 	}
 }

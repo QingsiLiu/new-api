@@ -23,6 +23,122 @@ func TestInitOptionMapIncludesAsyncTaskSpecPricingEnabled(t *testing.T) {
 	require.NotEmpty(t, common.OptionMap["QuotaPerCNY"])
 }
 
+func TestInitOptionMapSeedsAsyncSpecPricingOptionWhenMissing(t *testing.T) {
+	truncateTables(t)
+	previousPricing := operation_setting.AsyncSpecPricing2JSONString()
+	previousQuotaPerCNY := operation_setting.QuotaPerCNY
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(previousPricing))
+		operation_setting.QuotaPerCNY = previousQuotaPerCNY
+	})
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{"video":{"temporary-video":{"default_cny_per_second":9}}}`))
+	operation_setting.QuotaPerCNY = 1000
+
+	InitOptionMap()
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", "AsyncSpecPricing").Error)
+	require.Contains(t, option.Value, "gpt-image-2")
+	require.Contains(t, option.Value, "gemini-3.1-flash-image-preview")
+	require.Equal(t, option.Value, common.OptionMap["AsyncSpecPricing"])
+
+	seededResult := operation_setting.ResolveImageSpecQuota("gpt-image-2", "2048x2048", "", "", 1)
+	require.True(t, seededResult.Matched)
+	require.Equal(t, "2k", seededResult.SpecKey)
+	require.Equal(t, 180, seededResult.Quota)
+
+	InitOptionMap()
+	var count int64
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "AsyncSpecPricing").Count(&count).Error)
+	require.EqualValues(t, 1, count)
+	var reloaded Option
+	require.NoError(t, DB.First(&reloaded, "key = ?", "AsyncSpecPricing").Error)
+	require.Equal(t, option.Value, reloaded.Value)
+
+	unseededResult := operation_setting.ResolveVideoSpecQuota("temporary-video", "720p", 1)
+	require.False(t, unseededResult.Matched)
+}
+
+func TestInitOptionMapReplacesEmptyAsyncSpecPricingOptionWithSeed(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.Create(&Option{Key: "AsyncSpecPricing", Value: "  "}).Error)
+
+	InitOptionMap()
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", "AsyncSpecPricing").Error)
+	require.Contains(t, option.Value, "gpt-image-2")
+	require.Equal(t, option.Value, common.OptionMap["AsyncSpecPricing"])
+	result := operation_setting.ResolveImageSpecQuota("gemini-2.5-flash-image", "", "", "", 1)
+	require.True(t, result.Matched)
+}
+
+func TestInitOptionMapDoesNotOverwriteExistingAsyncSpecPricingOption(t *testing.T) {
+	truncateTables(t)
+	previousPricing := operation_setting.AsyncSpecPricing2JSONString()
+	previousQuotaPerCNY := operation_setting.QuotaPerCNY
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(previousPricing))
+		operation_setting.QuotaPerCNY = previousQuotaPerCNY
+	})
+	customSpec := `{"currency":"CNY","image":{"custom-image":{"default_cny_per_image":0.7}},"video":{"seedance-2.0":{"default_cny_per_second":0.2}}}`
+	require.NoError(t, DB.Create(&Option{Key: "AsyncSpecPricing", Value: customSpec}).Error)
+	operation_setting.QuotaPerCNY = 1000
+
+	InitOptionMap()
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", "AsyncSpecPricing").Error)
+	require.Equal(t, customSpec, option.Value)
+	require.Equal(t, customSpec, common.OptionMap["AsyncSpecPricing"])
+	customImage := operation_setting.ResolveImageSpecQuota("custom-image", "", "", "", 1)
+	require.True(t, customImage.Matched)
+	require.Equal(t, 700, customImage.Quota)
+	seedImage := operation_setting.ResolveImageSpecQuota("gpt-image-2", "1024x1024", "", "", 1)
+	require.False(t, seedImage.Matched)
+}
+
+func TestUpdateOptionPersistsAndReloadsAsyncSpecPricingImmediately(t *testing.T) {
+	truncateTables(t)
+	previousPricing := operation_setting.AsyncSpecPricing2JSONString()
+	previousQuotaPerCNY := operation_setting.QuotaPerCNY
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(previousPricing))
+		operation_setting.QuotaPerCNY = previousQuotaPerCNY
+	})
+	InitOptionMap()
+
+	require.NoError(t, UpdateOption("QuotaPerCNY", "1000"))
+	require.NoError(t, UpdateOption("AsyncSpecPricing", `{
+		"currency":"CNY",
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"2k":{"cny_per_image":0.42}},
+				"default_cny_per_image":0.11
+			}
+		},
+		"video":{
+			"seedance-2.0":{
+				"resolutions":{"720p":{"cny_per_second":0.31}},
+				"default_cny_per_second":0.2,
+				"min_cny":1,
+				"max_cny":2
+			}
+		}
+	}`))
+
+	imageResult := operation_setting.ResolveImageSpecQuota("gpt-image-2", "2048x2048", "", "", 1)
+	require.True(t, imageResult.Matched)
+	require.Equal(t, 420, imageResult.Quota)
+	videoResult := operation_setting.ResolveVideoSpecQuota("seedance-2.0", "1280x720", 5)
+	require.True(t, videoResult.Matched)
+	require.Equal(t, 1550, videoResult.Quota)
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", "AsyncSpecPricing").Error)
+	require.Contains(t, option.Value, "seedance-2.0")
+}
+
 func TestUpdateOptionMapUpdatesAsyncTaskSpecPricingEnabled(t *testing.T) {
 	truncateTables(t)
 	operation_setting.AsyncTaskSpecPricingEnabled = false

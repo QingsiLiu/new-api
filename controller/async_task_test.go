@@ -946,7 +946,7 @@ func TestAsyncPricingEstimateUsesMultipartImageResolution(t *testing.T) {
 
 func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
-	withAsyncSpecPricingForTest(t, operation_setting.AsyncSpecPricing2JSONString(), 1000)
+	withAsyncSpecPricingForTest(t, operation_setting.AsyncSpecPricingSeedJSONString(), 1000)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/images/generations", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
