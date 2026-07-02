@@ -408,3 +408,9 @@ Target: `web/default` only
 - Public predeploy health check: `https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
 - Deployment paused before any production change: `ssh ctbuk` reset while reading `/opt/geili-relay/docker-compose.yml` / `docker ps` (`Connection reset by 118.193.38.230 port 8443`). Per redline, no source transfer, no image build, no compose edit, no service restart, and no prune were attempted after the reset.
 - Next safe step once ctbuk SSH is healthy: verify current relay-new-api image, transfer `git archive HEAD`, build a new fixed tag from `4ea01d8`, back up compose, switch only `relay-new-api`, then read `/api/model/pricing-parity` with admin credentials and require `trusted=true`/`mismatch_count=0`.
+
+## 2026-07-02 22:22 CST - Unified Model Management SSH still blocked
+- Current local and remote branch state before retry: `codex/unified-model-management` at `3a60bb555a8811aa91caf9a08486ff2240ed2cf7`; `web/classic` has no diff; unrelated local `web/default` docs/home/nav changes remain unstaged and excluded.
+- Public health check still succeeds: `https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
+- A single lightweight SSH probe `ssh ctbuk "printf ok"` still failed with `Connection reset by 118.193.38.230 port 8443`. Per redline, stopped immediately: no compose read, no source transfer, no image build, no service restart, no compose edit, no prune.
+- Next safe step remains unchanged: when ctbuk SSH is healthy, verify current `relay-new-api` image, transfer committed `HEAD` only, build fixed tag from the then-current branch HEAD, back up compose, switch only `relay-new-api`, then require production parity `trusted=true` and `mismatch_count=0`.
