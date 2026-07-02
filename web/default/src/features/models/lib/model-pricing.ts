@@ -49,6 +49,7 @@ export type ModelPricingConfig = {
   create_cache_ratio?: number
   model_price?: number
   use_price?: boolean
+  use_ratio?: boolean
   image_ratio?: number
   audio_ratio?: number
   audio_completion_ratio?: number

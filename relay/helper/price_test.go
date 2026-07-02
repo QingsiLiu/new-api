@@ -153,6 +153,36 @@ func TestModelPriceHelperUsesModelPricingConfigRatioForTokenPreconsume(t *testin
 	require.Equal(t, priceData, info.PriceData)
 }
 
+func TestModelPriceHelperUsesEmbeddedRatioFromSpecPricingConfigForTokenPreconsume(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	withModelRatioSettingForHelperTest(t, `{"chat-spec-ratio-model":9}`)
+	ctx := newPriceHelperTestContext()
+	info := newPriceHelperRelayInfo("chat-spec-ratio-model")
+	createPricingConfigModelForHelperTest(t, "chat-spec-ratio-model", model.ModelPricingConfig{
+		Mode:             model.PricingModeImageSpec,
+		UseRatio:         true,
+		BaseRatio:        2,
+		CompletionRatio:  3,
+		CacheRatio:       0.5,
+		CreateCacheRatio: 1.75,
+		ImageRatio:       4,
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.18)},
+		},
+	})
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{MaxTokens: 100})
+
+	require.NoError(t, err)
+	require.Equal(t, 2.0, priceData.ModelRatio)
+	require.Equal(t, 3.0, priceData.CompletionRatio)
+	require.Equal(t, 0.5, priceData.CacheRatio)
+	require.Equal(t, 1.75, priceData.CacheCreationRatio)
+	require.Equal(t, 4.0, priceData.ImageRatio)
+	require.Equal(t, 2200, priceData.QuotaToPreConsume)
+	require.Equal(t, priceData, info.PriceData)
+}
+
 func TestModelPriceHelperPerCallDoesNotReturnSpecPlaceholderForGenericCallers(t *testing.T) {
 	setupModelPricingHelperTestDB(t)
 	withModelPriceSettingForHelperTest(t, `{"spec-generic-model":0.05}`)
@@ -174,6 +204,28 @@ func TestModelPriceHelperPerCallDoesNotReturnSpecPlaceholderForGenericCallers(t 
 	require.NoError(t, err)
 	require.True(t, priceData.UsePrice)
 	require.Equal(t, int(0.05*common.QuotaPerUnit), priceData.Quota)
+	require.Nil(t, priceData.SpecPricing)
+}
+
+func TestModelPriceHelperPerCallUsesEmbeddedRatioFromSpecPricingConfigForGenericCallers(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	withModelRatioSettingForHelperTest(t, `{"spec-generic-ratio-model":10}`)
+	ctx := newPriceHelperTestContext()
+	createPricingConfigModelForHelperTest(t, "spec-generic-ratio-model", model.ModelPricingConfig{
+		Mode:      model.PricingModeImageSpec,
+		UseRatio:  true,
+		BaseRatio: 4,
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.18)},
+		},
+	})
+
+	priceData, err := ModelPriceHelperPerCall(ctx, newPriceHelperRelayInfo("spec-generic-ratio-model"))
+
+	require.NoError(t, err)
+	require.False(t, priceData.UsePrice)
+	require.Equal(t, 4.0, priceData.ModelRatio)
+	require.Equal(t, int(4.0/2*common.QuotaPerUnit), priceData.Quota)
 	require.Nil(t, priceData.SpecPricing)
 }
 

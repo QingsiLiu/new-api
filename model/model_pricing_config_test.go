@@ -113,6 +113,81 @@ func TestCompareMigratedPricingConfigsMatchesLegacyQuotaForEveryConfiguredCombin
 	require.GreaterOrEqual(t, report.CheckedVideoCombinations, 2)
 }
 
+func TestCompareMigratedPricingConfigsPreservesTextPricingForSpecModels(t *testing.T) {
+	truncateTables(t)
+	withPricingOptionsForTest(t)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"dual-image-model":2.5}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateCacheRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateImageRatioByJSONString(`{}`))
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{
+		"currency":"CNY",
+		"image":{
+			"dual-image-model":{
+				"unit":"per_image",
+				"default_cny_per_image":0.11
+			}
+		}
+	}`))
+	require.NoError(t, MigrateModelPricingConfigsOnly())
+
+	report, err := CompareMigratedPricingConfigs()
+
+	require.NoError(t, err)
+	require.Empty(t, report.Mismatches)
+}
+
+func TestCompareMigratedPricingConfigsDoesNotActivateIneffectiveLegacyRatioKeys(t *testing.T) {
+	truncateTables(t)
+	withPricingOptionsForTest(t)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"gemini-2.5-flash-lite-preview-thinking-*":0.05}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateCacheRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateImageRatioByJSONString(`{}`))
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{"currency":"CNY"}`))
+	require.NoError(t, MigrateModelPricingConfigsOnly())
+
+	report, err := CompareMigratedPricingConfigs()
+
+	require.NoError(t, err)
+	require.Empty(t, report.Mismatches)
+}
+
+func TestMigrateModelPricingConfigsRepairsExistingConfigToLegacyParity(t *testing.T) {
+	truncateTables(t)
+	withPricingOptionsForTest(t)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"stale-ratio-model":2.5}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateCacheRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateImageRatioByJSONString(`{}`))
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{"currency":"CNY"}`))
+	staleConfig := ModelPricingConfig{Mode: PricingModeRatio, BaseRatio: 1}
+	staleJSON, err := staleConfig.JSONString()
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&Model{
+		ModelName:     "stale-ratio-model",
+		Status:        1,
+		PricingMode:   PricingModeRatio,
+		PricingConfig: staleJSON,
+	}).Error)
+
+	stats, err := MigrateModelPricingConfigs()
+
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.UpdatedModels)
+	var repaired Model
+	require.NoError(t, DB.Where("model_name = ?", "stale-ratio-model").First(&repaired).Error)
+	repairedConfig, err := repaired.ParsePricingConfig()
+	require.NoError(t, err)
+	require.Equal(t, 2.5, repairedConfig.BaseRatio)
+	report, err := CompareMigratedPricingConfigs()
+	require.NoError(t, err)
+	require.Empty(t, report.Mismatches)
+}
+
 func TestRunModelPricingParityCheckSetsTrustedOnMatch(t *testing.T) {
 	truncateTables(t)
 	withPricingOptionsForTest(t)

@@ -39,6 +39,7 @@ type ModelPricingConfig struct {
 	CreateCacheRatio     float64 `json:"create_cache_ratio"`
 	ModelPrice           float64 `json:"model_price"`
 	UsePrice             bool    `json:"use_price,omitempty"`
+	UseRatio             bool    `json:"use_ratio,omitempty"`
 	ImageRatio           float64 `json:"image_ratio"`
 	AudioRatio           float64 `json:"audio_ratio"`
 	AudioCompletionRatio float64 `json:"audio_completion_ratio"`
@@ -265,14 +266,6 @@ func MigrateModelPricingConfigs() (ModelPricingMigrationStats, error) {
 			existingByName[modelName] = current
 			stats.CreatedModels++
 		}
-		if strings.TrimSpace(current.PricingConfig) != "" {
-			stats.SkippedExistingConfigs++
-			if isPricedMode(current.PricingMode) {
-				stats.PricedModels++
-			}
-			continue
-		}
-
 		cfg, mode, modal := buildPricingConfigForModel(modelName, current, candidates[modelName], asyncPricing, modelPrices, modelRatios, completionRatios, cacheRatios, createCacheRatios, imageRatios, audioRatios, audioCompletionRatios)
 		configJSON, err := cfg.JSONString()
 		if err != nil {
@@ -290,6 +283,13 @@ func MigrateModelPricingConfigs() (ModelPricingMigrationStats, error) {
 			"pricing_config":       configJSON,
 			"pricing_updated_time": now,
 			"updated_time":         now,
+		}
+		if strings.TrimSpace(current.PricingConfig) != "" && current.PricingMode == mode && strings.TrimSpace(current.PricingConfig) == configJSON {
+			stats.SkippedExistingConfigs++
+			if isPricedMode(current.PricingMode) {
+				stats.PricedModels++
+			}
+			continue
 		}
 		if err := DB.Model(&Model{}).Where("id = ?", current.Id).Updates(updates).Error; err != nil {
 			return stats, err
@@ -344,8 +344,9 @@ func buildPricingConfigForModel(
 	audioRatios map[string]float64,
 	audioCompletionRatios map[string]float64,
 ) (ModelPricingConfig, string, string) {
+	ratioCfg, hasRatioPricing := buildLegacyRatioPricingConfig(modelName)
 	if spec, ok := asyncPricing.Video[modelName]; ok {
-		return ModelPricingConfig{
+		cfg := ModelPricingConfig{
 			Mode:                PricingModeVideoMatrix,
 			Unit:                spec.Unit,
 			Resolutions:         videoResolutionsToModelConfig(spec.Resolutions),
@@ -353,81 +354,79 @@ func buildPricingConfigForModel(
 			DefaultCNYPerSecond: spec.DefaultCNYPerSecond,
 			MinCNY:              spec.MinCNY,
 			MaxCNY:              spec.MaxCNY,
-		}, PricingModeVideoMatrix, ModelModalVideo
+		}
+		if hasRatioPricing {
+			copyLegacyRatioPricingFields(&cfg, ratioCfg)
+		}
+		return cfg, PricingModeVideoMatrix, ModelModalVideo
 	}
 	if spec, ok := asyncPricing.Image[modelName]; ok {
-		return ModelPricingConfig{
+		cfg := ModelPricingConfig{
 			Mode:               PricingModeImageSpec,
 			Unit:               spec.Unit,
 			Resolutions:        imageResolutionsToModelConfig(spec.Resolutions),
 			Qualities:          spec.Qualities,
 			DefaultCNYPerImage: spec.DefaultCNYPerImage,
-		}, PricingModeImageSpec, ModelModalImage
+		}
+		if hasRatioPricing {
+			copyLegacyRatioPricingFields(&cfg, ratioCfg)
+		}
+		return cfg, PricingModeImageSpec, ModelModalImage
 	}
 
-	cfg := ModelPricingConfig{Mode: PricingModeRatio}
-	if modelPrice, ok := modelPrices[modelName]; ok {
-		cfg.ModelPrice = modelPrice
-		cfg.UsePrice = true
-	} else if modelRatio, ok := modelRatios[modelName]; ok {
-		cfg.BaseRatio = modelRatio
+	if hasRatioPricing {
+		return ratioCfg, PricingModeRatio, inferModalFromPricingSource(modelName, sourceModal, current)
 	}
-	if completionRatio, ok := completionRatios[modelName]; ok {
-		cfg.CompletionRatio = completionRatio
-	} else if _, ok := modelRatios[modelName]; ok {
-		cfg.CompletionRatio = ratio_setting.GetCompletionRatio(modelName)
-	}
-	if cacheRatio, ok := cacheRatios[modelName]; ok {
-		cfg.CacheRatio = cacheRatio
-	} else {
-		cfg.CacheRatio = 1
-	}
-	if createCacheRatio, ok := createCacheRatios[modelName]; ok {
-		cfg.CreateCacheRatio = createCacheRatio
-	} else {
-		cfg.CreateCacheRatio = 1.25
-	}
-	if imageRatio, ok := imageRatios[modelName]; ok {
-		cfg.ImageRatio = imageRatio
-	} else {
-		cfg.ImageRatio = 1
-	}
-	if audioRatio, ok := audioRatios[modelName]; ok {
-		cfg.AudioRatio = audioRatio
-	} else {
-		cfg.AudioRatio = 1
-	}
-	if audioCompletionRatio, ok := audioCompletionRatios[modelName]; ok {
-		cfg.AudioCompletionRatio = audioCompletionRatio
-	} else {
-		cfg.AudioCompletionRatio = 1
-	}
-
-	if cfg.UsePrice || hasRatioLikeConfig(modelName, modelRatios, completionRatios, cacheRatios, createCacheRatios, imageRatios, audioRatios, audioCompletionRatios) {
-		return cfg, PricingModeRatio, inferModalFromPricingSource(modelName, sourceModal, current)
-	}
-	cfg.Mode = PricingModeFree
-	return cfg, PricingModeFree, inferModalFromPricingSource(modelName, sourceModal, current)
+	cfg := ModelPricingConfig{Mode: PricingModeInherit}
+	return cfg, PricingModeInherit, inferModalFromPricingSource(modelName, sourceModal, current)
 }
 
-func hasRatioLikeConfig(
-	modelName string,
-	modelRatios map[string]float64,
-	completionRatios map[string]float64,
-	cacheRatios map[string]float64,
-	createCacheRatios map[string]float64,
-	imageRatios map[string]float64,
-	audioRatios map[string]float64,
-	audioCompletionRatios map[string]float64,
-) bool {
-	_, hasModelRatio := modelRatios[modelName]
-	_, hasCompletionRatio := completionRatios[modelName]
-	_, hasCacheRatio := cacheRatios[modelName]
-	_, hasCreateCacheRatio := createCacheRatios[modelName]
-	_, hasImageRatio := imageRatios[modelName]
-	_, hasAudioRatio := audioRatios[modelName]
-	_, hasAudioCompletionRatio := audioCompletionRatios[modelName]
-	return hasModelRatio || hasCompletionRatio || hasCacheRatio || hasCreateCacheRatio || hasImageRatio || hasAudioRatio || hasAudioCompletionRatio
+func buildLegacyRatioPricingConfig(modelName string) (ModelPricingConfig, bool) {
+	cfg := ModelPricingConfig{
+		Mode:                 PricingModeRatio,
+		CompletionRatio:      ratio_setting.GetCompletionRatio(modelName),
+		CacheRatio:           1,
+		CreateCacheRatio:     1.25,
+		ImageRatio:           1,
+		AudioRatio:           1,
+		AudioCompletionRatio: 1,
+	}
+	if cacheRatio, ok := ratio_setting.GetCacheRatio(modelName); ok {
+		cfg.CacheRatio = cacheRatio
+	}
+	if createCacheRatio, ok := ratio_setting.GetCreateCacheRatio(modelName); ok {
+		cfg.CreateCacheRatio = createCacheRatio
+	}
+	if imageRatio, ok := ratio_setting.GetImageRatio(modelName); ok {
+		cfg.ImageRatio = imageRatio
+	}
+	cfg.AudioRatio = ratio_setting.GetAudioRatio(modelName)
+	cfg.AudioCompletionRatio = ratio_setting.GetAudioCompletionRatio(modelName)
+
+	if modelPrice, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+		cfg.ModelPrice = modelPrice
+		cfg.UsePrice = true
+		return cfg, true
+	}
+	if modelRatio, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
+		cfg.BaseRatio = modelRatio
+		cfg.UseRatio = true
+		return cfg, true
+	}
+	return cfg, false
+}
+
+func copyLegacyRatioPricingFields(dst *ModelPricingConfig, src ModelPricingConfig) {
+	dst.BaseRatio = src.BaseRatio
+	dst.CompletionRatio = src.CompletionRatio
+	dst.CacheRatio = src.CacheRatio
+	dst.CreateCacheRatio = src.CreateCacheRatio
+	dst.ModelPrice = src.ModelPrice
+	dst.UsePrice = src.UsePrice
+	dst.UseRatio = src.UseRatio
+	dst.ImageRatio = src.ImageRatio
+	dst.AudioRatio = src.AudioRatio
+	dst.AudioCompletionRatio = src.AudioCompletionRatio
 }
 
 func inferModalFromPricingSource(modelName string, sourceModal string, current *Model) string {
@@ -605,7 +604,7 @@ func legacyTextSampleQuota(modelName string) (int, bool) {
 }
 
 func configTextSampleQuota(cfg ModelPricingConfig) (int, bool) {
-	if cfg.Mode != PricingModeRatio {
+	if cfg.Mode != PricingModeRatio && !cfg.UsePrice && !cfg.UseRatio {
 		return 0, false
 	}
 	if cfg.UsePrice {

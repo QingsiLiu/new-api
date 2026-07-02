@@ -116,6 +116,19 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 			imageRatio = 1
 			audioRatio = 1
 			audioCompletionRatio = 1
+		case model.PricingModeImageSpec, model.PricingModeVideoMatrix:
+			if modelPricingConfigHasRatioPricing(cfg) {
+				useModelPricingConfig = true
+				usePrice = cfg.UsePrice
+				modelPrice = cfg.ModelPrice
+				modelRatio = cfg.BaseRatio
+				completionRatio = cfg.CompletionRatio
+				cacheRatio = cfg.CacheRatio
+				cacheCreationRatio = cfg.CreateCacheRatio
+				imageRatio = cfg.ImageRatio
+				audioRatio = cfg.AudioRatio
+				audioCompletionRatio = cfg.AudioCompletionRatio
+			}
 		}
 	}
 
@@ -241,6 +254,12 @@ func modelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo, expect
 		case model.PricingModeImageSpec, model.PricingModeVideoMatrix:
 			if operation_setting.AsyncTaskSpecPricingEnabled && cfg.Mode == expectedPricingMode {
 				allowSpecPricingPlaceholder = true
+			} else if modelPricingConfigHasRatioPricing(cfg) {
+				useModelPricingConfig = true
+				usePrice = cfg.UsePrice
+				success = true
+				modelPrice = cfg.ModelPrice
+				modelRatio = cfg.BaseRatio
 			}
 		}
 	}
@@ -304,6 +323,10 @@ func modelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo, expect
 		GroupRatioInfo: groupRatioInfo,
 	}
 	return priceData, nil
+}
+
+func modelPricingConfigHasRatioPricing(cfg model.ModelPricingConfig) bool {
+	return cfg.UsePrice || cfg.UseRatio || cfg.Mode == model.PricingModeRatio
 }
 
 func specPricingPlaceholderPriceData(groupRatioInfo types.GroupRatioInfo) types.PriceData {

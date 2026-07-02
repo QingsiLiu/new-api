@@ -184,6 +184,28 @@ function normalizePricingMode(mode?: string): ModelPricingMode {
     : 'inherit'
 }
 
+function buildRatioPricingFields(
+  ratioState: RatioFormState
+): Partial<ModelPricingConfig> {
+  const hasRatioPricing =
+    ratioState.usePrice || ratioState.baseRatio.trim().length > 0
+  if (!hasRatioPricing) return {}
+  return {
+    use_price: ratioState.usePrice,
+    use_ratio: !ratioState.usePrice,
+    model_price: parseNonNegativeNumber(ratioState.modelPrice),
+    base_ratio: parseNonNegativeNumber(ratioState.baseRatio),
+    completion_ratio: parseNonNegativeNumber(ratioState.completionRatio),
+    cache_ratio: parseNonNegativeNumber(ratioState.cacheRatio),
+    create_cache_ratio: parseNonNegativeNumber(ratioState.createCacheRatio),
+    image_ratio: parseNonNegativeNumber(ratioState.imageRatio),
+    audio_ratio: parseNonNegativeNumber(ratioState.audioRatio),
+    audio_completion_ratio: parseNonNegativeNumber(
+      ratioState.audioCompletionRatio
+    ),
+  }
+}
+
 function buildPricingConfig(
   pricingMode: ModelPricingMode,
   ratioState: RatioFormState,
@@ -213,6 +235,7 @@ function buildPricingConfig(
   if (pricingMode === 'image_spec') {
     return {
       mode: 'image_spec',
+      ...buildRatioPricingFields(ratioState),
       unit: 'per_image',
       resolutions: imageRowsToResolutions(imageRows),
       default_cny_per_image: parseNonNegativeNumber(imageDefault),
@@ -221,6 +244,7 @@ function buildPricingConfig(
   if (pricingMode === 'video_matrix') {
     return {
       mode: 'video_matrix',
+      ...buildRatioPricingFields(ratioState),
       unit: 'per_second',
       prices: videoRowsToPrices(videoRows),
       default_cny_per_second: parseNonNegativeNumber(videoDefault),
