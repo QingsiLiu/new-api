@@ -4603,10 +4603,10 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "Spec Pricing": "Цены по спецификациям",
-    "Quota per CNY": "Квота за CNY",
     "Save spec pricing": "Сохранить цены спецификаций",
-    "Video preview": "Предпросмотр видео",
-    "Image preview": "Предпросмотр изображения",
+    "Advanced conversion settings": "Расширенные настройки конвертации",
+    "Internal quota conversion": "Внутренняя конвертация квоты",
+    "Converts CNY prices to the internal billing quota. Usually leave this unchanged.": "Преобразует цены в CNY во внутреннюю квоту списания. Обычно не требует изменения.",
     "Video prices": "Цены видео",
     "Add video price": "Добавить цену видео",
     "No video prices configured": "Цены видео не настроены",
@@ -4616,9 +4616,6 @@
     "Image prices": "Цены изображений",
     "Add image price": "Добавить цену изображения",
     "No image prices configured": "Цены изображений не настроены",
-    "CNY / image": "CNY / изображение",
-    "No rows": "Нет строк",
-    "Add a row to preview quota conversion.": "Добавьте строку, чтобы посмотреть пересчет в квоту.",
-    "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.": "Цены спецификаций являются абсолютными ценами в CNY. Если модель и спецификация совпадают, рассчитанная квота заменяет цену модели; для остальных моделей действует существующая цена."
+    "CNY / image": "CNY / изображение"
   }
 }

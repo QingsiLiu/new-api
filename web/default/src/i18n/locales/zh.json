@@ -4603,10 +4603,10 @@
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放",
     "Spec Pricing": "规格定价",
-    "Quota per CNY": "每元人民币额度",
     "Save spec pricing": "保存规格定价",
-    "Video preview": "视频预览",
-    "Image preview": "图片预览",
+    "Advanced conversion settings": "高级换算设置",
+    "Internal quota conversion": "内部额度换算",
+    "Converts CNY prices to the internal billing quota. Usually leave this unchanged.": "把人民币价格换算成系统扣费额度，通常不用改。",
     "Video prices": "视频价格",
     "Add video price": "添加视频价格",
     "No video prices configured": "未配置视频价格",
@@ -4616,9 +4616,6 @@
     "Image prices": "图片价格",
     "Add image price": "添加图片价格",
     "No image prices configured": "未配置图片价格",
-    "CNY / image": "元 / 张",
-    "No rows": "暂无行",
-    "Add a row to preview quota conversion.": "添加一行以预览额度换算。",
-    "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.": "规格价格是人民币绝对价格。模型和规格匹配时，计算出的额度会替代模型基础价；未匹配的模型继续使用现有模型定价。"
+    "CNY / image": "元 / 张"
   }
 }

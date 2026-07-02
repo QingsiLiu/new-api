@@ -20,8 +20,6 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import { Code2, Eye, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -225,14 +223,6 @@ function rowsToSpec(
   }
 }
 
-function formatQuota(value: number) {
-  return Math.round(value).toLocaleString()
-}
-
-function formatCNY(value: number) {
-  return `¥${value.toFixed(4).replace(/\.?0+$/, '')}`
-}
-
 function normalizeNumber(value: string) {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
@@ -428,87 +418,31 @@ const AsyncSpecPricingSettingsInner = memo(
       updateOption,
     ])
 
-    const videoPreview = useMemo(() => {
-      const row = videoRows.find((item) => item.model.trim())
-      if (!row) return null
-      const seconds = 8
-      const cny = row.cnyPerSecond * seconds
-      return {
-        model: row.model,
-        label: `${row.resolution} × ${seconds}s`,
-        cny,
-        quota: cny * quotaPerCNY,
-      }
-    }, [quotaPerCNY, videoRows])
-
-    const imagePreview = useMemo(() => {
-      const row = imageRows.find((item) => item.model.trim())
-      if (!row) return null
-      const count = 2
-      const cny = row.cnyPerImage * count
-      return {
-        model: row.model,
-        label: `${row.resolution} × ${count}`,
-        cny,
-        quota: cny * quotaPerCNY,
-      }
-    }, [imageRows, quotaPerCNY])
-
     return (
       <div className='space-y-5'>
-        <Alert>
-          <AlertDescription className='text-sm'>
-            {t(
-              'Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.'
+        <div className='flex flex-wrap justify-end gap-2'>
+          <Button variant='outline' size='sm' onClick={toggleEditMode}>
+            {editMode === 'visual' ? (
+              <>
+                <Code2 className='mr-2 h-4 w-4' />
+                {t('Switch to JSON')}
+              </>
+            ) : (
+              <>
+                <Eye className='mr-2 h-4 w-4' />
+                {t('Switch to Visual')}
+              </>
             )}
-          </AlertDescription>
-        </Alert>
-
-        <div className='flex flex-wrap items-end justify-between gap-3'>
-          <div className='min-w-52 space-y-1.5'>
-            <label className='text-sm font-medium' htmlFor='quota-per-cny'>
-              {t('Quota per CNY')}
-            </label>
-            <Input
-              id='quota-per-cny'
-              type='number'
-              min={0}
-              step={1}
-              value={quotaPerCNY}
-              onChange={(event) =>
-                setQuotaPerCNY(normalizeNumber(event.target.value))
-              }
-            />
-          </div>
-          <div className='flex flex-wrap gap-2'>
-            <Button variant='outline' size='sm' onClick={toggleEditMode}>
-              {editMode === 'visual' ? (
-                <>
-                  <Code2 className='mr-2 h-4 w-4' />
-                  {t('Switch to JSON')}
-                </>
-              ) : (
-                <>
-                  <Eye className='mr-2 h-4 w-4' />
-                  {t('Switch to Visual')}
-                </>
-              )}
-            </Button>
-            <Button
-              size='sm'
-              onClick={handleSave}
-              disabled={
-                updateOption.isPending || (editMode === 'json' && !!jsonError)
-              }
-            >
-              {updateOption.isPending ? t('Saving...') : t('Save spec pricing')}
-            </Button>
-          </div>
-        </div>
-
-        <div className='grid gap-3 md:grid-cols-2'>
-          <PreviewLine title={t('Video preview')} preview={videoPreview} />
-          <PreviewLine title={t('Image preview')} preview={imagePreview} />
+          </Button>
+          <Button
+            size='sm'
+            onClick={handleSave}
+            disabled={
+              updateOption.isPending || (editMode === 'json' && !!jsonError)
+            }
+          >
+            {updateOption.isPending ? t('Saving...') : t('Save spec pricing')}
+          </Button>
         </div>
 
         {editMode === 'json' ? (
@@ -749,6 +683,32 @@ const AsyncSpecPricingSettingsInner = memo(
             />
           </div>
         )}
+
+        <details className='border-border border-t pt-4'>
+          <summary className='text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium'>
+            {t('Advanced conversion settings')}
+          </summary>
+          <div className='mt-3 max-w-md space-y-1.5'>
+            <label className='text-sm font-medium' htmlFor='quota-per-cny'>
+              {t('Internal quota conversion')}
+            </label>
+            <Input
+              id='quota-per-cny'
+              type='number'
+              min={0}
+              step={1}
+              value={quotaPerCNY}
+              onChange={(event) =>
+                setQuotaPerCNY(normalizeNumber(event.target.value))
+              }
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Converts CNY prices to the internal billing quota. Usually leave this unchanged.'
+              )}
+            </p>
+          </div>
+        </details>
       </div>
     )
   }
@@ -785,41 +745,5 @@ function DeleteRowButton({ onClick }: { onClick: () => void }) {
     >
       <Trash2 className='text-destructive h-4 w-4' />
     </Button>
-  )
-}
-
-function PreviewLine({
-  title,
-  preview,
-}: {
-  title: string
-  preview: {
-    model: string
-    label: string
-    cny: number
-    quota: number
-  } | null
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className='rounded-lg border px-3 py-2.5'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <span className='text-muted-foreground text-xs font-medium'>
-          {title}
-        </span>
-        {preview ? (
-          <Badge variant='secondary'>{preview.model}</Badge>
-        ) : (
-          <Badge variant='outline'>{t('No rows')}</Badge>
-        )}
-      </div>
-      <div className='mt-2 text-sm'>
-        {preview
-          ? `${preview.label} = ${formatCNY(preview.cny)} = ${formatQuota(
-              preview.quota
-            )} quota`
-          : t('Add a row to preview quota conversion.')}
-      </div>
-    </div>
   )
 }

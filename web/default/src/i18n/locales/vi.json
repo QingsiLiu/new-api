@@ -4603,10 +4603,10 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "Spec Pricing": "Giá theo cấu hình",
-    "Quota per CNY": "Quota mỗi CNY",
     "Save spec pricing": "Lưu giá theo cấu hình",
-    "Video preview": "Xem trước video",
-    "Image preview": "Xem trước hình ảnh",
+    "Advanced conversion settings": "Cài đặt quy đổi nâng cao",
+    "Internal quota conversion": "Quy đổi hạn mức nội bộ",
+    "Converts CNY prices to the internal billing quota. Usually leave this unchanged.": "Quy đổi giá CNY sang hạn mức tính phí nội bộ. Thường không cần thay đổi.",
     "Video prices": "Giá video",
     "Add video price": "Thêm giá video",
     "No video prices configured": "Chưa cấu hình giá video",
@@ -4616,9 +4616,6 @@
     "Image prices": "Giá hình ảnh",
     "Add image price": "Thêm giá hình ảnh",
     "No image prices configured": "Chưa cấu hình giá hình ảnh",
-    "CNY / image": "CNY / ảnh",
-    "No rows": "Chưa có hàng",
-    "Add a row to preview quota conversion.": "Thêm một hàng để xem trước quy đổi quota.",
-    "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.": "Giá theo cấu hình là giá CNY tuyệt đối. Khi model và cấu hình khớp, quota tính được sẽ thay thế giá theo model; các model không khớp vẫn dùng giá model hiện có."
+    "CNY / image": "CNY / ảnh"
   }
 }

@@ -27,10 +27,10 @@ const localeFiles = ['en', 'zh', 'fr', 'ru', 'ja', 'vi'].map((locale) =>
 
 const specPricingI18nKeys = [
   'Spec Pricing',
-  'Quota per CNY',
   'Save spec pricing',
-  'Video preview',
-  'Image preview',
+  'Advanced conversion settings',
+  'Internal quota conversion',
+  'Converts CNY prices to the internal billing quota. Usually leave this unchanged.',
   'Video prices',
   'Add video price',
   'No video prices configured',
@@ -41,9 +41,6 @@ const specPricingI18nKeys = [
   'Add image price',
   'No image prices configured',
   'CNY / image',
-  'No rows',
-  'Add a row to preview quota conversion.',
-  'Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.',
 ]
 
 function read(file) {
@@ -71,13 +68,12 @@ const billingIndex = read(files.billingIndex)
 const types = read(files.types)
 
 for (const [needle, label] of [
-  ['Quota per CNY', 'QuotaPerCNY editor label'],
+  ['Advanced conversion settings', 'advanced conversion disclosure'],
+  ['Internal quota conversion', 'internal quota conversion editor label'],
   ['CNY / second', 'video per-second price column'],
   ['CNY / image', 'image per-image price column'],
   ['IMAGE_RESOLUTION_OPTIONS', 'image resolution option set'],
   ['spec.resolutions[resolution]', 'image resolution JSON writer'],
-  ['Video preview', 'video quota preview'],
-  ['Image preview', 'image quota preview'],
   ['Switch to JSON', 'JSON editor toggle'],
   ['Switch to Visual', 'visual editor toggle'],
   ['StaticDataTable', 'dense table editor'],
@@ -96,6 +92,15 @@ for (const [needle, label] of [
   ['bg-gradient', 'decorative gradient background'],
   ['IMAGE_QUALITY_OPTIONS', 'old image quality option set'],
   ['spec.qualities[quality]', 'old image quality JSON writer'],
+  ['AlertDescription', 'developer-facing pricing explanation banner'],
+  ['PreviewLine', 'quota preview cards'],
+  ['Quota per CNY', 'raw quota-per-CNY label'],
+  ['Video preview', 'video quota preview'],
+  ['Image preview', 'image quota preview'],
+  [
+    'Specification prices are absolute CNY prices',
+    'developer-facing pricing explanation text',
+  ],
 ]) {
   assertNotContains(component, needle, label)
 }

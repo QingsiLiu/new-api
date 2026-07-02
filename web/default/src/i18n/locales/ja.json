@@ -4603,10 +4603,10 @@
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
     "Spec Pricing": "仕様別価格",
-    "Quota per CNY": "CNY あたりのクォータ",
     "Save spec pricing": "仕様別価格を保存",
-    "Video preview": "動画プレビュー",
-    "Image preview": "画像プレビュー",
+    "Advanced conversion settings": "高度な換算設定",
+    "Internal quota conversion": "内部クォータ換算",
+    "Converts CNY prices to the internal billing quota. Usually leave this unchanged.": "CNY 価格を内部課金クォータに換算します。通常は変更不要です。",
     "Video prices": "動画価格",
     "Add video price": "動画価格を追加",
     "No video prices configured": "動画価格が設定されていません",
@@ -4616,9 +4616,6 @@
     "Image prices": "画像価格",
     "Add image price": "画像価格を追加",
     "No image prices configured": "画像価格が設定されていません",
-    "CNY / image": "CNY / 画像",
-    "No rows": "行がありません",
-    "Add a row to preview quota conversion.": "クォータ換算をプレビューするには行を追加してください。",
-    "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.": "仕様別価格は CNY の絶対価格です。モデルと仕様が一致すると、計算されたクォータがモデル単位の価格を置き換えます。一致しないモデルは既存のモデル価格を使用します。"
+    "CNY / image": "CNY / 画像"
   }
 }

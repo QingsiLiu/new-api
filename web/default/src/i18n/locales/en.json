@@ -4603,10 +4603,10 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "Spec Pricing": "Spec Pricing",
-    "Quota per CNY": "Quota per CNY",
     "Save spec pricing": "Save spec pricing",
-    "Video preview": "Video preview",
-    "Image preview": "Image preview",
+    "Advanced conversion settings": "Advanced conversion settings",
+    "Internal quota conversion": "Internal quota conversion",
+    "Converts CNY prices to the internal billing quota. Usually leave this unchanged.": "Converts CNY prices to the internal billing quota. Usually leave this unchanged.",
     "Video prices": "Video prices",
     "Add video price": "Add video price",
     "No video prices configured": "No video prices configured",
@@ -4616,9 +4616,6 @@
     "Image prices": "Image prices",
     "Add image price": "Add image price",
     "No image prices configured": "No image prices configured",
-    "CNY / image": "CNY / image",
-    "No rows": "No rows",
-    "Add a row to preview quota conversion.": "Add a row to preview quota conversion.",
-    "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.": "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing."
+    "CNY / image": "CNY / image"
   }
 }
