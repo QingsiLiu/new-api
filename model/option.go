@@ -205,6 +205,7 @@ func loadOptionsFromDatabase() {
 			common.SysLog("failed to reconcile group registry: " + err.Error())
 		}
 	}
+	AutoMigrateModelPricingConfigsFromOptions()
 }
 
 func ensureAsyncSpecPricingOptionSeeded() {

@@ -330,19 +330,23 @@ func GetAsyncSpecPricingCopy() AsyncSpecPricing {
 }
 
 func ResolveVideoSpecQuota(modelName string, resolution string, seconds int) AsyncSpecQuotaResult {
-	return resolveVideoSpecQuota(modelName, resolution, "", "", seconds, false)
+	return resolveVideoSpecQuotaFromPricing(asyncSpecPricing, modelName, resolution, "", "", seconds, false)
 }
 
 func ResolveVideoSpecQuotaByContext(modelName string, resolution string, ratio string, mode string, seconds int) AsyncSpecQuotaResult {
-	return resolveVideoSpecQuota(modelName, resolution, ratio, mode, seconds, true)
+	return resolveVideoSpecQuotaFromPricing(asyncSpecPricing, modelName, resolution, ratio, mode, seconds, true)
 }
 
-func resolveVideoSpecQuota(modelName string, resolution string, ratio string, mode string, seconds int, includeMatrix bool) AsyncSpecQuotaResult {
+func ResolveVideoSpecQuotaByContextFromPricing(pricing AsyncSpecPricing, modelName string, resolution string, ratio string, mode string, seconds int) AsyncSpecQuotaResult {
+	return resolveVideoSpecQuotaFromPricing(pricing, modelName, resolution, ratio, mode, seconds, true)
+}
+
+func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string, resolution string, ratio string, mode string, seconds int, includeMatrix bool) AsyncSpecQuotaResult {
 	modelName = strings.TrimSpace(modelName)
 	if seconds < 0 {
 		seconds = 0
 	}
-	spec, ok := asyncSpecPricing.Video[modelName]
+	spec, ok := pricing.Video[modelName]
 	if !ok {
 		return AsyncSpecQuotaResult{Kind: "video", Model: modelName, QuotaPerCNY: QuotaPerCNY}
 	}
@@ -413,11 +417,15 @@ func resolveVideoSpecQuota(modelName string, resolution string, ratio string, mo
 }
 
 func ResolveImageSpecQuota(modelName string, size string, resolution string, quality string, n int) AsyncSpecQuotaResult {
+	return ResolveImageSpecQuotaFromPricing(asyncSpecPricing, modelName, size, resolution, quality, n)
+}
+
+func ResolveImageSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string, size string, resolution string, quality string, n int) AsyncSpecQuotaResult {
 	modelName = strings.TrimSpace(modelName)
 	if n <= 0 {
 		n = 1
 	}
-	spec, ok := asyncSpecPricing.Image[modelName]
+	spec, ok := pricing.Image[modelName]
 	if !ok {
 		return AsyncSpecQuotaResult{Kind: "image", Model: modelName, QuotaPerCNY: QuotaPerCNY}
 	}

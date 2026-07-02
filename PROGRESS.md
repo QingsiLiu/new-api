@@ -305,3 +305,50 @@ Target: `web/default` only
   - `/Users/tedliu/.config/superpowers/worktrees/new-api/codex-geili-editorial-ui`: `git diff --check` 通过。
 - 范围确认：`web/classic` 无 diff；未 push、未部署、未改真实站点配置。此前 authenticated/public 明暗截图 QA 仍沿用 `artifacts/geili-editorial-screenshots/` 中已记录的截图。
 - 当前状态：Geili Editorial 视觉改造、明暗截图 QA、静态验收、lint、typecheck、build 均已满足原 Goal 完成定义；待提交本轮 lint gate 收尾改动。
+
+## 2026-07-02 19:23 CST - Unified Model Management Phase 1/2
+- Goal: executing `/Users/tedliu/Documents/GeiliAPI/docs/superpowers/specs/2026-07-02-unified-model-management-design.md` on `/Users/tedliu/code/new-api`, branch `codex/unified-model-management`; backend Go + `web/default` only, `web/classic` untouched.
+- Phase 1 data model: added `models.modal`, `models.pricing_mode`, `models.pricing_config`, and `models.pricing_updated_time`. AutoMigrate only adds/copies; old `ModelRatio`, `ImageRatio`, and `AsyncSpecPricing` options remain intact as rollback/fallback sources.
+- Phase 1 migration: implemented idempotent `MigrateModelPricingConfigs()` over the union of existing `models` rows, token ratio/price maps, image/audio ratios, and `AsyncSpecPricing.image/video`. Missing priced models are inserted with `Status=1`, `SyncOfficial=0`; existing non-empty `pricing_config` is skipped.
+- Phase 1 parity proof: `CompareMigratedPricingConfigs()` traverses legacy text/image/video pricing combinations and compares migrated quota results. Covered text ratio/per-call samples, image spec resolution/quality/default samples, and every video matrix `resolution x ratio x mode` cell including unsupported cells.
+- Phase 2 billing engine: `ModelPriceHelper` and `ModelPriceHelperPerCall` now prefer non-inherit `models.pricing_config` for ratio/free pricing and fall back to legacy options when config is empty/inherit/unavailable. Async image/video spec pricing resolves from `models.pricing_config` first, then old `AsyncSpecPricing`.
+- Phase 2 safety fixes: generic per-call callers no longer receive a zero quota placeholder for `image_spec`/`video_matrix`; only async task billing may request a temporary placeholder, and only for the matching expected pricing mode. If a spec-only config does not match the request, it now returns `spec price not configured` instead of charging 0. Explicit `unsupported` still returns `unsupported video spec price`.
+- Tests added/updated:
+  - `model/model_pricing_config_test.go`: migration copy/no-delete/idempotency and full legacy-vs-migrated quota compare.
+  - `relay/helper/price_test.go`: model-config fixed price, ratio, token preconsume, empty/inherit fallback, and generic per-call spec fallback.
+  - `controller/async_task_test.go`: model-config image price overrides legacy option; spec-only matched estimate==charge; spec-only unmatched errors; model-config video unsupported errors.
+- Fresh Phase 1/2 verification:
+  - `/Users/tedliu/code/new-api`: `go test ./model ./setting/operation_setting` passed.
+  - `/Users/tedliu/code/new-api`: `go test ./relay/helper ./controller` passed.
+- Current status: Phase 1 and Phase 2 backend gates are locally green. No commit, no push, no deployment. Phase 3 `web/default` unified model management UI remains pending.
+
+## 2026-07-02 20:08 CST - Unified Model Management Phase 3/final
+- Scope completed on `/Users/tedliu/code/new-api`, branch `codex/unified-model-management`: backend Go + `web/default`; `web/classic` has no diff. No commit, no push, no deployment.
+- Phase 3 model center: `/models/metadata` now exposes modality and pricing-mode filters/columns, and the row drawer edits model metadata plus `models.pricing_config` as the single active pricing source. Pricing editors cover ratio/per-call, image spec, and video matrix with matrix rows, paste support, unsupported cells, and quota previews.
+- Access management: added narrow `PUT /api/models/:id/access` to update selected channel mappings for a model by editing channel model membership and rebuilding abilities through the existing channel invariant path. Model renames now update channel model names in the same `Model.Update()` transaction. The drawer includes a channel checklist and derived group visibility preview from selected channel groups.
+- Legacy settings: old Billing -> Model Pricing and Spec Pricing entries are read-only inspection surfaces with a jump to the unified model center. Old options (`ModelRatio`, `ImageRatio`, `AsyncSpecPricing`) remain intact as fallback/audit sources.
+- Migration coverage/accounting: `MigrateModelPricingConfigs()` reports `total_candidates`, `created_models`, `updated_models`, `priced_models`, and `skipped_existing_configs`; the local fixture covers 6 candidates / 5 priced models and proves missing priced rows are created without deleting old options. Production/staging counts will be emitted by the migration log on first run against that database.
+- Parity proof: `go test ./model -run TestCompareMigratedPricingConfigsMatchesLegacyQuotaForEveryConfiguredCombination -count=1` passed; no mismatches in legacy-vs-migrated text/image/video combinations.
+- Final verification:
+  - `/Users/tedliu/code/new-api`: `go test ./...` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run lint` passed with only the pre-existing `src/lib/lobe-icon.tsx` fast-refresh warning.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run typecheck` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run build` passed; rsbuild emitted the existing Node `module.register()` deprecation warning but exit 0.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run verify:design` passed.
+  - `/Users/tedliu/code/new-api`: `git diff --check` passed.
+- Remaining owner note for observation period: Phase 4 cleanup is intentionally not done. Keep legacy option fallback and read-only legacy entries until负责人 confirms the observation window is safe.
+
+## 2026-07-02 20:42 CST - Unified Model Management parity gate
+- Continued `/Users/tedliu/Documents/GeiliAPI/docs/superpowers/specs/2026-07-02-unified-model-parity-deploy-goal.md` on branch `codex/unified-model-management`; `web/classic` still has no diff.
+- A1 implemented: after `AutoMigrateModelPricingConfigsFromOptions()` completes, startup now runs `CompareMigratedPricingConfigs()` against the active DB/options and stores an in-memory parity report. `ModelPricingConfigTrusted` starts false; 0 mismatches sets true and logs text/image/video counts; any mismatch or compare/migration error sets false and logs safe mismatch details plus automatic old-price fallback.
+- A2 implemented: `GetModelPricingConfig()` is now trust-gated. When `ModelPricingConfigTrusted=false`, billing helpers and async spec pricing receive no `pricing_config` and fully fall back to legacy options. When true, existing per-model config-first / empty-inherit fallback behavior remains.
+- A3 implemented: admin read-only `GET /api/model/pricing-parity` returns `{trusted, checked_text, checked_image, checked_video, mismatch_count, mismatches[0:20]}` plus an optional error string for compare/runtime failures.
+- Tests added/updated: model parity trust/mismatch/getter gate; helper false-gate fallback; async false-gate fallback; pricing-parity endpoint response.
+- Local verification before commit:
+  - `/Users/tedliu/code/new-api`: `go test ./...` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run lint` passed with only the pre-existing `src/lib/lobe-icon.tsx` fast-refresh warning.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run typecheck` passed.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run build` passed; rsbuild emitted the existing Node `module.register()` deprecation warning but exit 0.
+  - `/Users/tedliu/code/new-api/web/default`: `bun run verify:design` passed.
+  - `/Users/tedliu/code/new-api`: `git diff --check` passed.
+- Note before staging: unrelated pre-existing `web/default` docs/home/footer/nav generated-route changes remain unstaged and must not be included in the unified model commit.

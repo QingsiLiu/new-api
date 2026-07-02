@@ -26,6 +26,7 @@ import { z } from 'zod'
  * Bound channel information
  */
 export interface BoundChannel {
+  id: number
   name: string
   type: number
 }
@@ -43,6 +44,10 @@ export interface Model {
   endpoints?: string
   status: number
   sync_official: number
+  modal?: string
+  pricing_mode?: string
+  pricing_config?: string
+  pricing_updated_time?: number
   created_time: number
   updated_time: number
   name_rule: number
@@ -91,6 +96,8 @@ export interface GetModelsParams {
   vendor?: string // vendor ID to filter by
   status?: string // filter by status
   sync_official?: string // filter by sync_official status
+  modal?: string // filter by model modality
+  pricing_mode?: string // filter by pricing mode
 }
 
 /**
@@ -101,6 +108,8 @@ export interface SearchModelsParams {
   vendor?: string // vendor ID to filter by
   status?: string // filter by status
   sync_official?: string // filter by sync_official status
+  modal?: string // filter by model modality
+  pricing_mode?: string // filter by pricing mode
   p?: number
   page_size?: number
 }
@@ -238,6 +247,9 @@ export const modelFormSchema = z.object({
   name_rule: z.number().min(0).max(3).default(0),
   status: z.boolean().default(true),
   sync_official: z.boolean().default(true),
+  modal: z.string().default('text'),
+  pricing_mode: z.string().default('inherit'),
+  pricing_config: z.string().default(''),
 })
 
 export type ModelFormValues = z.infer<typeof modelFormSchema>

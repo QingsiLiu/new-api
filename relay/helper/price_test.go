@@ -1,18 +1,25 @@
 package helper
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
@@ -59,4 +66,204 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, "stream", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, billing_setting.BillingModeTieredExpr, info.TieredBillingSnapshot.BillingMode)
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
+}
+
+func TestModelPriceHelperPerCallPrefersModelPricingConfigFixedPrice(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	withModelPriceSettingForHelperTest(t, `{"unified-call-model":0.99}`)
+	ctx := newPriceHelperTestContext()
+	createPricingConfigModelForHelperTest(t, "unified-call-model", model.ModelPricingConfig{
+		Mode:       model.PricingModeRatio,
+		UsePrice:   true,
+		ModelPrice: 0.12,
+	})
+
+	priceData, err := ModelPriceHelperPerCall(ctx, newPriceHelperRelayInfo("unified-call-model"))
+
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, 0.12, priceData.ModelPrice)
+	require.Equal(t, int(0.12*common.QuotaPerUnit), priceData.Quota)
+}
+
+func TestModelPriceHelperPerCallPrefersModelPricingConfigRatio(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	withModelPriceSettingForHelperTest(t, `{}`)
+	withModelRatioSettingForHelperTest(t, `{"unified-ratio-model":10}`)
+	ctx := newPriceHelperTestContext()
+	createPricingConfigModelForHelperTest(t, "unified-ratio-model", model.ModelPricingConfig{
+		Mode:      model.PricingModeRatio,
+		BaseRatio: 4,
+	})
+
+	priceData, err := ModelPriceHelperPerCall(ctx, newPriceHelperRelayInfo("unified-ratio-model"))
+
+	require.NoError(t, err)
+	require.False(t, priceData.UsePrice)
+	require.Equal(t, 4.0, priceData.ModelRatio)
+	require.Equal(t, int(4.0/2*common.QuotaPerUnit), priceData.Quota)
+}
+
+func TestModelPriceHelperPerCallFallsBackForEmptyAndInheritPricingConfig(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	withModelPriceSettingForHelperTest(t, `{"empty-pricing-model":0.07,"inherit-pricing-model":0.08}`)
+	ctx := newPriceHelperTestContext()
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName: "empty-pricing-model",
+		Status:    1,
+	}).Error)
+	createPricingConfigModelForHelperTest(t, "inherit-pricing-model", model.ModelPricingConfig{
+		Mode: model.PricingModeInherit,
+	})
+
+	emptyPriceData, err := ModelPriceHelperPerCall(ctx, newPriceHelperRelayInfo("empty-pricing-model"))
+	require.NoError(t, err)
+	require.True(t, emptyPriceData.UsePrice)
+	require.Equal(t, int(0.07*common.QuotaPerUnit), emptyPriceData.Quota)
+
+	inheritPriceData, err := ModelPriceHelperPerCall(ctx, newPriceHelperRelayInfo("inherit-pricing-model"))
+	require.NoError(t, err)
+	require.True(t, inheritPriceData.UsePrice)
+	require.Equal(t, int(0.08*common.QuotaPerUnit), inheritPriceData.Quota)
+}
+
+func TestModelPriceHelperUsesModelPricingConfigRatioForTokenPreconsume(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	withModelRatioSettingForHelperTest(t, `{"chat-ratio-model":9}`)
+	ctx := newPriceHelperTestContext()
+	info := newPriceHelperRelayInfo("chat-ratio-model")
+	createPricingConfigModelForHelperTest(t, "chat-ratio-model", model.ModelPricingConfig{
+		Mode:             model.PricingModeRatio,
+		BaseRatio:        2,
+		CompletionRatio:  3,
+		CacheRatio:       0.5,
+		CreateCacheRatio: 1.75,
+		ImageRatio:       4,
+	})
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{MaxTokens: 100})
+
+	require.NoError(t, err)
+	require.Equal(t, 2.0, priceData.ModelRatio)
+	require.Equal(t, 3.0, priceData.CompletionRatio)
+	require.Equal(t, 0.5, priceData.CacheRatio)
+	require.Equal(t, 1.75, priceData.CacheCreationRatio)
+	require.Equal(t, 4.0, priceData.ImageRatio)
+	require.Equal(t, 2200, priceData.QuotaToPreConsume)
+	require.Equal(t, priceData, info.PriceData)
+}
+
+func TestModelPriceHelperPerCallDoesNotReturnSpecPlaceholderForGenericCallers(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	withModelPriceSettingForHelperTest(t, `{"spec-generic-model":0.05}`)
+	previousEnabled := operation_setting.AsyncTaskSpecPricingEnabled
+	operation_setting.AsyncTaskSpecPricingEnabled = true
+	t.Cleanup(func() {
+		operation_setting.AsyncTaskSpecPricingEnabled = previousEnabled
+	})
+	ctx := newPriceHelperTestContext()
+	createPricingConfigModelForHelperTest(t, "spec-generic-model", model.ModelPricingConfig{
+		Mode: model.PricingModeImageSpec,
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.18)},
+		},
+	})
+
+	priceData, err := ModelPriceHelperPerCall(ctx, newPriceHelperRelayInfo("spec-generic-model"))
+
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, int(0.05*common.QuotaPerUnit), priceData.Quota)
+	require.Nil(t, priceData.SpecPricing)
+}
+
+func setupModelPricingHelperTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	previousDB := model.DB
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = db
+	require.NoError(t, db.AutoMigrate(&model.Model{}))
+	restoreTrust := model.SetModelPricingConfigTrustedForTest(true)
+	t.Cleanup(func() {
+		restoreTrust()
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+		model.DB = previousDB
+	})
+	return db
+}
+
+func TestModelPriceHelperPerCallSkipsModelPricingConfigWhenUntrusted(t *testing.T) {
+	setupModelPricingHelperTestDB(t)
+	restoreTrust := model.SetModelPricingConfigTrustedForTest(false)
+	t.Cleanup(restoreTrust)
+	withModelPriceSettingForHelperTest(t, `{"untrusted-call-model":0.99}`)
+	ctx := newPriceHelperTestContext()
+	createPricingConfigModelForHelperTest(t, "untrusted-call-model", model.ModelPricingConfig{
+		Mode:       model.PricingModeRatio,
+		UsePrice:   true,
+		ModelPrice: 0.12,
+	})
+
+	priceData, err := ModelPriceHelperPerCall(ctx, newPriceHelperRelayInfo("untrusted-call-model"))
+
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, 0.99, priceData.ModelPrice)
+	require.Equal(t, int(0.99*common.QuotaPerUnit), priceData.Quota)
+}
+
+func createPricingConfigModelForHelperTest(t *testing.T, modelName string, cfg model.ModelPricingConfig) {
+	t.Helper()
+
+	configJSON, err := cfg.JSONString()
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName:          modelName,
+		Modal:              model.ModelModalText,
+		PricingMode:        cfg.Mode,
+		PricingConfig:      configJSON,
+		PricingUpdatedTime: common.GetTimestamp(),
+		Status:             1,
+		SyncOfficial:       0,
+	}).Error)
+}
+
+func newPriceHelperTestContext() *gin.Context {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	return ctx
+}
+
+func newPriceHelperRelayInfo(modelName string) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		OriginModelName: modelName,
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+}
+
+func withModelPriceSettingForHelperTest(t *testing.T, jsonValue string) {
+	t.Helper()
+
+	previous := ratio_setting.ModelPrice2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(jsonValue))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(previous))
+	})
+}
+
+func withModelRatioSettingForHelperTest(t *testing.T, jsonValue string) {
+	t.Helper()
+
+	previous := ratio_setting.ModelRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(jsonValue))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(previous))
+	})
 }

@@ -89,6 +89,18 @@ export async function updateModel(
   return res.data
 }
 
+export async function updateModelAccess(
+  id: number,
+  data: { channel_ids: number[] }
+): Promise<{
+  success: boolean
+  message?: string
+  data?: { model: Model; updated_channels: number }
+}> {
+  const res = await api.put(`/api/models/${id}/access`, data)
+  return res.data
+}
+
 /**
  * Update model status only
  */

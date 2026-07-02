@@ -86,10 +86,12 @@ function parseInitialPrices(
 
 type ToolPriceSettingsProps = {
   defaultValue: string
+  readOnly?: boolean
 }
 
 export const ToolPriceSettings = memo(function ToolPriceSettings({
   defaultValue,
+  readOnly = false,
 }: ToolPriceSettingsProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -176,6 +178,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
   }, [jsonText, t])
 
   const handleSave = useCallback(async () => {
+    if (readOnly) return
     if (editMode === 'json' && jsonError) {
       toast.error(t('Please fix JSON errors before saving'))
       return
@@ -184,7 +187,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
       key: OPTION_KEY,
       value: JSON.stringify(currentPrices),
     })
-  }, [currentPrices, editMode, jsonError, t, updateOption])
+  }, [currentPrices, editMode, jsonError, readOnly, t, updateOption])
 
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
@@ -217,13 +220,17 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
         <div className='flex flex-wrap items-center gap-2'>
           {editMode === 'visual' ? (
             <>
-              <Button variant='outline' size='sm' onClick={addRow}>
-                <Plus className='mr-2 h-4 w-4' />
-                {t('Add')}
-              </Button>
-              <Button variant='ghost' size='sm' onClick={resetToDefault}>
-                {t('Restore defaults')}
-              </Button>
+              {!readOnly && (
+                <>
+                  <Button variant='outline' size='sm' onClick={addRow}>
+                    <Plus className='mr-2 h-4 w-4' />
+                    {t('Add')}
+                  </Button>
+                  <Button variant='ghost' size='sm' onClick={resetToDefault}>
+                    {t('Restore defaults')}
+                  </Button>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -231,9 +238,11 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
                 <Copy className='mr-2 h-4 w-4' />
                 {t('Copy')}
               </Button>
-              <Button variant='ghost' size='sm' onClick={resetToDefault}>
-                {t('Restore defaults')}
-              </Button>
+              {!readOnly && (
+                <Button variant='ghost' size='sm' onClick={resetToDefault}>
+                  {t('Restore defaults')}
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -266,6 +275,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
                 <Input
                   value={row.key}
                   placeholder='web_search_preview:gpt-4o*'
+                  disabled={readOnly}
                   onChange={(e) => updateRow(row.id, 'key', e.target.value)}
                 />
               ),
@@ -280,6 +290,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
                   min={0}
                   step={0.5}
                   value={row.price}
+                  disabled={readOnly}
                   onChange={(e) =>
                     updateRow(row.id, 'price', Number(e.target.value) || 0)
                   }
@@ -296,6 +307,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
                   variant='ghost'
                   size='icon'
                   onClick={() => removeRow(row.id)}
+                  disabled={readOnly}
                   aria-label={t('Delete')}
                 >
                   <Trash2 className='text-destructive h-4 w-4' />
@@ -312,21 +324,24 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
             className='font-mono text-sm'
             rows={12}
             spellCheck={false}
+            disabled={readOnly}
           />
           {jsonError && <p className='text-destructive text-sm'>{jsonError}</p>}
         </div>
       )}
 
-      <div className='flex justify-end'>
-        <Button
-          onClick={handleSave}
-          disabled={
-            updateOption.isPending || (editMode === 'json' && !!jsonError)
-          }
-        >
-          {t('Save tool prices')}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className='flex justify-end'>
+          <Button
+            onClick={handleSave}
+            disabled={
+              updateOption.isPending || (editMode === 'json' && !!jsonError)
+            }
+          >
+            {t('Save tool prices')}
+          </Button>
+        </div>
+      )}
     </div>
   )
 })

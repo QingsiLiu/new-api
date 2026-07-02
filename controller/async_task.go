@@ -627,7 +627,17 @@ func estimateAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel 
 	if err := helper.ModelMappedHelper(c, relayInfo, nil); err != nil {
 		return nil, err
 	}
-	priceData, err := helper.ModelPriceHelperPerCall(c, relayInfo)
+	var priceData types.PriceData
+	var err error
+	if operation_setting.AsyncTaskSpecPricingEnabled {
+		expectedPricingMode := model.PricingModeImageSpec
+		if request.Kind == asyncTaskKindVideo {
+			expectedPricingMode = model.PricingModeVideoMatrix
+		}
+		priceData, err = helper.ModelPriceHelperPerCallForAsyncSpec(c, relayInfo, expectedPricingMode)
+	} else {
+		priceData, err = helper.ModelPriceHelperPerCall(c, relayInfo)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -646,6 +656,50 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 	}
 
 	var result operation_setting.AsyncSpecQuotaResult
+	usedModelPricingConfig := false
+	if cfg, ok, err := model.GetModelPricingConfig(relayInfo.OriginModelName); err == nil && ok {
+		switch request.Kind {
+		case asyncTaskKindVideo:
+			if cfg.Mode == model.PricingModeVideoMatrix {
+				resolution := asyncVideoSpecResolution(request.Parameters)
+				ratio := asyncVideoSpecRatio(request.Parameters)
+				mode := asyncVideoSpecMode(request)
+				seconds := asyncParamIntValue(request.Parameters, "duration", 0)
+				if seconds <= 0 {
+					seconds = asyncParamIntValue(request.Parameters, "seconds", 0)
+				}
+				if seconds <= 0 {
+					seconds = 0
+				}
+				pricing := operation_setting.AsyncSpecPricing{Currency: "CNY", Video: map[string]operation_setting.AsyncVideoSpecPrice{
+					relayInfo.OriginModelName: cfg.AsyncVideoSpecPrice(),
+				}}
+				result = operation_setting.ResolveVideoSpecQuotaByContextFromPricing(pricing, relayInfo.OriginModelName, resolution, ratio, mode, seconds)
+				usedModelPricingConfig = true
+			}
+		default:
+			if cfg.Mode == model.PricingModeImageSpec {
+				quality := asyncParamString(request.Parameters, "quality")
+				size := asyncParamString(request.Parameters, "size")
+				resolution := asyncParamString(request.Parameters, "resolution")
+				count := asyncParamIntValue(request.Parameters, "n", 1)
+				pricing := operation_setting.AsyncSpecPricing{Currency: "CNY", Image: map[string]operation_setting.AsyncImageSpecPrice{
+					relayInfo.OriginModelName: cfg.AsyncImageSpecPrice(),
+				}}
+				result = operation_setting.ResolveImageSpecQuotaFromPricing(pricing, relayInfo.OriginModelName, size, resolution, quality, count)
+				usedModelPricingConfig = true
+			}
+		}
+	} else if err != nil {
+		common.SysError("failed to load model pricing_config for async spec pricing: " + err.Error())
+	}
+	if usedModelPricingConfig {
+		if !result.Unsupported && !result.Matched && relayInfo.PriceData.ModelPrice == -1 && relayInfo.PriceData.Quota == 0 {
+			return fmt.Errorf("model %s spec price not configured for requested parameters", relayInfo.OriginModelName)
+		}
+		return applyResolvedAsyncTaskSpecPricing(relayInfo, result)
+	}
+
 	switch request.Kind {
 	case asyncTaskKindVideo:
 		resolution := asyncVideoSpecResolution(request.Parameters)
@@ -666,6 +720,10 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		count := asyncParamIntValue(request.Parameters, "n", 1)
 		result = operation_setting.ResolveImageSpecQuota(relayInfo.OriginModelName, size, resolution, quality, count)
 	}
+	return applyResolvedAsyncTaskSpecPricing(relayInfo, result)
+}
+
+func applyResolvedAsyncTaskSpecPricing(relayInfo *relaycommon.RelayInfo, result operation_setting.AsyncSpecQuotaResult) error {
 	if result.Unsupported {
 		return fmt.Errorf("unsupported video spec price: %s", result.SpecKey)
 	}

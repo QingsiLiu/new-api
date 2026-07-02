@@ -17,15 +17,20 @@ import (
 func GetAllModelsMeta(c *gin.Context) {
 
 	pageInfo := common.GetPageQuery(c)
-	modelsMeta, err := model.GetAllModels(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	filters := model.ModelListFilters{
+		Vendor:       c.Query("vendor"),
+		Status:       c.Query("status"),
+		SyncOfficial: c.Query("sync_official"),
+		Modal:        c.Query("modal"),
+		PricingMode:  c.Query("pricing_mode"),
+	}
+	modelsMeta, total, err := model.GetModelsByFilters(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	// 批量填充附加字段，提升列表接口性能
 	enrichModels(modelsMeta)
-	var total int64
-	model.DB.Model(&model.Model{}).Count(&total)
 
 	// 统计供应商计数（全部数据，不受分页影响）
 	vendorCounts, _ := model.GetVendorModelCounts()
@@ -45,10 +50,17 @@ func GetAllModelsMeta(c *gin.Context) {
 func SearchModelsMeta(c *gin.Context) {
 
 	keyword := c.Query("keyword")
-	vendor := c.Query("vendor")
 	pageInfo := common.GetPageQuery(c)
 
-	modelsMeta, total, err := model.SearchModels(keyword, vendor, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	filters := model.ModelListFilters{
+		Keyword:      keyword,
+		Vendor:       c.Query("vendor"),
+		Status:       c.Query("status"),
+		SyncOfficial: c.Query("sync_official"),
+		Modal:        c.Query("modal"),
+		PricingMode:  c.Query("pricing_mode"),
+	}
+	modelsMeta, total, err := model.GetModelsByFilters(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -142,6 +154,55 @@ func UpdateModelMeta(c *gin.Context) {
 	}
 	model.RefreshPricing()
 	common.ApiSuccess(c, &m)
+}
+
+type updateModelAccessRequest struct {
+	ChannelIDs []int `json:"channel_ids"`
+}
+
+func UpdateModelAccess(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var m model.Model
+	if err := model.DB.First(&m, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var req updateModelAccessRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	updatedChannels, err := model.UpdateModelChannelAccess(m.ModelName, req.ChannelIDs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	model.InitChannelCache()
+	model.RefreshPricing()
+	enrichModels([]*model.Model{&m})
+	recordManageAudit(c, "model.access_update", map[string]interface{}{
+		"id":               m.Id,
+		"model":            m.ModelName,
+		"channel_ids":      req.ChannelIDs,
+		"updated_channels": updatedChannels,
+	})
+	common.ApiSuccess(c, gin.H{
+		"model":            &m,
+		"updated_channels": updatedChannels,
+	})
+}
+
+func GetModelPricingParity(c *gin.Context) {
+	common.ApiSuccess(c, model.GetModelPricingParityStatus())
 }
 
 // DeleteModelMeta 删除模型

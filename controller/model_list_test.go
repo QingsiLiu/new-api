@@ -29,6 +29,19 @@ type listModelsResponse struct {
 	Object  string             `json:"object"`
 }
 
+type adminModelsResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Items []model.Model `json:"items"`
+		Total int           `json:"total"`
+	} `json:"data"`
+}
+
+type pricingParityResponse struct {
+	Success bool                      `json:"success"`
+	Data    model.PricingParityStatus `json:"data"`
+}
+
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -212,6 +225,81 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.True(t, ok)
 	require.Empty(t, missingExprPricing.BillingMode)
 	require.Empty(t, missingExprPricing.BillingExpr)
+}
+
+func TestGetAllModelsMetaFiltersByModalAndPricingMode(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Model{
+		{
+			ModelName:     "chat-ratio-filter-model",
+			Modal:         model.ModelModalText,
+			PricingMode:   model.PricingModeRatio,
+			PricingConfig: `{"mode":"ratio","base_ratio":1}`,
+			Status:        1,
+			SyncOfficial:  1,
+		},
+		{
+			ModelName:     "image-spec-filter-model",
+			Modal:         model.ModelModalImage,
+			PricingMode:   model.PricingModeImageSpec,
+			PricingConfig: `{"mode":"image_spec","resolutions":{"2k":{"cny_per_image":0.18}}}`,
+			Status:        1,
+			SyncOfficial:  1,
+		},
+		{
+			ModelName:     "video-matrix-filter-model",
+			Modal:         model.ModelModalVideo,
+			PricingMode:   model.PricingModeVideoMatrix,
+			PricingConfig: `{"mode":"video_matrix","prices":{}}`,
+			Status:        1,
+			SyncOfficial:  1,
+		},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/models/?modal=image&pricing_mode=image_spec&p=1&page_size=10", nil)
+
+	GetAllModelsMeta(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload adminModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Equal(t, 1, payload.Data.Total)
+	require.Len(t, payload.Data.Items, 1)
+	require.Equal(t, "image-spec-filter-model", payload.Data.Items[0].ModelName)
+}
+
+func TestGetModelPricingParityReturnsSavedReport(t *testing.T) {
+	report := model.PricingCompareReport{
+		CheckedTextModels:        3,
+		CheckedImageCombinations: 4,
+		CheckedVideoCombinations: 5,
+		Mismatches: []model.PricingCompareMismatch{
+			{Kind: "image", Model: "gpt-image-2", SpecKey: "2k", LegacyQuota: 100, NewQuota: 101},
+		},
+	}
+	restore := model.SetModelPricingParityForTest(report, false, "")
+	t.Cleanup(restore)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/model/pricing-parity", nil)
+
+	GetModelPricingParity(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response pricingParityResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.False(t, response.Data.Trusted)
+	require.Equal(t, 3, response.Data.CheckedText)
+	require.Equal(t, 4, response.Data.CheckedImage)
+	require.Equal(t, 5, response.Data.CheckedVideo)
+	require.Equal(t, 1, response.Data.MismatchCount)
+	require.Len(t, response.Data.Mismatches, 1)
+	require.Equal(t, "gpt-image-2", response.Data.Mismatches[0].Model)
 }
 
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {

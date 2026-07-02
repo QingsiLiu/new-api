@@ -26,7 +26,9 @@ import { DataTablePage, useDataTable } from '@/components/data-table'
 import { getModels, searchModels, getVendors } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
+  getModelModalOptions,
   getModelStatusOptions,
+  getPricingModeOptions,
   getSyncStatusOptions,
 } from '../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../lib'
@@ -62,6 +64,8 @@ export function ModelsTable() {
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'vendor_id', searchKey: 'vendor', type: 'array' },
       { columnId: 'sync_official', searchKey: 'sync', type: 'array' },
+      { columnId: 'modal', searchKey: 'modal', type: 'array' },
+      { columnId: 'pricing_mode', searchKey: 'pricing', type: 'array' },
     ],
   })
 
@@ -72,6 +76,11 @@ export function ModelsTable() {
     (columnFilters.find((f) => f.id === 'vendor_id')?.value as string[]) || []
   const syncFilter =
     (columnFilters.find((f) => f.id === 'sync_official')?.value as string[]) ||
+    []
+  const modalFilter =
+    (columnFilters.find((f) => f.id === 'modal')?.value as string[]) || []
+  const pricingFilter =
+    (columnFilters.find((f) => f.id === 'pricing_mode')?.value as string[]) ||
     []
 
   // Fetch vendors for filter
@@ -116,6 +125,14 @@ export function ModelsTable() {
         syncFilter.length > 0 && !syncFilter.includes('all')
           ? syncFilter[0]
           : undefined,
+      modal:
+        modalFilter.length > 0 && !modalFilter.includes('all')
+          ? modalFilter[0]
+          : undefined,
+      pricing_mode:
+        pricingFilter.length > 0 && !pricingFilter.includes('all')
+          ? pricingFilter[0]
+          : undefined,
       p: pagination.pageIndex + 1,
       page_size: pagination.pageSize,
     }),
@@ -132,6 +149,14 @@ export function ModelsTable() {
             syncFilter.length > 0 && !syncFilter.includes('all')
               ? syncFilter[0]
               : undefined,
+          modal:
+            modalFilter.length > 0 && !modalFilter.includes('all')
+              ? modalFilter[0]
+              : undefined,
+          pricing_mode:
+            pricingFilter.length > 0 && !pricingFilter.includes('all')
+              ? pricingFilter[0]
+              : undefined,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
@@ -144,6 +169,14 @@ export function ModelsTable() {
           sync_official:
             syncFilter.length > 0 && !syncFilter.includes('all')
               ? syncFilter[0]
+              : undefined,
+          modal:
+            modalFilter.length > 0 && !modalFilter.includes('all')
+              ? modalFilter[0]
+              : undefined,
+          pricing_mode:
+            pricingFilter.length > 0 && !pricingFilter.includes('all')
+              ? pricingFilter[0]
               : undefined,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
@@ -226,6 +259,18 @@ export function ModelsTable() {
             columnId: 'sync_official',
             title: t('Official Sync'),
             options: [...getSyncStatusOptions(t)],
+            singleSelect: true,
+          },
+          {
+            columnId: 'modal',
+            title: t('Modality'),
+            options: [...getModelModalOptions(t)],
+            singleSelect: true,
+          },
+          {
+            columnId: 'pricing_mode',
+            title: t('Pricing'),
+            options: [...getPricingModeOptions(t)],
             singleSelect: true,
           },
         ],

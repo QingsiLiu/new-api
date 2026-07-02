@@ -63,6 +63,7 @@ type ModelRatioFormProps = {
   onReset: () => void
   isSaving: boolean
   isResetting: boolean
+  readOnly?: boolean
 }
 
 type ModelJsonFieldName =
@@ -131,6 +132,7 @@ function ModelJsonTextareaField(props: {
   name: ModelJsonFieldName
   label: string
   description: string
+  disabled?: boolean
 }) {
   return (
     <FormField
@@ -143,6 +145,7 @@ function ModelJsonTextareaField(props: {
             <JsonCodeEditor
               value={field.value}
               onChange={(value) => field.onChange(value)}
+              disabled={props.disabled}
             />
           </FormControl>
           <FormDescription className='text-xs leading-5'>
@@ -162,6 +165,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
   onReset,
   isSaving,
   isResetting,
+  readOnly = false,
 }: ModelRatioFormProps) {
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
@@ -182,13 +186,59 @@ export const ModelRatioForm = memo(function ModelRatioForm({
   }, [])
 
   const handleSave = useCallback(async () => {
+    if (readOnly) return
     if (editMode === 'visual') {
       const committed = await visualEditorRef.current?.commitOpenEditor()
       if (committed === false) return
     }
 
     await form.handleSubmit(onSave)()
-  }, [editMode, form, onSave])
+  }, [editMode, form, onSave, readOnly])
+
+  if (readOnly) {
+    return (
+      <div className='space-y-6'>
+        <Form {...form}>
+          <div className='grid min-w-0 gap-x-5 gap-y-8 lg:grid-cols-2 2xl:grid-cols-3'>
+            {modelJsonFields.map((config) => (
+              <ModelJsonTextareaField
+                key={config.name}
+                form={form}
+                name={config.name}
+                label={t(config.labelKey)}
+                description={t(config.descriptionKey)}
+                disabled
+              />
+            ))}
+          </div>
+
+          <FormField
+            control={form.control}
+            name='ExposeRatioEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Expose ratio API')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Allow clients to query configured ratios via `/api/ratio`.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+        </Form>
+      </div>
+    )
+  }
 
   return (
     <div className='space-y-6'>

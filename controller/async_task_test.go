@@ -909,6 +909,209 @@ func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *tes
 	require.Contains(t, consumeLogs[0].Other, `"spec_total_cny":0.36`)
 }
 
+func TestAsyncPricingEstimateAndChargePreferModelPricingConfig(t *testing.T) {
+	withTrustedModelPricingConfigForTest(t)
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"2k":{"cny_per_image":0.99}},
+				"default_cny_per_image":0.99
+			}
+		}
+	}`, 1000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, createModelPricingConfigForTest("gpt-image-2", model.ModelModalImage, model.PricingModeImageSpec, model.ModelPricingConfig{
+		Mode: model.PricingModeImageSpec,
+		Unit: "per_image",
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.18)},
+		},
+		DefaultCNYPerImage: common.GetPointer(0.11),
+	}))
+
+	payload := `{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"estimate product image"},
+		"parameters":{"size":"2048x2048","n":2}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, 360, estimate.Quota)
+
+	createRecorder := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
+	createRequest.Header.Set("Authorization", "Bearer "+token)
+	createRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(createRecorder, createRequest)
+	require.Equal(t, http.StatusOK, createRecorder.Code, createRecorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, estimate.Quota, task.Quota)
+	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
+	require.Equal(t, "2k", task.PrivateData.BillingContext.SpecPricing.SpecKey)
+}
+
+func TestAsyncPricingEstimateSkipsModelPricingConfigWhenUntrusted(t *testing.T) {
+	restore := model.SetModelPricingConfigTrustedForTest(false)
+	t.Cleanup(restore)
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"image":{
+			"gpt-image-2":{
+				"resolutions":{"2k":{"cny_per_image":0.99}},
+				"default_cny_per_image":0.99
+			}
+		}
+	}`, 1000)
+	engine, token := setupAsyncTaskProductRouterTest(t, "https://upstream.example", "gpt-image-2", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, createModelPricingConfigForTest("gpt-image-2", model.ModelModalImage, model.PricingModeImageSpec, model.ModelPricingConfig{
+		Mode: model.PricingModeImageSpec,
+		Unit: "per_image",
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.18)},
+		},
+		DefaultCNYPerImage: common.GetPointer(0.11),
+	}))
+
+	payload := `{
+		"kind":"image",
+		"action":"generate",
+		"model":"gpt-image-2",
+		"input":{"prompt":"estimate product image"},
+		"parameters":{"size":"2048x2048","n":2}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, 1980, estimate.Quota)
+}
+
+func TestAsyncPricingModelConfigSpecOnlyRequiresMatchedSpec(t *testing.T) {
+	withTrustedModelPricingConfigForTest(t)
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{"image":{}}`, 1000)
+	previousModelPrice := ratio_setting.ModelPrice2JSONString()
+	previousModelRatio := ratio_setting.ModelRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(previousModelPrice))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(previousModelRatio))
+	})
+
+	engine, token := setupAsyncTaskProductRouterTest(t, "https://upstream.example", "spec-only-image-model", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, createModelPricingConfigForTest("spec-only-image-model", model.ModelModalImage, model.PricingModeImageSpec, model.ModelPricingConfig{
+		Mode: model.PricingModeImageSpec,
+		Unit: "per_image",
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.18)},
+		},
+	}))
+
+	payload := `{
+		"kind":"image",
+		"action":"generate",
+		"model":"spec-only-image-model",
+		"input":{"prompt":"missing spec should not be free"},
+		"parameters":{"size":"1024x1024","n":1}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusBadRequest, estimateRecorder.Code, estimateRecorder.Body.String())
+	require.Contains(t, estimateRecorder.Body.String(), "spec price not configured")
+}
+
+func TestAsyncPricingModelConfigSpecOnlyMatchedSpecEstimatesAndCharges(t *testing.T) {
+	withTrustedModelPricingConfigForTest(t)
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{"image":{}}`, 1000)
+	previousModelPrice := ratio_setting.ModelPrice2JSONString()
+	previousModelRatio := ratio_setting.ModelRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(previousModelPrice))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(previousModelRatio))
+	})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "spec-only-image-model", constant.ChannelTypeOpenAI, "")
+	require.NoError(t, createModelPricingConfigForTest("spec-only-image-model", model.ModelModalImage, model.PricingModeImageSpec, model.ModelPricingConfig{
+		Mode: model.PricingModeImageSpec,
+		Unit: "per_image",
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.18)},
+		},
+	}))
+
+	payload := `{
+		"kind":"image",
+		"action":"generate",
+		"model":"spec-only-image-model",
+		"input":{"prompt":"matched spec only image"},
+		"parameters":{"size":"2048x2048","n":2}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, 360, estimate.Quota)
+
+	createRecorder := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
+	createRequest.Header.Set("Authorization", "Bearer "+token)
+	createRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(createRecorder, createRequest)
+	require.Equal(t, http.StatusOK, createRecorder.Code, createRecorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, estimate.Quota, task.Quota)
+	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
+	require.Equal(t, "2k", task.PrivateData.BillingContext.SpecPricing.SpecKey)
+}
+
 func TestAsyncPricingEstimateUsesMultipartImageResolution(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	withAsyncSpecPricingForTest(t, `{
@@ -1429,7 +1632,7 @@ func TestAsyncVideoMatrixSpecPricingRejectsUnsupportedCell(t *testing.T) {
 			"size":"1280x720",
 			"seconds":5,
 			"generate_audio":true,
-			"content":[{"type":"image_url","image_url":{"url":"https://example.test/ref.png"}}]
+			"image":"https://example.test/ref.png"
 		}
 	}`
 
@@ -1448,6 +1651,55 @@ func TestAsyncVideoMatrixSpecPricingRejectsUnsupportedCell(t *testing.T) {
 	engine.ServeHTTP(createRecorder, createRequest)
 	require.Equal(t, http.StatusBadRequest, createRecorder.Code, createRecorder.Body.String())
 	require.Contains(t, createRecorder.Body.String(), "unsupported video spec price")
+}
+
+func TestAsyncVideoMatrixModelPricingConfigRejectsUnsupportedCell(t *testing.T) {
+	withTrustedModelPricingConfigForTest(t)
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"video":{
+			"seedance-1.5-model-config":{
+				"prices":{
+					"720p":{
+						"16:9":{
+							"image_audio":{"cny_per_second":0.01}
+						}
+					}
+				}
+			}
+		}
+	}`, 1000)
+	engine, token := setupAsyncTaskProductRouterTest(t, "https://upstream.example", "seedance-1.5-model-config", constant.ChannelTypeJimengOpenAIVideo, "")
+	require.NoError(t, createModelPricingConfigForTest("seedance-1.5-model-config", model.ModelModalVideo, model.PricingModeVideoMatrix, model.ModelPricingConfig{
+		Mode: model.PricingModeVideoMatrix,
+		Prices: map[string]operation_setting.AsyncVideoRatioPrices{
+			"720p": {
+				"16:9": {
+					"image_audio": {Unsupported: true},
+				},
+			},
+		},
+	}))
+	payload := `{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-1.5-model-config",
+		"input":{"prompt":"model config unsupported image audio video"},
+		"parameters":{
+			"size":"1280x720",
+			"seconds":5,
+			"generate_audio":true,
+			"image":"https://example.test/ref.png"
+		}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusBadRequest, estimateRecorder.Code, estimateRecorder.Body.String())
+	require.Contains(t, estimateRecorder.Body.String(), "unsupported video spec price")
 }
 
 func TestAsyncImageSpecPricingIsDisabledByDefault(t *testing.T) {
@@ -2621,6 +2873,28 @@ func withAsyncSpecPricingForTest(t *testing.T, pricingJSON string, quotaPerCNY f
 		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(previousPricing))
 		operation_setting.QuotaPerCNY = previousQuotaPerCNY
 	})
+}
+
+func withTrustedModelPricingConfigForTest(t *testing.T) {
+	t.Helper()
+	restore := model.SetModelPricingConfigTrustedForTest(true)
+	t.Cleanup(restore)
+}
+
+func createModelPricingConfigForTest(modelName string, modal string, pricingMode string, cfg model.ModelPricingConfig) error {
+	configJSON, err := cfg.JSONString()
+	if err != nil {
+		return err
+	}
+	return model.DB.Create(&model.Model{
+		ModelName:          modelName,
+		Modal:              modal,
+		PricingMode:        pricingMode,
+		PricingConfig:      configJSON,
+		PricingUpdatedTime: common.GetTimestamp(),
+		Status:             1,
+		SyncOfficial:       0,
+	}).Error
 }
 
 func asyncTaskQuotaForVideoRequest(t *testing.T, upstreamURL string, parameters map[string]interface{}) int {

@@ -33,6 +33,7 @@ const QUOTA_PER_CNY_OPTION_KEY = 'QuotaPerCNY'
 type AsyncSpecPricingSettingsProps = {
   pricingDefault: string
   quotaPerCNYDefault: number
+  readOnly?: boolean
 }
 
 type AsyncSpecPricingConfig = {
@@ -319,6 +320,7 @@ const AsyncSpecPricingSettingsInner = memo(
   function AsyncSpecPricingSettingsInner({
     pricingDefault,
     quotaPerCNYDefault,
+    readOnly = false,
   }: AsyncSpecPricingSettingsProps) {
     const { t } = useTranslation()
     const updateOption = useUpdateOption()
@@ -462,6 +464,7 @@ const AsyncSpecPricingSettingsInner = memo(
     }, [currentJson])
 
     const handleSave = useCallback(async () => {
+      if (readOnly) return
       if (editMode === 'json' && jsonError) {
         toast.error(t('Please fix JSON errors before saving'))
         return
@@ -481,6 +484,7 @@ const AsyncSpecPricingSettingsInner = memo(
       jsonError,
       jsonText,
       quotaPerCNY,
+      readOnly,
       t,
       updateOption,
     ])
@@ -501,15 +505,17 @@ const AsyncSpecPricingSettingsInner = memo(
               </>
             )}
           </Button>
-          <Button
-            size='sm'
-            onClick={handleSave}
-            disabled={
-              updateOption.isPending || (editMode === 'json' && !!jsonError)
-            }
-          >
-            {updateOption.isPending ? t('Saving...') : t('Save spec pricing')}
-          </Button>
+          {!readOnly && (
+            <Button
+              size='sm'
+              onClick={handleSave}
+              disabled={
+                updateOption.isPending || (editMode === 'json' && !!jsonError)
+              }
+            >
+              {updateOption.isPending ? t('Saving...') : t('Save spec pricing')}
+            </Button>
+          )}
         </div>
 
         {editMode === 'json' ? (
@@ -519,6 +525,7 @@ const AsyncSpecPricingSettingsInner = memo(
               onChange={(event) => handleJsonChange(event.target.value)}
               className='min-h-80 font-mono text-sm'
               spellCheck={false}
+              disabled={readOnly}
             />
             {jsonError ? (
               <p className='text-destructive text-sm'>{jsonError}</p>
@@ -530,6 +537,7 @@ const AsyncSpecPricingSettingsInner = memo(
               title={t('Video matrix prices')}
               actionLabel={t('Add video price')}
               onAdd={addVideoRow}
+              disabled={readOnly}
             />
             <StaticDataTable
               data={videoRows}
@@ -544,6 +552,7 @@ const AsyncSpecPricingSettingsInner = memo(
                     <Input
                       value={row.model}
                       placeholder='seedance-2.0'
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateVideoRow(row.id, { model: event.target.value })
                       }
@@ -558,6 +567,7 @@ const AsyncSpecPricingSettingsInner = memo(
                     <NativeSelect
                       className='w-full'
                       value={row.resolution}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateVideoRow(row.id, {
                           resolution: event.target.value,
@@ -580,6 +590,7 @@ const AsyncSpecPricingSettingsInner = memo(
                     <NativeSelect
                       className='w-full'
                       value={row.ratio}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateVideoRow(row.id, {
                           ratio: event.target.value,
@@ -602,6 +613,7 @@ const AsyncSpecPricingSettingsInner = memo(
                     <NativeSelect
                       className='w-full'
                       value={row.mode}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateVideoRow(row.id, {
                           mode: event.target.value,
@@ -627,6 +639,7 @@ const AsyncSpecPricingSettingsInner = memo(
                     <NativeSelect
                       className='w-full'
                       value={row.supported ? 'supported' : 'unsupported'}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateVideoRow(row.id, {
                           supported: event.target.value === 'supported',
@@ -654,7 +667,7 @@ const AsyncSpecPricingSettingsInner = memo(
                       min={0}
                       step={0.01}
                       value={row.cnyPerSecond}
-                      disabled={!row.supported}
+                      disabled={readOnly || !row.supported}
                       onChange={(event) =>
                         updateVideoRow(row.id, {
                           cnyPerSecond: normalizeNumber(event.target.value),
@@ -673,6 +686,7 @@ const AsyncSpecPricingSettingsInner = memo(
                       min={0}
                       step={0.01}
                       value={row.defaultCNYPerSecond}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateVideoRow(row.id, {
                           defaultCNYPerSecond: normalizeNumber(
@@ -694,6 +708,7 @@ const AsyncSpecPricingSettingsInner = memo(
                         min={0}
                         step={0.01}
                         value={row.minCNY}
+                        disabled={readOnly}
                         onChange={(event) =>
                           updateVideoRow(row.id, {
                             minCNY: normalizeNumber(event.target.value),
@@ -705,6 +720,7 @@ const AsyncSpecPricingSettingsInner = memo(
                         min={0}
                         step={0.01}
                         value={row.maxCNY}
+                        disabled={readOnly}
                         onChange={(event) =>
                           updateVideoRow(row.id, {
                             maxCNY: normalizeNumber(event.target.value),
@@ -720,7 +736,10 @@ const AsyncSpecPricingSettingsInner = memo(
                   className: 'w-20 text-right',
                   cellClassName: 'text-right',
                   cell: (row) => (
-                    <DeleteRowButton onClick={() => removeVideoRow(row.id)} />
+                    <DeleteRowButton
+                      onClick={() => removeVideoRow(row.id)}
+                      disabled={readOnly}
+                    />
                   ),
                 },
               ]}
@@ -730,6 +749,7 @@ const AsyncSpecPricingSettingsInner = memo(
               title={t('Image prices')}
               actionLabel={t('Add image price')}
               onAdd={addImageRow}
+              disabled={readOnly}
             />
             <StaticDataTable
               data={imageRows}
@@ -744,6 +764,7 @@ const AsyncSpecPricingSettingsInner = memo(
                     <Input
                       value={row.model}
                       placeholder='gpt-image-2'
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateImageRow(row.id, { model: event.target.value })
                       }
@@ -758,6 +779,7 @@ const AsyncSpecPricingSettingsInner = memo(
                     <NativeSelect
                       className='w-full'
                       value={row.resolution}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateImageRow(row.id, {
                           resolution: event.target.value,
@@ -782,6 +804,7 @@ const AsyncSpecPricingSettingsInner = memo(
                       min={0}
                       step={0.01}
                       value={row.cnyPerImage}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateImageRow(row.id, {
                           cnyPerImage: normalizeNumber(event.target.value),
@@ -800,6 +823,7 @@ const AsyncSpecPricingSettingsInner = memo(
                       min={0}
                       step={0.01}
                       value={row.defaultCNYPerImage}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateImageRow(row.id, {
                           defaultCNYPerImage: normalizeNumber(
@@ -816,7 +840,10 @@ const AsyncSpecPricingSettingsInner = memo(
                   className: 'w-20 text-right',
                   cellClassName: 'text-right',
                   cell: (row) => (
-                    <DeleteRowButton onClick={() => removeImageRow(row.id)} />
+                    <DeleteRowButton
+                      onClick={() => removeImageRow(row.id)}
+                      disabled={readOnly}
+                    />
                   ),
                 },
               ]}
@@ -838,6 +865,7 @@ const AsyncSpecPricingSettingsInner = memo(
               min={0}
               step={1}
               value={quotaPerCNY}
+              disabled={readOnly}
               onChange={(event) =>
                 setQuotaPerCNY(normalizeNumber(event.target.value))
               }
@@ -858,15 +886,17 @@ function SpecTableHeader({
   title,
   actionLabel,
   onAdd,
+  disabled = false,
 }: {
   title: string
   actionLabel: string
   onAdd: () => void
+  disabled?: boolean
 }) {
   return (
     <div className='flex flex-wrap items-center justify-between gap-2'>
       <h4 className='text-sm font-semibold'>{title}</h4>
-      <Button variant='outline' size='sm' onClick={onAdd}>
+      <Button variant='outline' size='sm' onClick={onAdd} disabled={disabled}>
         <Plus className='mr-2 h-4 w-4' />
         {actionLabel}
       </Button>
@@ -874,13 +904,20 @@ function SpecTableHeader({
   )
 }
 
-function DeleteRowButton({ onClick }: { onClick: () => void }) {
+function DeleteRowButton({
+  onClick,
+  disabled = false,
+}: {
+  onClick: () => void
+  disabled?: boolean
+}) {
   const { t } = useTranslation()
   return (
     <Button
       variant='ghost'
       size='icon'
       onClick={onClick}
+      disabled={disabled}
       aria-label={t('Delete')}
     >
       <Trash2 className='text-destructive h-4 w-4' />

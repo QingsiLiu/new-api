@@ -41,6 +41,7 @@ func TestMain(m *testing.M) {
 		&Log{},
 		&Channel{},
 		&Ability{},
+		&Model{},
 		&TopUp{},
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
