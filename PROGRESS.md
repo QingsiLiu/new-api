@@ -420,3 +420,21 @@ Target: `web/default` only
 - Public health check still succeeds: `https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
 - A single lightweight SSH probe `ssh ctbuk "printf ok"` timed out after 20 seconds. This is the third consecutive goal continuation blocked on the same production SSH entrypoint (`ctbuk` port 8443 reset/timeout). Per redline, stopped immediately: no compose read, no source transfer, no image build, no service restart, no compose edit, no prune.
 - Goal status should remain blocked until ctbuk SSH/proxy access is healthy. Resume from committed `HEAD`: verify current `relay-new-api` image, transfer committed source only, build a fixed tag, back up compose, switch only `relay-new-api`, then require production parity `trusted=true` and `mismatch_count=0`.
+
+## 2026-07-02 23:47 CST - Unified Model Management deployed via hk-jump
+- Resumed after SSH via `hk-jump` was healthy. Local/remote branch was `codex/unified-model-management` at `cd1fda951ef32c1b7f35cfbbb406e0c8496933b3`; `web/classic` had no diff; unrelated local `web/default` docs/home/nav changes remained unstaged and excluded.
+- Rollback anchor before switch: `geili/new-api:api-docs-copy-20260702T105639Z-568704f`, container `relay-new-api` was healthy.
+- Server source path created/updated: `/opt/geili-relay/new-api-src`; `git checkout codex/unified-model-management && git pull origin codex/unified-model-management` left server HEAD at `cd1fda951ef32c1b7f35cfbbb406e0c8496933b3`.
+- New fixed image built successfully: `geili/new-api:unified-model-20260702T234148Z-cd1fda9` (`b5c26a5c8150`).
+- Compose backup before switch: `/opt/geili-relay/docker-compose.yml.before-unified-model-20260702T234148Z-cd1fda9`.
+- Switched only `relay-new-api` to the new image and ran `docker compose up -d --no-deps relay-new-api`. Did not touch Cavas/postgres/redis/cli-proxy and did not prune images.
+- Verification after switch:
+  - `docker ps --filter name=relay-new-api` showed `geili/new-api:unified-model-20260702T234148Z-cd1fda9 Up ... (healthy)`.
+  - `https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
+  - Frontend CSS marker check found `geili-editorial` count `1`.
+  - Startup real-data parity logs show `model pricing parity OK: text=211 image=26 video=168, 0 mismatch` (logged twice after startup), so the in-process trust gate should be true.
+  - Unauthenticated `GET https://all.geiliapi.com/api/model/pricing-parity` returned HTTP 401, confirming the endpoint is admin-protected.
+- Owner/manual verification still needed with admin token:
+  - `curl -fsS -H 'Authorization: Bearer <ADMIN_TOKEN>' https://all.geiliapi.com/api/model/pricing-parity`
+  - Expected: `trusted=true` and `mismatch_count=0`; checked counts should align with logs (`checked_text=211`, `checked_image=26`, `checked_video=168`).
+- Phase 4 remains intentionally pending; legacy options are still intact for rollback/fallback.
