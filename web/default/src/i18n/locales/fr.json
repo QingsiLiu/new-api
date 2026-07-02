@@ -4601,6 +4601,24 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Spec Pricing": "Tarification par spécification",
+    "Quota per CNY": "Quota par CNY",
+    "Save spec pricing": "Enregistrer la tarification",
+    "Video preview": "Aperçu vidéo",
+    "Image preview": "Aperçu image",
+    "Video prices": "Prix vidéo",
+    "Add video price": "Ajouter un prix vidéo",
+    "No video prices configured": "Aucun prix vidéo configuré",
+    "Resolution": "Résolution",
+    "CNY / second": "CNY / seconde",
+    "Min / max": "Min / max",
+    "Image prices": "Prix image",
+    "Add image price": "Ajouter un prix image",
+    "No image prices configured": "Aucun prix image configuré",
+    "CNY / image": "CNY / image",
+    "No rows": "Aucune ligne",
+    "Add a row to preview quota conversion.": "Ajoutez une ligne pour prévisualiser la conversion en quota.",
+    "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.": "Les prix par spécification sont des prix absolus en CNY. Lorsqu’un modèle et une spécification correspondent, le quota calculé remplace le prix par modèle ; les modèles non correspondants conservent la tarification existante."
   }
 }

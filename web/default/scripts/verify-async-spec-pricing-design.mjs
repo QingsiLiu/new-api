@@ -21,6 +21,31 @@ const files = {
   types: path.join(root, 'src/features/system-settings/types.ts'),
 }
 
+const localeFiles = ['en', 'zh', 'fr', 'ru', 'ja', 'vi'].map((locale) =>
+  path.join(root, 'src/i18n/locales', `${locale}.json`)
+)
+
+const specPricingI18nKeys = [
+  'Spec Pricing',
+  'Quota per CNY',
+  'Save spec pricing',
+  'Video preview',
+  'Image preview',
+  'Video prices',
+  'Add video price',
+  'No video prices configured',
+  'Resolution',
+  'CNY / second',
+  'Min / max',
+  'Image prices',
+  'Add image price',
+  'No image prices configured',
+  'CNY / image',
+  'No rows',
+  'Add a row to preview quota conversion.',
+  'Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.',
+]
+
 function read(file) {
   if (!fs.existsSync(file)) {
     throw new Error(`Missing required file: ${path.relative(root, file)}`)
@@ -81,5 +106,20 @@ assertContains(billingIndex, 'QuotaPerCNY', 'QuotaPerCNY default value')
 assertContains(billingIndex, 'AsyncSpecPricing', 'AsyncSpecPricing default value')
 assertContains(types, 'QuotaPerCNY: number', 'QuotaPerCNY settings type')
 assertContains(types, 'AsyncSpecPricing: string', 'AsyncSpecPricing settings type')
+
+for (const file of localeFiles) {
+  const relativePath = path.relative(root, file)
+  const data = JSON.parse(read(file))
+  if (!data.translation || typeof data.translation !== 'object') {
+    throw new Error(`Missing translation object in ${relativePath}`)
+  }
+
+  for (const key of specPricingI18nKeys) {
+    const value = data.translation[key]
+    if (typeof value !== 'string' || value.trim() === '') {
+      throw new Error(`Missing Spec Pricing locale key in ${relativePath}: ${key}`)
+    }
+  }
+}
 
 console.log('async spec pricing design verification passed')

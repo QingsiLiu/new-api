@@ -4601,6 +4601,24 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Spec Pricing": "Giá theo cấu hình",
+    "Quota per CNY": "Quota mỗi CNY",
+    "Save spec pricing": "Lưu giá theo cấu hình",
+    "Video preview": "Xem trước video",
+    "Image preview": "Xem trước hình ảnh",
+    "Video prices": "Giá video",
+    "Add video price": "Thêm giá video",
+    "No video prices configured": "Chưa cấu hình giá video",
+    "Resolution": "Độ phân giải",
+    "CNY / second": "CNY / giây",
+    "Min / max": "Tối thiểu / tối đa",
+    "Image prices": "Giá hình ảnh",
+    "Add image price": "Thêm giá hình ảnh",
+    "No image prices configured": "Chưa cấu hình giá hình ảnh",
+    "CNY / image": "CNY / ảnh",
+    "No rows": "Chưa có hàng",
+    "Add a row to preview quota conversion.": "Thêm một hàng để xem trước quy đổi quota.",
+    "Specification prices are absolute CNY prices. When a model and specification match, the calculated quota replaces the per-model price; unmatched models keep the existing per-model pricing.": "Giá theo cấu hình là giá CNY tuyệt đối. Khi model và cấu hình khớp, quota tính được sẽ thay thế giá theo model; các model không khớp vẫn dùng giá model hiện có."
   }
 }
