@@ -352,3 +352,11 @@ Target: `web/default` only
   - `/Users/tedliu/code/new-api/web/default`: `bun run verify:design` passed.
   - `/Users/tedliu/code/new-api`: `git diff --check` passed.
 - Note before staging: unrelated pre-existing `web/default` docs/home/footer/nav generated-route changes remain unstaged and must not be included in the unified model commit.
+
+## 2026-07-02 20:54 CST - Unified Model Management deploy attempt
+- Code commit created and pushed: `0cd7158a6802fdc75f430d0e96f1f46d91030810` (`feat: unify model pricing with parity gate`) on `origin/codex/unified-model-management`.
+- Selective staging succeeded: unrelated pre-existing `web/default` docs/home/footer/nav `routeTree.gen.ts` changes remain unstaged and were not included in the code commit.
+- Local release-base ancestry check: `origin/release/newapi-unified-2026-07-01` (`568704f488326bb6dcc7049bdf15babce7d0d066`) is an ancestor of `0cd7158a6802fdc75f430d0e96f1f46d91030810`.
+- Public health before deploy: `curl -fsS https://all.geiliapi.com/api/status` returned HTTP 200 JSON.
+- Deployment stopped before any production change: `ssh ctbuk` failed while trying to read `/opt/geili-relay/docker-compose.yml` / `docker ps` (`timeout` and `Connection reset by 118.193.38.230 port 8443`). Per redline, did not retry transfer/build/deploy, did not touch compose, and did not restart any service.
+- No production parity result yet: `/api/model/pricing-parity` is implemented in code, but not deployed because server access failed. Need retry once ctbuk SSH/proxy is healthy, then perform authoritative online commit superset check, build fixed tag, switch only `relay-new-api`, and curl the new endpoint with admin credentials.
