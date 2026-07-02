@@ -1,6 +1,9 @@
 package operation_setting
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func resetAsyncSpecPricingForTest(t *testing.T) {
 	t.Helper()
@@ -47,6 +50,215 @@ func TestResolveVideoSpecQuotaUsesResolutionSecondsAndCNYConversion(t *testing.T
 	if result.TotalCNY != 2.8 {
 		t.Fatalf("want total CNY 2.8, got %f", result.TotalCNY)
 	}
+}
+
+func TestResolveVideoSpecQuotaUsesResolutionRatioAndModeMatrix(t *testing.T) {
+	resetAsyncSpecPricingForTest(t)
+	QuotaPerCNY = 1000
+	if err := UpdateAsyncSpecPricingByJSONString(`{
+		"currency":"CNY",
+		"video":{
+			"seedance-2.0":{
+				"unit":"per_second",
+				"prices":{
+					"720p":{
+						"16:9":{
+							"no_video_input":{"cny_per_second":1.0433},
+							"with_video_input":{"cny_per_second":0.635}
+						},
+						"21:9":{
+							"no_video_input":{"cny_per_second":1.3693},
+							"with_video_input":{"cny_per_second":0.8335}
+						}
+					}
+				}
+			}
+		}
+	}`); err != nil {
+		t.Fatalf("update async spec pricing: %v", err)
+	}
+
+	textToVideo := ResolveVideoSpecQuotaByContext("seedance-2.0", "1280x720", "", "no_video_input", 5)
+	if !textToVideo.Matched || textToVideo.Unsupported {
+		t.Fatalf("expected text-to-video matrix match, got %+v", textToVideo)
+	}
+	if textToVideo.SpecKey != "720p:16:9:no_video_input" || textToVideo.Resolution != "720p" || textToVideo.Ratio != "16:9" || textToVideo.Mode != "no_video_input" {
+		t.Fatalf("matrix metadata mismatch: %+v", textToVideo)
+	}
+	if !closeFloat(textToVideo.UnitCNY, 1.0433) || !closeFloat(textToVideo.TotalCNY, 5.2165) || textToVideo.Quota != 5217 {
+		t.Fatalf("text-to-video price mismatch: %+v", textToVideo)
+	}
+
+	videoInput := ResolveVideoSpecQuotaByContext("seedance-2.0", "720p", "21:9", "with_video_input", 5)
+	if !videoInput.Matched || videoInput.Unsupported {
+		t.Fatalf("expected video-input matrix match, got %+v", videoInput)
+	}
+	if videoInput.SpecKey != "720p:21:9:with_video_input" || !closeFloat(videoInput.UnitCNY, 0.8335) || !closeFloat(videoInput.TotalCNY, 4.1675) || videoInput.Quota != 4168 {
+		t.Fatalf("video-input price mismatch: %+v", videoInput)
+	}
+}
+
+func TestResolveVideoSpecQuotaSupportsSeedance15ProModesAndUnsupportedCells(t *testing.T) {
+	resetAsyncSpecPricingForTest(t)
+	QuotaPerCNY = 1000
+	if err := UpdateAsyncSpecPricingByJSONString(`{
+		"video":{
+			"seedance-1.5-pro":{
+				"prices":{
+					"480p":{
+						"4:3":{
+							"text_audio":{"cny_per_second":0.1658},
+							"text_no_audio":{"cny_per_second":0.0829},
+							"image_audio":{"cny_per_second":0.0995},
+							"image_no_audio":{"cny_per_second":0.058}
+						}
+					},
+					"720p":{
+						"16:9":{
+							"text_audio":{"cny_per_second":0.3629},
+							"text_no_audio":{"cny_per_second":0.1814},
+							"image_audio":{"unsupported":true},
+							"image_no_audio":{"unsupported":true}
+						}
+					}
+				}
+			}
+		}
+	}`); err != nil {
+		t.Fatalf("update async spec pricing: %v", err)
+	}
+
+	imageNoAudio := ResolveVideoSpecQuotaByContext("seedance-1.5-pro", "480p", "4:3", "image_no_audio", 5)
+	if !imageNoAudio.Matched || imageNoAudio.Unsupported {
+		t.Fatalf("expected image-no-audio matrix match, got %+v", imageNoAudio)
+	}
+	if imageNoAudio.SpecKey != "480p:4:3:image_no_audio" || !closeFloat(imageNoAudio.UnitCNY, 0.058) || !closeFloat(imageNoAudio.TotalCNY, 0.29) || imageNoAudio.Quota != 290 {
+		t.Fatalf("image-no-audio price mismatch: %+v", imageNoAudio)
+	}
+
+	unsupported := ResolveVideoSpecQuotaByContext("seedance-1.5-pro", "720p", "16:9", "image_audio", 5)
+	if !unsupported.Unsupported || unsupported.Matched || unsupported.Quota != 0 {
+		t.Fatalf("expected unsupported matrix cell without fallback, got %+v", unsupported)
+	}
+	if unsupported.SpecKey != "720p:16:9:image_audio" {
+		t.Fatalf("unsupported spec key mismatch: %+v", unsupported)
+	}
+}
+
+func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.T) {
+	resetAsyncSpecPricingForTest(t)
+	QuotaPerCNY = 1000
+	if err := UpdateAsyncSpecPricingByJSONString(AsyncSpecPricingSeedJSONString()); err != nil {
+		t.Fatalf("update async spec pricing from seed: %v", err)
+	}
+	seed := GetAsyncSpecPricingCopy()
+	seedCellCounts := map[string]int{
+		"seedance-2.0-mini": 24,
+		"seedance-2.0-fast": 24,
+		"seedance-2.0":      48,
+		"seedance-1.5-pro":  72,
+	}
+	for model, wantCells := range seedCellCounts {
+		if got := countVideoModePriceCells(seed.Video[model]); got != wantCells {
+			t.Fatalf("seed matrix cell count mismatch for %s: got %d, want %d", model, got, wantCells)
+		}
+	}
+	if got := countUnsupportedVideoModePriceCells(seed.Video["seedance-1.5-pro"]); got != 24 {
+		t.Fatalf("seedance-1.5-pro unsupported cell count mismatch: got %d, want 24", got)
+	}
+
+	tests := []struct {
+		name       string
+		model      string
+		resolution string
+		ratio      string
+		mode       string
+		seconds    int
+		wantQuota  int
+		wantUnit   float64
+	}{
+		{
+			name:       "seedance-2-standard-720p-21-9-with-video",
+			model:      "seedance-2.0",
+			resolution: "720p",
+			ratio:      "21:9",
+			mode:       "with_video_input",
+			seconds:    5,
+			wantUnit:   0.8335,
+			wantQuota:  4168,
+		},
+		{
+			name:       "seedance-2-fast-720p-4-3-no-video",
+			model:      "seedance-2.0-fast",
+			resolution: "720p",
+			ratio:      "4:3",
+			mode:       "no_video_input",
+			seconds:    5,
+			wantUnit:   0.6294,
+			wantQuota:  3147,
+		},
+		{
+			name:       "seedance-2-mini-480p-1-1-with-video",
+			model:      "seedance-2.0-mini",
+			resolution: "480p",
+			ratio:      "1:1",
+			mode:       "with_video_input",
+			seconds:    5,
+			wantUnit:   0.1411,
+			wantQuota:  706,
+		},
+		{
+			name:       "seedance-15-pro-1080p-21-9-text-no-audio",
+			model:      "seedance-1.5-pro",
+			resolution: "1080p",
+			ratio:      "21:9",
+			mode:       "text_no_audio",
+			seconds:    5,
+			wantUnit:   0.4109,
+			wantQuota:  2055,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ResolveVideoSpecQuotaByContext(tt.model, tt.resolution, tt.ratio, tt.mode, tt.seconds)
+			if !result.Matched || result.Unsupported {
+				t.Fatalf("expected seed matrix match, got %+v", result)
+			}
+			if !closeFloat(result.UnitCNY, tt.wantUnit) || result.Quota != tt.wantQuota {
+				t.Fatalf("seed price mismatch: got %+v, want unit %f quota %d", result, tt.wantUnit, tt.wantQuota)
+			}
+		})
+	}
+
+	unsupported := ResolveVideoSpecQuotaByContext("seedance-1.5-pro", "720p", "16:9", "image_audio", 5)
+	if !unsupported.Unsupported || unsupported.Matched {
+		t.Fatalf("expected seeded unsupported image-audio 720p, got %+v", unsupported)
+	}
+}
+
+func countVideoModePriceCells(spec AsyncVideoSpecPrice) int {
+	count := 0
+	for _, ratioPrices := range spec.Prices {
+		for _, modePrices := range ratioPrices {
+			count += len(modePrices)
+		}
+	}
+	return count
+}
+
+func countUnsupportedVideoModePriceCells(spec AsyncVideoSpecPrice) int {
+	count := 0
+	for _, ratioPrices := range spec.Prices {
+		for _, modePrices := range ratioPrices {
+			for _, price := range modePrices {
+				if price.Unsupported {
+					count++
+				}
+			}
+		}
+	}
+	return count
 }
 
 func TestResolveVideoSpecQuotaAppliesDefaultMinMaxAndAllowsZeroPrice(t *testing.T) {
@@ -271,4 +483,8 @@ func TestAsyncSpecPricingCoexistsWithGPTImage1NativePriceTable(t *testing.T) {
 	if fallback := ResolveImageSpecQuota("gpt-image-unconfigured", "", "", "high", 1); fallback.Matched {
 		t.Fatalf("unconfigured models should keep falling back to native/per-model paths, got %+v", fallback)
 	}
+}
+
+func closeFloat(got float64, want float64) bool {
+	return math.Abs(got-want) < 0.0000001
 }

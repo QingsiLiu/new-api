@@ -44,6 +44,13 @@ type AsyncSpecPricingConfig = {
 type VideoModelSpec = {
   unit?: string
   resolutions?: Record<string, { cny_per_second?: number }>
+  prices?: Record<
+    string,
+    Record<
+      string,
+      Record<string, { cny_per_second?: number; unsupported?: boolean }>
+    >
+  >
   default_cny_per_second?: number
   min_cny?: number
   max_cny?: number
@@ -60,6 +67,9 @@ type VideoRow = {
   id: number
   model: string
   resolution: string
+  ratio: string
+  mode: string
+  supported: boolean
   cnyPerSecond: number
   defaultCNYPerSecond: number
   minCNY: number
@@ -93,9 +103,24 @@ const DEFAULT_SPEC: AsyncSpecPricingConfig = {
 }
 
 const DEFAULT_VIDEO_RESOLUTION = '720p'
+const DEFAULT_VIDEO_RATIO = '16:9'
+const DEFAULT_VIDEO_MODE = 'no_video_input'
 const DEFAULT_IMAGE_RESOLUTION = '1k'
 
 const VIDEO_RESOLUTION_OPTIONS = ['480p', '720p', '1080p', '2k', '4k']
+const VIDEO_RATIO_OPTIONS = ['16:9', '9:16', '4:3', '3:4', '1:1', '21:9']
+const VIDEO_MODE_OPTIONS = [
+  { value: 'no_video_input', label: 'No video input' },
+  { value: 'with_video_input', label: 'With video input' },
+  { value: 'text_audio', label: 'Text with audio' },
+  { value: 'text_no_audio', label: 'Text without audio' },
+  { value: 'image_audio', label: 'Image with audio' },
+  { value: 'image_no_audio', label: 'Image without audio' },
+]
+const VIDEO_STATUS_OPTIONS = [
+  { value: 'supported', label: 'Supported' },
+  { value: 'unsupported', label: 'Unsupported' },
+]
 const IMAGE_RESOLUTION_OPTIONS = ['1k', '2k', '4k']
 
 function parseSpecPricing(
@@ -123,23 +148,54 @@ function rowsFromSpec(spec: AsyncSpecPricingConfig): ParsedSpec {
   const imageRows: ImageRow[] = []
 
   for (const [model, modelSpec] of Object.entries(spec.video || {})) {
-    const resolutions = modelSpec.resolutions || {}
-    for (const [resolution, price] of Object.entries(resolutions)) {
-      videoRows.push({
-        id: nextId++,
-        model,
-        resolution,
-        cnyPerSecond: Number(price.cny_per_second) || 0,
-        defaultCNYPerSecond: Number(modelSpec.default_cny_per_second) || 0,
-        minCNY: Number(modelSpec.min_cny) || 0,
-        maxCNY: Number(modelSpec.max_cny) || 0,
-      })
+    const prices = modelSpec.prices || {}
+    for (const [resolution, ratioPrices] of Object.entries(prices)) {
+      for (const [ratio, modePrices] of Object.entries(ratioPrices || {})) {
+        for (const [mode, price] of Object.entries(modePrices || {})) {
+          videoRows.push({
+            id: nextId++,
+            model,
+            resolution,
+            ratio,
+            mode,
+            supported: !price.unsupported,
+            cnyPerSecond: Number(price.cny_per_second) || 0,
+            defaultCNYPerSecond: Number(modelSpec.default_cny_per_second) || 0,
+            minCNY: Number(modelSpec.min_cny) || 0,
+            maxCNY: Number(modelSpec.max_cny) || 0,
+          })
+        }
+      }
     }
-    if (Object.keys(resolutions).length === 0) {
+
+    const resolutions = modelSpec.resolutions || {}
+    if (Object.keys(prices).length === 0) {
+      for (const [resolution, price] of Object.entries(resolutions)) {
+        videoRows.push({
+          id: nextId++,
+          model,
+          resolution,
+          ratio: DEFAULT_VIDEO_RATIO,
+          mode: DEFAULT_VIDEO_MODE,
+          supported: true,
+          cnyPerSecond: Number(price.cny_per_second) || 0,
+          defaultCNYPerSecond: Number(modelSpec.default_cny_per_second) || 0,
+          minCNY: Number(modelSpec.min_cny) || 0,
+          maxCNY: Number(modelSpec.max_cny) || 0,
+        })
+      }
+    }
+    if (
+      Object.keys(prices).length === 0 &&
+      Object.keys(resolutions).length === 0
+    ) {
       videoRows.push({
         id: nextId++,
         model,
         resolution: DEFAULT_VIDEO_RESOLUTION,
+        ratio: DEFAULT_VIDEO_RATIO,
+        mode: DEFAULT_VIDEO_MODE,
+        supported: true,
         cnyPerSecond: 0,
         defaultCNYPerSecond: Number(modelSpec.default_cny_per_second) || 0,
         minCNY: Number(modelSpec.min_cny) || 0,
@@ -183,19 +239,27 @@ function rowsToSpec(
   for (const row of videoRows) {
     const model = row.model.trim()
     const resolution = row.resolution.trim()
-    if (!model || !resolution) continue
+    const ratio = row.ratio.trim()
+    const mode = row.mode.trim()
+    if (!model || !resolution || !ratio || !mode) continue
     const spec = video[model] || {
       unit: 'per_second',
-      resolutions: {},
+      prices: {},
     }
     spec.unit = 'per_second'
     spec.default_cny_per_second = Number(row.defaultCNYPerSecond) || 0
     spec.min_cny = Number(row.minCNY) || 0
     spec.max_cny = Number(row.maxCNY) || 0
-    spec.resolutions = spec.resolutions || {}
-    spec.resolutions[resolution] = {
-      cny_per_second: Number(row.cnyPerSecond) || 0,
-    }
+    spec.prices = spec.prices || {}
+    spec.prices[resolution] = spec.prices[resolution] || {}
+    spec.prices[resolution][ratio] = spec.prices[resolution][ratio] || {}
+    spec.prices[resolution][ratio][mode] = row.supported
+      ? {
+          cny_per_second: Number(row.cnyPerSecond) || 0,
+        }
+      : {
+          unsupported: !row.supported,
+        }
     video[model] = spec
   }
 
@@ -322,6 +386,9 @@ const AsyncSpecPricingSettingsInner = memo(
         id: nextRowId,
         model: '',
         resolution: DEFAULT_VIDEO_RESOLUTION,
+        ratio: DEFAULT_VIDEO_RATIO,
+        mode: DEFAULT_VIDEO_MODE,
+        supported: true,
         cnyPerSecond: 0,
         defaultCNYPerSecond: 0,
         minCNY: 0,
@@ -460,7 +527,7 @@ const AsyncSpecPricingSettingsInner = memo(
         ) : (
           <div className='space-y-6'>
             <SpecTableHeader
-              title={t('Video prices')}
+              title={t('Video matrix prices')}
               actionLabel={t('Add video price')}
               onAdd={addVideoRow}
             />
@@ -486,7 +553,7 @@ const AsyncSpecPricingSettingsInner = memo(
                 {
                   id: 'resolution',
                   header: t('Resolution'),
-                  className: 'w-36',
+                  className: 'w-32',
                   cell: (row) => (
                     <NativeSelect
                       className='w-full'
@@ -506,6 +573,78 @@ const AsyncSpecPricingSettingsInner = memo(
                   ),
                 },
                 {
+                  id: 'ratio',
+                  header: t('Ratio'),
+                  className: 'w-28',
+                  cell: (row) => (
+                    <NativeSelect
+                      className='w-full'
+                      value={row.ratio}
+                      onChange={(event) =>
+                        updateVideoRow(row.id, {
+                          ratio: event.target.value,
+                        })
+                      }
+                    >
+                      {VIDEO_RATIO_OPTIONS.map((option) => (
+                        <NativeSelectOption key={option} value={option}>
+                          {option}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  ),
+                },
+                {
+                  id: 'mode',
+                  header: t('Mode'),
+                  className: 'w-52',
+                  cell: (row) => (
+                    <NativeSelect
+                      className='w-full'
+                      value={row.mode}
+                      onChange={(event) =>
+                        updateVideoRow(row.id, {
+                          mode: event.target.value,
+                        })
+                      }
+                    >
+                      {VIDEO_MODE_OPTIONS.map((option) => (
+                        <NativeSelectOption
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {t(option.label)}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: t('Status'),
+                  className: 'w-36',
+                  cell: (row) => (
+                    <NativeSelect
+                      className='w-full'
+                      value={row.supported ? 'supported' : 'unsupported'}
+                      onChange={(event) =>
+                        updateVideoRow(row.id, {
+                          supported: event.target.value === 'supported',
+                        })
+                      }
+                    >
+                      {VIDEO_STATUS_OPTIONS.map((option) => (
+                        <NativeSelectOption
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {t(option.label)}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  ),
+                },
+                {
                   id: 'rate',
                   header: t('CNY / second'),
                   className: 'w-36',
@@ -515,6 +654,7 @@ const AsyncSpecPricingSettingsInner = memo(
                       min={0}
                       step={0.01}
                       value={row.cnyPerSecond}
+                      disabled={!row.supported}
                       onChange={(event) =>
                         updateVideoRow(row.id, {
                           cnyPerSecond: normalizeNumber(event.target.value),

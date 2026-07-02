@@ -1267,6 +1267,189 @@ func TestAsyncVideoGenerationSpecPricingUsesConfiguredCNYPerSecond(t *testing.T)
 	require.Equal(t, 2000, longDurationQuota)
 }
 
+func TestAsyncVideoSpecPricingFallsBackToPerModelWhenModelUnconfigured(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"video":{
+			"other-video-model":{
+				"prices":{
+					"720p":{
+						"16:9":{
+							"no_video_input":{"cny_per_second":9}
+						}
+					}
+				}
+			}
+		}
+	}`, 1000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/jobs/createTask":
+			require.Equal(t, http.MethodPost, r.Method)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-task-fallback"}}`))
+		case "/api/v1/jobs/recordInfo":
+			require.Equal(t, http.MethodGet, r.Method)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-task-fallback","state":"success","resultJson":"{\"resultUrls\":[\"https://example.test/video.mp4\"]}"}}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	quota := asyncTaskQuotaForVideoRequest(t, upstream.URL, map[string]interface{}{
+		"ratio":      "16:9",
+		"resolution": "720p",
+		"duration":   5,
+	})
+
+	require.Equal(t, int(0.01*common.QuotaPerUnit), quota)
+}
+
+func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"video":{
+			"seedance-2.0":{
+				"prices":{
+					"720p":{
+						"16:9":{
+							"no_video_input":{"cny_per_second":1.0433},
+							"with_video_input":{"cny_per_second":0.635}
+						},
+						"21:9":{
+							"no_video_input":{"cny_per_second":1.3693},
+							"with_video_input":{"cny_per_second":0.8335}
+						}
+					}
+				}
+			}
+		}
+	}`, 1000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/videos":
+			require.Equal(t, http.MethodPost, r.Method)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "seedance-2.0", payload["model"])
+			require.Equal(t, "16:9", payload["aspect_ratio"])
+			require.Equal(t, "5", payload["seconds"])
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"video-matrix-1","status":"queued"}`))
+		case "/v1/videos/video-matrix-1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"video-matrix-1","status":"completed","progress":100}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "seedance-2.0", constant.ChannelTypeJimengOpenAIVideo, "")
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+
+	payload := `{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-2.0",
+		"input":{"prompt":"matrix priced video"},
+		"parameters":{"size":"1280x720","seconds":5}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, 5217, estimate.Quota)
+	require.Equal(t, float64(5217), estimate.Breakdown.OtherRatios["spec_quota"])
+	require.Equal(t, 1.0433, estimate.Breakdown.OtherRatios["spec_unit_cny"])
+	require.Equal(t, 5.2165, estimate.Breakdown.OtherRatios["spec_total_cny"])
+
+	createRecorder := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(payload))
+	createRequest.Header.Set("Authorization", "Bearer "+token)
+	createRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(createRecorder, createRequest)
+	require.Equal(t, http.StatusOK, createRecorder.Code, createRecorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, estimate.Quota, task.Quota)
+	require.NotNil(t, task.PrivateData.BillingContext)
+	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
+	require.Equal(t, "720p:16:9:no_video_input", task.PrivateData.BillingContext.SpecPricing.SpecKey)
+	require.Equal(t, "720p", task.PrivateData.BillingContext.SpecPricing.Resolution)
+	require.Equal(t, "16:9", task.PrivateData.BillingContext.SpecPricing.Ratio)
+	require.Equal(t, "no_video_input", task.PrivateData.BillingContext.SpecPricing.Mode)
+}
+
+func TestAsyncVideoMatrixSpecPricingRejectsUnsupportedCell(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"video":{
+			"seedance-1.5-pro":{
+				"prices":{
+					"720p":{
+						"16:9":{
+							"text_audio":{"cny_per_second":0.3629},
+							"text_no_audio":{"cny_per_second":0.1814},
+							"image_audio":{"unsupported":true},
+							"image_no_audio":{"unsupported":true}
+						}
+					}
+				}
+			}
+		}
+	}`, 1000)
+	engine, token := setupAsyncTaskProductRouterTest(t, "https://upstream.example", "seedance-1.5-pro", constant.ChannelTypeJimengOpenAIVideo, "")
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-1.5-pro":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+	payload := `{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-1.5-pro",
+		"input":{"prompt":"unsupported image audio video"},
+		"parameters":{
+			"size":"1280x720",
+			"seconds":5,
+			"generate_audio":true,
+			"content":[{"type":"image_url","image_url":{"url":"https://example.test/ref.png"}}]
+		}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusBadRequest, estimateRecorder.Code, estimateRecorder.Body.String())
+	require.Contains(t, estimateRecorder.Body.String(), "unsupported video spec price")
+
+	createRecorder := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(payload))
+	createRequest.Header.Set("Authorization", "Bearer "+token)
+	createRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(createRecorder, createRequest)
+	require.Equal(t, http.StatusBadRequest, createRecorder.Code, createRecorder.Body.String())
+	require.Contains(t, createRecorder.Body.String(), "unsupported video spec price")
+}
+
 func TestAsyncImageSpecPricingIsDisabledByDefault(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, false)
 	withAsyncSpecPricingForTest(t, `{

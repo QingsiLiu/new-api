@@ -633,23 +633,24 @@ func estimateAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel 
 	}
 	relayInfo.PriceData = priceData
 	if operation_setting.AsyncTaskSpecPricingEnabled {
-		applyAsyncTaskSpecPricing(request, relayInfo)
+		if err := applyAsyncTaskSpecPricing(request, relayInfo); err != nil {
+			return nil, err
+		}
 	}
 	return relayInfo, nil
 }
 
-func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.RelayInfo) {
+func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.RelayInfo) error {
 	if relayInfo == nil {
-		return
+		return nil
 	}
 
 	var result operation_setting.AsyncSpecQuotaResult
 	switch request.Kind {
 	case asyncTaskKindVideo:
-		resolution := asyncParamString(request.Parameters, "resolution")
-		if resolution == "" {
-			resolution = asyncParamString(request.Parameters, "size")
-		}
+		resolution := asyncVideoSpecResolution(request.Parameters)
+		ratio := asyncVideoSpecRatio(request.Parameters)
+		mode := asyncVideoSpecMode(request)
 		seconds := asyncParamIntValue(request.Parameters, "duration", 0)
 		if seconds <= 0 {
 			seconds = asyncParamIntValue(request.Parameters, "seconds", 0)
@@ -657,7 +658,7 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		if seconds <= 0 {
 			seconds = 0
 		}
-		result = operation_setting.ResolveVideoSpecQuota(relayInfo.OriginModelName, resolution, seconds)
+		result = operation_setting.ResolveVideoSpecQuotaByContext(relayInfo.OriginModelName, resolution, ratio, mode, seconds)
 	default:
 		quality := asyncParamString(request.Parameters, "quality")
 		size := asyncParamString(request.Parameters, "size")
@@ -665,8 +666,11 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		count := asyncParamIntValue(request.Parameters, "n", 1)
 		result = operation_setting.ResolveImageSpecQuota(relayInfo.OriginModelName, size, resolution, quality, count)
 	}
+	if result.Unsupported {
+		return fmt.Errorf("unsupported video spec price: %s", result.SpecKey)
+	}
 	if !result.Matched {
-		return
+		return nil
 	}
 
 	relayInfo.PriceData.Quota = result.Quota
@@ -676,6 +680,9 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		Kind:        result.Kind,
 		Model:       result.Model,
 		SpecKey:     result.SpecKey,
+		Resolution:  result.Resolution,
+		Ratio:       result.Ratio,
+		Mode:        result.Mode,
 		UnitCNY:     result.UnitCNY,
 		TotalCNY:    result.TotalCNY,
 		Quota:       result.Quota,
@@ -688,6 +695,7 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		"spec_total_cny": result.TotalCNY,
 		"quota_per_cny":  result.QuotaPerCNY,
 	}
+	return nil
 }
 
 func asyncTaskSpecPricingForTask(info *types.SpecPricingInfo) *model.TaskSpecPricing {
@@ -699,6 +707,9 @@ func asyncTaskSpecPricingForTask(info *types.SpecPricingInfo) *model.TaskSpecPri
 		Kind:        info.Kind,
 		Model:       info.Model,
 		SpecKey:     info.SpecKey,
+		Resolution:  info.Resolution,
+		Ratio:       info.Ratio,
+		Mode:        info.Mode,
 		UnitCNY:     info.UnitCNY,
 		TotalCNY:    info.TotalCNY,
 		Quota:       info.Quota,
@@ -1764,6 +1775,85 @@ func asyncOpenAIVideoInputReference(parameters map[string]interface{}) string {
 	return ""
 }
 
+func asyncVideoSpecResolution(parameters map[string]interface{}) string {
+	if value := asyncParamString(parameters, "resolution"); value != "" {
+		return value
+	}
+	return asyncParamString(parameters, "size")
+}
+
+func asyncVideoSpecRatio(parameters map[string]interface{}) string {
+	if value := asyncParamString(parameters, "aspect_ratio"); value != "" {
+		return value
+	}
+	if value := asyncParamString(parameters, "ratio"); value != "" {
+		return value
+	}
+	return asyncParamString(parameters, "size")
+}
+
+func asyncVideoSpecMode(request asyncTaskRequest) string {
+	if isSeedance15ProModel(request.Model) {
+		audioSuffix := "audio"
+		if !asyncParamBoolValue(request.Parameters, "generate_audio", true) {
+			audioSuffix = "no_audio"
+		}
+		if asyncVideoHasImageInput(request.Parameters) {
+			return "image_" + audioSuffix
+		}
+		return "text_" + audioSuffix
+	}
+	if asyncVideoHasVideoInput(request.Parameters) {
+		return "with_video_input"
+	}
+	return "no_video_input"
+}
+
+func isSeedance15ProModel(modelName string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(modelName))
+	normalized = strings.ReplaceAll(normalized, "_", "-")
+	normalized = strings.ReplaceAll(normalized, " ", "")
+	return strings.Contains(normalized, "seedance-1.5") ||
+		strings.Contains(normalized, "seedance1.5") ||
+		strings.Contains(normalized, "seedance-15") ||
+		strings.Contains(normalized, "seedance15")
+}
+
+func asyncVideoHasImageInput(parameters map[string]interface{}) bool {
+	for _, key := range []string{"image", "image_url"} {
+		if asyncParamString(parameters, key) != "" {
+			return true
+		}
+	}
+	if reference := asyncParamString(parameters, "input_reference"); reference != "" && !asyncLooksLikeVideoReference(reference) {
+		return true
+	}
+	_, imageURLs, _, _ := asyncKieSeedanceContentParts(parameters["content"])
+	return len(imageURLs) > 0
+}
+
+func asyncVideoHasVideoInput(parameters map[string]interface{}) bool {
+	for _, key := range []string{"video", "video_url", "reference_video_url"} {
+		if asyncParamString(parameters, key) != "" {
+			return true
+		}
+	}
+	if reference := asyncParamString(parameters, "input_reference"); reference != "" && asyncLooksLikeVideoReference(reference) {
+		return true
+	}
+	_, _, videoURLs, _ := asyncKieSeedanceContentParts(parameters["content"])
+	return len(videoURLs) > 0
+}
+
+func asyncLooksLikeVideoReference(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(value, "video") ||
+		strings.Contains(value, ".mp4") ||
+		strings.Contains(value, ".mov") ||
+		strings.Contains(value, ".webm") ||
+		strings.Contains(value, ".m4v")
+}
+
 func asyncOpenAIVideoTaskSucceeded(status string) bool {
 	status = strings.ToLower(strings.TrimSpace(status))
 	return status == "succeeded" || status == "success" || status == "completed" || status == "complete" || status == "finished"
@@ -2304,6 +2394,31 @@ func asyncParamIntValue(parameters map[string]interface{}, key string, fallback 
 		if parsed, err := strconv.Atoi(strings.TrimSpace(typed)); err == nil && parsed > 0 {
 			return parsed
 		}
+	}
+	return fallback
+}
+
+func asyncParamBoolValue(parameters map[string]interface{}, key string, fallback bool) bool {
+	value, ok := parameters[key]
+	if !ok || value == nil {
+		return fallback
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		switch strings.ToLower(strings.TrimSpace(typed)) {
+		case "1", "true", "yes", "y", "on":
+			return true
+		case "0", "false", "no", "n", "off":
+			return false
+		}
+	case float64:
+		return typed != 0
+	case int:
+		return typed != 0
+	case int64:
+		return typed != 0
 	}
 	return fallback
 }
