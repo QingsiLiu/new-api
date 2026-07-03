@@ -39,6 +39,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'AccessKey / SecretAccessKey',
   'AZURE_OPENAI_ENDPOINT *',
   'Baidu V2',
+  'Geili Editorial',
   'ChatGPT',
   'ChatGPT Subscription (Codex)',
   'Claude',
@@ -105,12 +106,17 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Xunfei',
   'Zhipu V4',
   '"default": "us-central1", "claude-3-5-sonnet-20240620": "europe-west1"',
+  'endpoint_type',
   'edit_this',
   'footer.columns.related.links.midjourney',
   'footer.columns.related.links.newApiKeyTool',
   'my-status',
   'new-api-key-tool',
+  'preset.geili-editorial',
   'price_xxx',
+  'resolution,ratio,mode,cny_per_second',
+  'stderr',
+  'stdout',
   'whsec_xxx',
 ])
 
@@ -317,4 +323,3 @@ main().catch((err) => {
   console.error(err)
   process.exitCode = 1
 })
-
