@@ -2015,6 +2015,276 @@ func TestAsyncSeedanceProductAliasRoutesToJimengOpenAIVideoChannel(t *testing.T)
 	}, 2*time.Second, 20*time.Millisecond)
 }
 
+func TestAsyncKieImagePayloadUsesDocumentedFieldsByModel(t *testing.T) {
+	textPayload := asyncKieImagePayload(asyncTaskRequest{
+		Model:      "google/nano-banana",
+		Parameters: map[string]interface{}{"content": []interface{}{map[string]interface{}{"type": "text", "text": "banana poster"}}, "ratio": "1:1", "output_format": "jpeg"},
+	})
+	require.Equal(t, "google/nano-banana", textPayload["model"])
+	textInput := requireAsyncPayloadInput(t, textPayload)
+	require.Equal(t, "banana poster", textInput["prompt"])
+	require.Equal(t, "1:1", textInput["aspect_ratio"])
+	require.Equal(t, "jpeg", textInput["output_format"])
+	require.Equal(t, false, textInput["nsfw_checker"])
+
+	editPayload := asyncKieImagePayload(asyncTaskRequest{
+		Model: "google/nano-banana-edit",
+		Input: asyncTaskInput{Prompt: "turn it into a toy"},
+		Parameters: map[string]interface{}{
+			"aspect_ratio": "4:3",
+			"image_urls":   []interface{}{"https://example.com/a.png", "https://example.com/b.webp"},
+		},
+	})
+	editInput := requireAsyncPayloadInput(t, editPayload)
+	require.Equal(t, "google/nano-banana-edit", editPayload["model"])
+	require.Equal(t, "turn it into a toy", editInput["prompt"])
+	require.Equal(t, "4:3", editInput["aspect_ratio"])
+	require.Equal(t, "png", editInput["output_format"])
+	require.ElementsMatch(t, []string{"https://example.com/a.png", "https://example.com/b.webp"}, editInput["image_urls"])
+
+	proPayload := asyncKieImagePayload(asyncTaskRequest{
+		Model: "nano-banana-pro",
+		Input: asyncTaskInput{Prompt: "premium poster"},
+		Parameters: map[string]interface{}{
+			"ratio":         "16:9",
+			"resolution":    "2K",
+			"image_urls":    []string{"https://example.com/ref.png"},
+			"output_format": "jpg",
+		},
+	})
+	proInput := requireAsyncPayloadInput(t, proPayload)
+	require.Equal(t, "nano-banana-pro", proPayload["model"])
+	require.Equal(t, "16:9", proInput["aspect_ratio"])
+	require.Equal(t, "2K", proInput["resolution"])
+	require.Equal(t, "jpg", proInput["output_format"])
+	require.ElementsMatch(t, []string{"https://example.com/ref.png"}, proInput["image_input"])
+
+	gptEditPayload := asyncKieImagePayload(asyncTaskRequest{
+		Model: "gpt-image-2-image-to-image",
+		Input: asyncTaskInput{Prompt: "make an ecommerce poster"},
+		Parameters: map[string]interface{}{
+			"ratio":      "auto",
+			"resolution": "1K",
+			"image_urls": []interface{}{"https://example.com/source.png"},
+		},
+	})
+	gptEditInput := requireAsyncPayloadInput(t, gptEditPayload)
+	require.Equal(t, "gpt-image-2-image-to-image", gptEditPayload["model"])
+	require.Equal(t, "auto", gptEditInput["aspect_ratio"])
+	require.Equal(t, "1K", gptEditInput["resolution"])
+	require.ElementsMatch(t, []string{"https://example.com/source.png"}, gptEditInput["input_urls"])
+	require.NotContains(t, gptEditInput, "image_urls")
+}
+
+func TestAsyncKieImageModelRecognitionUsesUpstreamIDs(t *testing.T) {
+	for _, modelName := range []string{
+		"google/nano-banana",
+		"google/nano-banana-edit",
+		"nano-banana-pro",
+		"nano-banana-2",
+		"gpt-image-2-text-to-image",
+		"gpt-image-2-image-to-image",
+	} {
+		require.True(t, isAsyncKieImageModel(modelName), modelName)
+	}
+	require.False(t, isAsyncKieImageModel("nano-banana"))
+	require.False(t, isAsyncKieImageModel("bytedance/seedance-2-fast"))
+}
+
+func TestAsyncKieImageOutputsExtractsImageURLs(t *testing.T) {
+	payload := asyncKieRecordInfoResponse{}
+	payload.Data.ResultURLs = []string{"https://example.com/a.png"}
+	payload.Data.Response.ResultURLs = []string{"https://example.com/b.jpg"}
+	payload.Data.OutputURL = "https://example.com/c.png"
+	payload.Data.ResultJSON = `{"resultUrls":["https://example.com/a.png","https://example.com/d.jpg"],"outputUrl":"https://example.com/e.png"}`
+
+	outputs := asyncKieImageOutputs(payload, "image/jpeg")
+
+	require.Equal(t, []asyncTaskStoredOutput{
+		{MimeType: "image/jpeg", URL: "https://example.com/a.png"},
+		{MimeType: "image/jpeg", URL: "https://example.com/b.jpg"},
+		{MimeType: "image/jpeg", URL: "https://example.com/c.png"},
+		{MimeType: "image/jpeg", URL: "https://example.com/d.jpg"},
+		{MimeType: "image/jpeg", URL: "https://example.com/e.png"},
+	}, outputs)
+}
+
+func TestAsyncKieNanoBananaImageTaskPollsAndStoresImageURL(t *testing.T) {
+	imageContent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/image.jpg", r.URL.Path)
+		w.Header().Set("Content-Type", "image/jpeg")
+		_, _ = w.Write([]byte("kie-image-bytes"))
+	}))
+	defer imageContent.Close()
+
+	createCalled := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/jobs/createTask":
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "google/nano-banana", payload["model"])
+			input := requireAsyncPayloadInput(t, payload)
+			require.Equal(t, "a red panda", input["prompt"])
+			require.Equal(t, "1:1", input["aspect_ratio"])
+			require.Equal(t, "jpeg", input["output_format"])
+			require.Equal(t, false, input["nsfw_checker"])
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-image-1"}}`))
+			createCalled <- struct{}{}
+		case "/api/v1/jobs/recordInfo":
+			require.Equal(t, http.MethodGet, r.Method)
+			require.Equal(t, "kie-image-1", r.URL.Query().Get("taskId"))
+			w.Header().Set("Content-Type", "application/json")
+			resultJSON := `{"resultUrls":["` + imageContent.URL + `/image.jpg"]}`
+			encoded, err := common.Marshal(map[string]interface{}{
+				"code": 200,
+				"data": map[string]interface{}{
+					"taskId":     "kie-image-1",
+					"state":      "success",
+					"resultJson": resultJSON,
+				},
+			})
+			require.NoError(t, err)
+			_, _ = w.Write(encoded)
+		default:
+			t.Errorf("unexpected upstream path: %s", r.URL.String())
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(
+		t,
+		upstream.URL,
+		"nano-banana",
+		constant.ChannelTypeKie,
+		`{"nano-banana":"google/nano-banana"}`,
+	)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"nano-banana":0.01}`))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"model":"nano-banana",
+		"input":{"prompt":"a red panda"},
+		"parameters":{"ratio":"1:1","output_format":"jpeg"}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		select {
+		case <-createCalled:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&stored).Error)
+	require.Equal(t, "nano-banana", stored.Properties.OriginModelName)
+	require.Equal(t, "google/nano-banana", stored.Properties.UpstreamModelName)
+	require.Equal(t, "kie-image-1", stored.PrivateData.UpstreamTaskID)
+
+	statusRecorder := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/tasks/"+created.ID, nil)
+	statusRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(statusRecorder, statusRequest)
+	require.Equal(t, http.StatusOK, statusRecorder.Code, statusRecorder.Body.String())
+	var status asyncTaskResponse
+	require.NoError(t, common.Unmarshal(statusRecorder.Body.Bytes(), &status))
+	require.Len(t, status.Outputs, 1)
+	require.Equal(t, "image/jpeg", status.Outputs[0].MimeType)
+	require.Equal(t, imageContent.URL+"/image.jpg", status.Outputs[0].URL)
+}
+
+func TestAsyncKieNanoBananaEditTaskAcceptsImageURLs(t *testing.T) {
+	createCalled := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/jobs/createTask":
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "google/nano-banana-edit", payload["model"])
+			input := requireAsyncPayloadInput(t, payload)
+			require.Equal(t, "make it cinematic", input["prompt"])
+			require.ElementsMatch(t, []string{"https://example.com/source.png"}, input["image_urls"])
+			require.Equal(t, "4:3", input["aspect_ratio"])
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-edit-1"}}`))
+			createCalled <- struct{}{}
+		case "/api/v1/jobs/recordInfo":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":200,"data":{"taskId":"kie-edit-1","state":"success","resultJson":"{\"resultUrls\":[\"https://example.com/edited.png\"]}"}}`))
+		default:
+			t.Errorf("unexpected upstream path: %s", r.URL.String())
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(
+		t,
+		upstream.URL,
+		"nano-banana-edit",
+		constant.ChannelTypeKie,
+		`{"nano-banana-edit":"google/nano-banana-edit"}`,
+	)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"nano-banana-edit":0.01}`))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"edit",
+		"model":"nano-banana-edit",
+		"input":{"prompt":"make it cinematic"},
+		"parameters":{"image_urls":["https://example.com/source.png"],"aspect_ratio":"4:3"}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		select {
+		case <-createCalled:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func requireAsyncPayloadInput(t *testing.T, payload map[string]interface{}) map[string]interface{} {
+	t.Helper()
+	input, ok := payload["input"].(map[string]interface{})
+	require.True(t, ok, "expected payload input object: %#v", payload)
+	return input
+}
+
 func TestAsyncSeedanceProductAliasRoutesToKieStandardModel(t *testing.T) {
 	videoContent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/seedance-2.mp4", r.URL.Path)
