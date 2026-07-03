@@ -66,7 +66,7 @@ func TestUpdateOptionRejectsInvalidQuotaPerCNYBeforePersisting(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, status)
 	require.False(t, response.Success)
-	require.Contains(t, response.Message, "QuotaPerCNY")
+	require.Contains(t, response.Message, "CNY billing unit")
 	var count int64
 	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", "QuotaPerCNY").Count(&count).Error)
 	require.Zero(t, count)
@@ -82,5 +82,18 @@ func TestUpdateOptionRejectsInvalidAsyncSpecPricingBeforePersisting(t *testing.T
 	require.Contains(t, response.Message, "规格定价设置失败")
 	var count int64
 	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", "AsyncSpecPricing").Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestUpdateOptionRejectsClassicFrontendTheme(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+
+	response, status := callUpdateOptionForTest(t, `{"key":"theme.frontend","value":"classic"}`)
+
+	require.Equal(t, http.StatusOK, status)
+	require.False(t, response.Success)
+	require.Contains(t, response.Message, "default")
+	var count int64
+	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", "theme.frontend").Count(&count).Error)
 	require.Zero(t, count)
 }

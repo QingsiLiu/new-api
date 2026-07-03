@@ -8,15 +8,11 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-const (
-	defaultUSDCNY = 7.2
-)
-
 var (
 	AsyncTaskSpecPricingEnabled      = false
 	AsyncTaskProductRoutesEnabled    = false
 	AsyncTaskServiceUserProxyEnabled = false
-	QuotaPerCNY                      = common.QuotaPerUnit / defaultUSDCNY
+	QuotaPerCNY                      = common.CNYQuotaUnit
 	asyncSpecPricing                 = emptyAsyncSpecPricing()
 )
 
@@ -348,7 +344,7 @@ func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 	}
 	spec, ok := pricing.Video[modelName]
 	if !ok {
-		return AsyncSpecQuotaResult{Kind: "video", Model: modelName, QuotaPerCNY: QuotaPerCNY}
+		return AsyncSpecQuotaResult{Kind: "video", Model: modelName, QuotaPerCNY: effectiveQuotaPerCNY()}
 	}
 	specKey := normalizeResolution(resolution)
 	ratioKey := normalizeRatio(firstNonEmptyString(ratio, ratioFromSize(resolution)))
@@ -364,7 +360,7 @@ func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 				Resolution:  specKey,
 				Ratio:       ratioKey,
 				Mode:        modeKey,
-				QuotaPerCNY: QuotaPerCNY,
+				QuotaPerCNY: effectiveQuotaPerCNY(),
 			}
 		}
 		if matched {
@@ -381,7 +377,7 @@ func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 				Mode:        modeKey,
 				UnitCNY:     unitCNY,
 				TotalCNY:    totalCNY,
-				QuotaPerCNY: QuotaPerCNY,
+				QuotaPerCNY: effectiveQuotaPerCNY(),
 			}
 		}
 		if specKey != "" || ratioKey != "" || modeKey != "" {
@@ -393,13 +389,13 @@ func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 				Resolution:  specKey,
 				Ratio:       ratioKey,
 				Mode:        modeKey,
-				QuotaPerCNY: QuotaPerCNY,
+				QuotaPerCNY: effectiveQuotaPerCNY(),
 			}
 		}
 	}
 	unitCNY, matchedSpecKey, matched := resolveVideoUnitCNY(spec, specKey)
 	if !matched {
-		return AsyncSpecQuotaResult{Kind: "video", Model: modelName, QuotaPerCNY: QuotaPerCNY}
+		return AsyncSpecQuotaResult{Kind: "video", Model: modelName, QuotaPerCNY: effectiveQuotaPerCNY()}
 	}
 	totalCNY := unitCNY * float64(seconds)
 	totalCNY = applyCNYBounds(totalCNY, spec.MinCNY, spec.MaxCNY)
@@ -412,7 +408,7 @@ func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 		Resolution:  specKey,
 		UnitCNY:     unitCNY,
 		TotalCNY:    totalCNY,
-		QuotaPerCNY: QuotaPerCNY,
+		QuotaPerCNY: effectiveQuotaPerCNY(),
 	}
 }
 
@@ -427,7 +423,7 @@ func ResolveImageSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 	}
 	spec, ok := pricing.Image[modelName]
 	if !ok {
-		return AsyncSpecQuotaResult{Kind: "image", Model: modelName, QuotaPerCNY: QuotaPerCNY}
+		return AsyncSpecQuotaResult{Kind: "image", Model: modelName, QuotaPerCNY: effectiveQuotaPerCNY()}
 	}
 	resolutionCandidates := []string{
 		normalizeImageResolution(size),
@@ -436,7 +432,7 @@ func ResolveImageSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 	qualityKey := normalizeQuality(quality)
 	unitCNY, matchedSpecKey, matched := resolveImageUnitCNY(spec, resolutionCandidates, qualityKey)
 	if !matched {
-		return AsyncSpecQuotaResult{Kind: "image", Model: modelName, QuotaPerCNY: QuotaPerCNY}
+		return AsyncSpecQuotaResult{Kind: "image", Model: modelName, QuotaPerCNY: effectiveQuotaPerCNY()}
 	}
 	totalCNY := unitCNY * float64(n)
 	return AsyncSpecQuotaResult{
@@ -447,7 +443,7 @@ func ResolveImageSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 		SpecKey:     matchedSpecKey,
 		UnitCNY:     unitCNY,
 		TotalCNY:    totalCNY,
-		QuotaPerCNY: QuotaPerCNY,
+		QuotaPerCNY: effectiveQuotaPerCNY(),
 	}
 }
 
@@ -536,17 +532,11 @@ func applyCNYBounds(value float64, minCNY float64, maxCNY float64) float64 {
 }
 
 func roundCNYToQuota(cny float64) int {
-	if cny <= 0 {
-		return 0
-	}
-	return int(math.Round(cny * effectiveQuotaPerCNY()))
+	return common.CNYToQuota(cny)
 }
 
 func effectiveQuotaPerCNY() float64 {
-	if QuotaPerCNY > 0 {
-		return QuotaPerCNY
-	}
-	return common.QuotaPerUnit / defaultUSDCNY
+	return common.CNYQuotaUnit
 }
 
 func normalizeVideoSpecPricing(src map[string]AsyncVideoSpecPrice) map[string]AsyncVideoSpecPrice {

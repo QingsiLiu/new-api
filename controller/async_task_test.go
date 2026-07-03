@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -29,13 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
-
-func asyncSpecQuotaForTest(cny float64) int {
-	if cny <= 0 {
-		return 0
-	}
-	return int(math.Round(cny * operation_setting.QuotaPerCNY))
-}
 
 func TestAsyncTaskHTTPClientDefaultsToFiveMinutes(t *testing.T) {
 	if os.Getenv("ASYNC_TASK_HTTP_TIMEOUT_SECONDS") != "" {
@@ -823,10 +815,10 @@ func TestAsyncImageGenerationSpecPricingUsesConfiguredCNYPerImage(t *testing.T) 
 		})
 	})
 
-	require.Equal(t, asyncSpecQuotaForTest(0.11), oneKQuota)
-	require.Equal(t, asyncSpecQuotaForTest(0.18), twoKQuota)
-	require.Equal(t, asyncSpecQuotaForTest(0.29), fourKQuota)
-	require.Equal(t, asyncSpecQuotaForTest(0.36), countQuota)
+	require.Equal(t, 11000, oneKQuota)
+	require.Equal(t, 18000, twoKQuota)
+	require.Equal(t, 29000, fourKQuota)
+	require.Equal(t, 36000, countQuota)
 }
 
 func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *testing.T) {
@@ -897,7 +889,7 @@ func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *tes
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, asyncSpecQuotaForTest(0.36), task.Quota)
+	require.Equal(t, common.CNYToQuota(0.36), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.True(t, task.PrivateData.BillingContext.SpecPricing.Priced)
@@ -977,7 +969,7 @@ func TestAsyncPricingEstimateAndChargePreferModelPricingConfig(t *testing.T) {
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, asyncSpecQuotaForTest(0.36), task.Quota)
+	require.Equal(t, common.CNYToQuota(0.36), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.Equal(t, "2k", task.PrivateData.BillingContext.SpecPricing.SpecKey)
 }
@@ -1120,7 +1112,7 @@ func TestAsyncPricingModelConfigSpecOnlyMatchedSpecEstimatesAndCharges(t *testin
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, asyncSpecQuotaForTest(0.36), task.Quota)
+	require.Equal(t, common.CNYToQuota(0.36), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.Equal(t, "2k", task.PrivateData.BillingContext.SpecPricing.SpecKey)
 }
@@ -1188,81 +1180,81 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 	})
 
 	tests := []struct {
-		name          string
-		model         string
-		parameters    map[string]interface{}
-		wantAmountCNY float64
-		wantKey       string
+		name       string
+		model      string
+		parameters map[string]interface{}
+		wantQuota  int
+		wantKey    string
 	}{
 		{
-			name:          "gemini-2.5-default",
-			model:         "gemini-2.5-flash-image",
-			parameters:    map[string]interface{}{"resolution": "4K", "n": 1},
-			wantAmountCNY: 0.12,
-			wantKey:       "default",
+			name:       "gemini-2.5-default",
+			model:      "gemini-2.5-flash-image",
+			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
+			wantQuota:  12000,
+			wantKey:    "default",
 		},
 		{
-			name:          "gemini-3.1-1k",
-			model:         "gemini-3.1-flash-image-preview",
-			parameters:    map[string]interface{}{"resolution": "1K", "n": 1},
-			wantAmountCNY: 0.18,
-			wantKey:       "1k",
+			name:       "gemini-3.1-1k",
+			model:      "gemini-3.1-flash-image-preview",
+			parameters: map[string]interface{}{"resolution": "1K", "n": 1},
+			wantQuota:  18000,
+			wantKey:    "1k",
 		},
 		{
-			name:          "gemini-3.1-2k",
-			model:         "gemini-3.1-flash-image-preview",
-			parameters:    map[string]interface{}{"resolution": "2K", "n": 1},
-			wantAmountCNY: 0.28,
-			wantKey:       "2k",
+			name:       "gemini-3.1-2k",
+			model:      "gemini-3.1-flash-image-preview",
+			parameters: map[string]interface{}{"resolution": "2K", "n": 1},
+			wantQuota:  28000,
+			wantKey:    "2k",
 		},
 		{
-			name:          "gemini-3.1-4k",
-			model:         "gemini-3.1-flash-image-preview",
-			parameters:    map[string]interface{}{"resolution": "4K", "n": 1},
-			wantAmountCNY: 0.42,
-			wantKey:       "4k",
+			name:       "gemini-3.1-4k",
+			model:      "gemini-3.1-flash-image-preview",
+			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
+			wantQuota:  42000,
+			wantKey:    "4k",
 		},
 		{
-			name:          "gemini-3-pro-1k",
-			model:         "gemini-3-pro-image-preview",
-			parameters:    map[string]interface{}{"resolution": "1K", "n": 1},
-			wantAmountCNY: 0.32,
-			wantKey:       "1k",
+			name:       "gemini-3-pro-1k",
+			model:      "gemini-3-pro-image-preview",
+			parameters: map[string]interface{}{"resolution": "1K", "n": 1},
+			wantQuota:  32000,
+			wantKey:    "1k",
 		},
 		{
-			name:          "gemini-3-pro-2k",
-			model:         "gemini-3-pro-image-preview",
-			parameters:    map[string]interface{}{"resolution": "2K", "n": 1},
-			wantAmountCNY: 0.32,
-			wantKey:       "2k",
+			name:       "gemini-3-pro-2k",
+			model:      "gemini-3-pro-image-preview",
+			parameters: map[string]interface{}{"resolution": "2K", "n": 1},
+			wantQuota:  32000,
+			wantKey:    "2k",
 		},
 		{
-			name:          "gemini-3-pro-4k",
-			model:         "gemini-3-pro-image-preview",
-			parameters:    map[string]interface{}{"resolution": "4K", "n": 1},
-			wantAmountCNY: 0.49,
-			wantKey:       "4k",
+			name:       "gemini-3-pro-4k",
+			model:      "gemini-3-pro-image-preview",
+			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
+			wantQuota:  49000,
+			wantKey:    "4k",
 		},
 		{
-			name:          "gpt-image-2-1k",
-			model:         "gpt-image-2",
-			parameters:    map[string]interface{}{"size": "1024x1024", "n": 1},
-			wantAmountCNY: 0.11,
-			wantKey:       "1k",
+			name:       "gpt-image-2-1k",
+			model:      "gpt-image-2",
+			parameters: map[string]interface{}{"size": "1024x1024", "n": 1},
+			wantQuota:  11000,
+			wantKey:    "1k",
 		},
 		{
-			name:          "gpt-image-2-2k",
-			model:         "gpt-image-2",
-			parameters:    map[string]interface{}{"size": "2048x2048", "n": 1},
-			wantAmountCNY: 0.18,
-			wantKey:       "2k",
+			name:       "gpt-image-2-2k",
+			model:      "gpt-image-2",
+			parameters: map[string]interface{}{"size": "2048x2048", "n": 1},
+			wantQuota:  18000,
+			wantKey:    "2k",
 		},
 		{
-			name:          "gpt-image-2-4k",
-			model:         "gpt-image-2",
-			parameters:    map[string]interface{}{"size": "4096x2048", "n": 1},
-			wantAmountCNY: 0.29,
-			wantKey:       "4k",
+			name:       "gpt-image-2-4k",
+			model:      "gpt-image-2",
+			parameters: map[string]interface{}{"size": "4096x2048", "n": 1},
+			wantQuota:  29000,
+			wantKey:    "4k",
 		},
 	}
 
@@ -1287,7 +1279,7 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 
 			var estimate asyncTaskPricingEstimateResponse
 			require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-			require.Equal(t, tt.wantAmountCNY, estimate.AmountCNY)
+			require.Equal(t, common.QuotaToPublicCNY(tt.wantQuota), estimate.AmountCNY)
 			require.Equal(t, "CNY", estimate.Currency)
 			require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
 
@@ -1302,7 +1294,7 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 			require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 			var task model.Task
 			require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-			require.Equal(t, asyncSpecQuotaForTest(tt.wantAmountCNY), task.Quota)
+			require.Equal(t, tt.wantQuota, task.Quota)
 			require.NotNil(t, task.PrivateData.BillingContext)
 			require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 			require.Equal(t, tt.model, task.PrivateData.BillingContext.SpecPricing.Model)
@@ -1486,9 +1478,9 @@ func TestAsyncVideoGenerationSpecPricingUsesConfiguredCNYPerSecond(t *testing.T)
 		})
 	})
 
-	require.Equal(t, asyncSpecQuotaForTest(0.2*4), baseQuota)
-	require.Equal(t, asyncSpecQuotaForTest(0.4*4), highResolutionQuota)
-	require.Equal(t, asyncSpecQuotaForTest(0.2*10), longDurationQuota)
+	require.Equal(t, 80000, baseQuota)
+	require.Equal(t, 160000, highResolutionQuota)
+	require.Equal(t, 200000, longDurationQuota)
 }
 
 func TestAsyncVideoSpecPricingFallsBackToPerModelWhenModelUnconfigured(t *testing.T) {
@@ -1613,7 +1605,7 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, asyncSpecQuotaForTest(5.2165), task.Quota)
+	require.Equal(t, common.CNYToQuota(5.2165), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.Equal(t, "720p:16:9:no_video_input", task.PrivateData.BillingContext.SpecPricing.SpecKey)

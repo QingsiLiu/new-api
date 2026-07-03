@@ -45,7 +45,7 @@ func TestInitOptionMapSeedsAsyncSpecPricingOptionWhenMissing(t *testing.T) {
 	seededResult := operation_setting.ResolveImageSpecQuota("gpt-image-2", "2048x2048", "", "", 1)
 	require.True(t, seededResult.Matched)
 	require.Equal(t, "2k", seededResult.SpecKey)
-	require.Equal(t, 180, seededResult.Quota)
+	require.Equal(t, common.CNYToQuota(0.18), seededResult.Quota)
 
 	InitOptionMap()
 	var count int64
@@ -93,7 +93,7 @@ func TestInitOptionMapDoesNotOverwriteExistingAsyncSpecPricingOption(t *testing.
 	require.Equal(t, customSpec, common.OptionMap["AsyncSpecPricing"])
 	customImage := operation_setting.ResolveImageSpecQuota("custom-image", "", "", "", 1)
 	require.True(t, customImage.Matched)
-	require.Equal(t, 700, customImage.Quota)
+	require.Equal(t, common.CNYToQuota(0.7), customImage.Quota)
 	seedImage := operation_setting.ResolveImageSpecQuota("gpt-image-2", "1024x1024", "", "", 1)
 	require.False(t, seedImage.Matched)
 }
@@ -129,14 +129,17 @@ func TestUpdateOptionPersistsAndReloadsAsyncSpecPricingImmediately(t *testing.T)
 
 	imageResult := operation_setting.ResolveImageSpecQuota("gpt-image-2", "2048x2048", "", "", 1)
 	require.True(t, imageResult.Matched)
-	require.Equal(t, 420, imageResult.Quota)
+	require.Equal(t, common.CNYToQuota(0.42), imageResult.Quota)
 	videoResult := operation_setting.ResolveVideoSpecQuota("seedance-2.0", "1280x720", 5)
 	require.True(t, videoResult.Matched)
-	require.Equal(t, 1550, videoResult.Quota)
+	require.Equal(t, common.CNYToQuota(0.31*5), videoResult.Quota)
 
 	var option Option
 	require.NoError(t, DB.First(&option, "key = ?", "AsyncSpecPricing").Error)
 	require.Contains(t, option.Value, "seedance-2.0")
+	var quotaPerCNYOption Option
+	require.NoError(t, DB.First(&quotaPerCNYOption, "key = ?", "QuotaPerCNY").Error)
+	require.Equal(t, "100000", quotaPerCNYOption.Value)
 }
 
 func TestUpdateOptionMapUpdatesAsyncTaskSpecPricingEnabled(t *testing.T) {
@@ -156,17 +159,17 @@ func TestUpdateOptionMapUpdatesAsyncTaskSpecPricingEnabled(t *testing.T) {
 	require.False(t, operation_setting.AsyncTaskSpecPricingEnabled)
 
 	require.NoError(t, updateOptionMap("QuotaPerCNY", "1000"))
-	require.Equal(t, 1000.0, operation_setting.QuotaPerCNY)
+	require.Equal(t, common.CNYQuotaUnit, operation_setting.QuotaPerCNY)
 	require.Error(t, updateOptionMap("QuotaPerCNY", "0"))
-	require.Equal(t, 1000.0, operation_setting.QuotaPerCNY)
+	require.Equal(t, common.CNYQuotaUnit, operation_setting.QuotaPerCNY)
 	require.Error(t, updateOptionMap("QuotaPerCNY", "not-a-number"))
-	require.Equal(t, 1000.0, operation_setting.QuotaPerCNY)
+	require.Equal(t, common.CNYQuotaUnit, operation_setting.QuotaPerCNY)
 
 	specJSON := `{"video":{"seedance-2.0-fast":{"default_cny_per_second":0.25}}}`
 	require.NoError(t, updateOptionMap("AsyncSpecPricing", specJSON))
 	result := operation_setting.ResolveVideoSpecQuota("seedance-2.0-fast", "720p", 4)
 	require.True(t, result.Matched)
-	require.Equal(t, 1000, result.Quota)
+	require.Equal(t, common.CNYToQuota(0.25*4), result.Quota)
 }
 
 func TestUpdateOptionPersistsAsyncTaskSpecPricingEnabled(t *testing.T) {

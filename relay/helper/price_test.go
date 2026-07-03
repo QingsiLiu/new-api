@@ -61,7 +61,7 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 
 	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
 	require.NoError(t, err)
-	require.Equal(t, 1500, priceData.QuotaToPreConsume)
+	require.Equal(t, int(3000.0/1_000_000*common.QuotaPerUnit), priceData.QuotaToPreConsume)
 	require.NotNil(t, info.TieredBillingSnapshot)
 	require.Equal(t, "stream", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, billing_setting.BillingModeTieredExpr, info.TieredBillingSnapshot.BillingMode)
