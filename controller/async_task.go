@@ -1917,6 +1917,9 @@ func executeAsyncKieImageTask(parentCtx context.Context, task *model.Task, chann
 	if !isAsyncKieImageModel(request.Model) {
 		return nil, fmt.Errorf("unsupported KIE image model %s", request.Model)
 	}
+	if err := validateAsyncKieImageRequest(request); err != nil {
+		return nil, err
+	}
 	persistAsyncTaskUpstreamModelName(task, request.Model)
 	taskID, err := createAsyncKieImageTask(parentCtx, channel, request)
 	if err != nil {
@@ -2367,7 +2370,7 @@ func asyncKieImagePayload(request asyncTaskRequest) map[string]interface{} {
 			input["resolution"] = resolution
 		}
 	case asyncTaskKieNanoBanana2Model:
-		input["output_format"] = asyncKieImageOutputFormat(request.Parameters, "jpg")
+		input["output_format"] = asyncKieImageOutputFormat(request.Parameters, "png")
 		if len(imageURLs) > 0 {
 			input["image_input"] = imageURLs
 		}
@@ -2441,12 +2444,21 @@ func asyncKieImageOutputMimeType(request asyncTaskRequest) string {
 	if format := asyncParamString(request.Parameters, "output_format"); strings.TrimSpace(format) != "" {
 		return asyncImageOutputMimeType(request.Parameters)
 	}
-	switch strings.TrimSpace(request.Model) {
-	case asyncTaskKieNanoBanana2Model:
-		return "image/jpeg"
-	default:
-		return "image/png"
+	return "image/png"
+}
+
+func validateAsyncKieImageRequest(request asyncTaskRequest) error {
+	imageURLs := asyncKieImageURLInputs(request.Parameters)
+	if len(imageURLs) > 10 {
+		return fmt.Errorf("KIE image task supports at most 10 image URLs, got %d", len(imageURLs))
 	}
+	switch strings.TrimSpace(request.Model) {
+	case asyncTaskKieNanoBananaEditModel, asyncTaskKieGPTImage2EditModel:
+		if len(imageURLs) == 0 {
+			return fmt.Errorf("KIE image edit model %s requires image_urls", request.Model)
+		}
+	}
+	return nil
 }
 
 func asyncKieImageURLInputs(parameters map[string]interface{}) []string {

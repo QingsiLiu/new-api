@@ -2059,6 +2059,16 @@ func TestAsyncKieImagePayloadUsesDocumentedFieldsByModel(t *testing.T) {
 	require.Equal(t, "jpg", proInput["output_format"])
 	require.ElementsMatch(t, []string{"https://example.com/ref.png"}, proInput["image_input"])
 
+	nano2Payload := asyncKieImagePayload(asyncTaskRequest{
+		Model: "nano-banana-2",
+		Input: asyncTaskInput{Prompt: "future city"},
+	})
+	nano2Input := requireAsyncPayloadInput(t, nano2Payload)
+	require.Equal(t, "nano-banana-2", nano2Payload["model"])
+	require.Equal(t, "auto", nano2Input["aspect_ratio"])
+	require.Equal(t, "png", nano2Input["output_format"])
+	require.Equal(t, "image/png", asyncKieImageOutputMimeType(asyncTaskRequest{Model: "nano-banana-2"}))
+
 	gptEditPayload := asyncKieImagePayload(asyncTaskRequest{
 		Model: "gpt-image-2-image-to-image",
 		Input: asyncTaskInput{Prompt: "make an ecommerce poster"},
@@ -2074,6 +2084,31 @@ func TestAsyncKieImagePayloadUsesDocumentedFieldsByModel(t *testing.T) {
 	require.Equal(t, "1K", gptEditInput["resolution"])
 	require.ElementsMatch(t, []string{"https://example.com/source.png"}, gptEditInput["input_urls"])
 	require.NotContains(t, gptEditInput, "image_urls")
+}
+
+func TestValidateAsyncKieImageRequestRequiresEditImageURLs(t *testing.T) {
+	err := validateAsyncKieImageRequest(asyncTaskRequest{Model: "google/nano-banana-edit"})
+	require.ErrorContains(t, err, "requires image_urls")
+
+	err = validateAsyncKieImageRequest(asyncTaskRequest{
+		Model:      "gpt-image-2-image-to-image",
+		Parameters: map[string]interface{}{"image_urls": []string{"https://example.com/source.png"}},
+	})
+	require.NoError(t, err)
+}
+
+func TestValidateAsyncKieImageRequestRejectsMoreThanTenImageURLs(t *testing.T) {
+	urls := make([]interface{}, 0, 11)
+	for i := 0; i < 11; i++ {
+		urls = append(urls, fmt.Sprintf("https://example.com/%d.png", i))
+	}
+
+	err := validateAsyncKieImageRequest(asyncTaskRequest{
+		Model:      "google/nano-banana-edit",
+		Parameters: map[string]interface{}{"image_urls": urls},
+	})
+
+	require.ErrorContains(t, err, "at most 10")
 }
 
 func TestAsyncKieImageModelRecognitionUsesUpstreamIDs(t *testing.T) {
