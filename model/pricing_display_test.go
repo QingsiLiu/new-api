@@ -164,6 +164,61 @@ func TestAddAbilitiesSkipsBlankModelNames(t *testing.T) {
 	}
 }
 
+func TestUpdateAbilitiesSkipsBlankModelNames(t *testing.T) {
+	truncateTables(t)
+
+	channel := Channel{
+		Type:   1,
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+		Name:   "blank-model-channel",
+		Models: " ,real-model,, ",
+		Group:  "default,vip",
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	require.NoError(t, channel.UpdateAbilities(nil))
+
+	var abilities []Ability
+	require.NoError(t, DB.Where("channel_id = ?", channel.Id).Find(&abilities).Error)
+	require.Len(t, abilities, 2)
+	for _, ability := range abilities {
+		require.NotEmpty(t, ability.Model)
+		require.Equal(t, "real-model", ability.Model)
+	}
+}
+
+func TestGetPricingSkipsBlankModelNames(t *testing.T) {
+	truncateTables(t)
+	resetPricingDisplayTestState(t)
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"real-model":1}`))
+	require.NoError(t, DB.Create(&Channel{
+		Id:     10,
+		Name:   "blank-model-channel",
+		Key:    "sk-test",
+		Status: common.ChannelStatusEnabled,
+		Models: "",
+		Group:  "default",
+	}).Error)
+	require.NoError(t, DB.Create(&Ability{
+		Group:     "default",
+		Model:     "",
+		ChannelId: 10,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, DB.Create(&Ability{
+		Group:     "default",
+		Model:     "real-model",
+		ChannelId: 10,
+		Enabled:   true,
+	}).Error)
+	InvalidatePricingCache()
+
+	pricings := GetPricing()
+	require.Len(t, pricings, 1)
+	require.Equal(t, "real-model", pricings[0].ModelName)
+}
+
 func resetPricingDisplayTestState(t *testing.T) {
 	t.Helper()
 	require.NoError(t, DB.Where("1 = 1").Delete(&Model{}).Error)

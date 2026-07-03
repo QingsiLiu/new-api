@@ -118,6 +118,16 @@ func updatePricing() {
 		common.SysLog(fmt.Sprintf("GetAllEnableAbilityWithChannels error: %v", err))
 		return
 	}
+	filteredAbilities := enableAbilities[:0]
+	for _, ability := range enableAbilities {
+		modelName := strings.TrimSpace(ability.Model)
+		if modelName == "" {
+			continue
+		}
+		ability.Model = modelName
+		filteredAbilities = append(filteredAbilities, ability)
+	}
+	enableAbilities = filteredAbilities
 	// 预加载模型元数据与供应商一次，避免循环查询
 	var allMeta []Model
 	_ = DB.Find(&allMeta).Error
