@@ -30,10 +30,16 @@ export const groupRegistryItemSchema = z.object({
 
 export type GroupRegistryItem = z.infer<typeof groupRegistryItemSchema>
 
+export interface UserGroupInfo {
+  desc?: string
+  ratio?: number | string
+  display_name?: string
+}
+
 export interface GroupRegistryResponse {
   success: boolean
   message?: string
-  data?: GroupRegistryItem[] | string[]
+  data?: GroupRegistryItem[] | string[] | Record<string, UserGroupInfo>
   groups?: GroupRegistryItem[]
 }
 

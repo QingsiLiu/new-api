@@ -18,6 +18,43 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { GroupRegistryItem, GroupRegistryResponse } from './types'
 
+export function groupRegistryScopeForRole(
+  role?: number | null
+): 'admin' | 'self' | 'anonymous' {
+  if (role === undefined || role === null) return 'anonymous'
+  return role >= 10 ? 'admin' : 'self'
+}
+
+function normalizeUserGroupMap(
+  rawGroups: Record<string, unknown>
+): GroupRegistryItem[] {
+  return Object.entries(rawGroups)
+    .map(([code, raw]) => {
+      const group = raw && typeof raw === 'object' ? raw : {}
+      const info = group as {
+        desc?: unknown
+        ratio?: unknown
+        display_name?: unknown
+      }
+      return {
+        code,
+        display_name:
+          typeof info.display_name === 'string' && info.display_name.trim()
+            ? info.display_name
+            : code,
+        description: typeof info.desc === 'string' ? info.desc : '',
+        ratio:
+          typeof info.ratio === 'number'
+            ? info.ratio
+            : Number.parseFloat(String(info.ratio ?? '1')) || 1,
+        user_usable: true,
+        is_reserved: false,
+        sort: 0,
+      }
+    })
+    .filter((group) => group.code)
+}
+
 export function normalizeGroupRegistryItems(
   response?: GroupRegistryResponse | null
 ): GroupRegistryItem[] {
@@ -25,6 +62,10 @@ export function normalizeGroupRegistryItems(
     response?.groups && response.groups.length > 0
       ? response.groups
       : response?.data
+
+  if (rawGroups && !Array.isArray(rawGroups) && typeof rawGroups === 'object') {
+    return normalizeUserGroupMap(rawGroups)
+  }
 
   if (!Array.isArray(rawGroups)) return []
 

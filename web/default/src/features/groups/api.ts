@@ -28,6 +28,11 @@ export async function getGroupRegistry(): Promise<GroupRegistryResponse> {
   return res.data
 }
 
+export async function getUserGroupRegistry(): Promise<GroupRegistryResponse> {
+  const res = await api.get('/api/user/self/groups')
+  return res.data
+}
+
 export async function createGroupRegistry(data: {
   display_name: string
   description?: string
