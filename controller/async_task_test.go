@@ -2317,6 +2317,13 @@ func TestAsyncKieImageProductModelsRouteToDocumentedUpstreamByAction(t *testing.
 			parameters:       map[string]interface{}{"ratio": "16:9", "resolution": "1K"},
 		},
 		{
+			name:             "gpt image 2 generate uses text to image",
+			productModel:     "gpt-image-2",
+			action:           asyncTaskActionGenerate,
+			expectedUpstream: asyncTaskKieGPTImage2TextModel,
+			parameters:       map[string]interface{}{"ratio": "auto", "resolution": "1K"},
+		},
+		{
 			name:             "gpt image 2 edit uses image to image",
 			productModel:     "gpt-image-2",
 			action:           asyncTaskActionEdit,
