@@ -56,6 +56,16 @@ const (
 	asyncTaskDefaultInlineContentLimit = 20 << 20
 	asyncTaskKieSeedanceFastModel      = "bytedance/seedance-2-fast"
 	asyncTaskKieSeedanceModel          = "bytedance/seedance-2"
+	asyncTaskKieNanoBananaModel        = "google/nano-banana"
+	asyncTaskKieNanoBananaEditModel    = "google/nano-banana-edit"
+	asyncTaskKieNanoBananaProModel     = "nano-banana-pro"
+	asyncTaskKieNanoBanana2Model       = "nano-banana-2"
+	asyncTaskKieGPTImage2TextModel     = "gpt-image-2-text-to-image"
+	asyncTaskKieGPTImage2EditModel     = "gpt-image-2-image-to-image"
+	asyncTaskProductGemini25FlashImage = "gemini-2.5-flash-image"
+	asyncTaskProductGemini31FlashImage = "gemini-3.1-flash-image-preview"
+	asyncTaskProductGemini3ProImage    = "gemini-3-pro-image-preview"
+	asyncTaskProductGPTImage2          = "gpt-image-2"
 	asyncTaskProductKindContextKey     = "async_task_product_kind"
 )
 
@@ -1273,7 +1283,7 @@ func executeAsyncTaskInBackground(taskID string, channelID int, execution asyncT
 	var outputs []asyncTaskStoredOutput
 	switch execution.Request.Kind {
 	case asyncTaskKindImage:
-		outputs, err = executeAsyncImageTask(channel, execution)
+		outputs, err = executeAsyncImageTask(task, channel, execution)
 	case asyncTaskKindVideo:
 		outputs, err = executeAsyncVideoTask(task, channel, execution)
 	default:
@@ -1439,12 +1449,21 @@ func sweepAsyncTimedOutTasks(ctx context.Context, cutoffUnix int64, limit int) i
 	return count
 }
 
-func executeAsyncImageTask(channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
-	execution.Request.Model = asyncTaskUpstreamModel(execution)
+func executeAsyncImageTask(task *model.Task, channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
 	ctx := execution.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if channel.Type == constant.ChannelTypeKie {
+		execution.Request.Model = asyncTaskKieImageUpstreamModel(execution)
+		switch execution.Request.Action {
+		case asyncTaskActionGenerate, asyncTaskActionEdit:
+			return executeAsyncKieImageTask(ctx, task, channel, execution.Request)
+		default:
+			return nil, fmt.Errorf("unsupported image action %s", execution.Request.Action)
+		}
+	}
+	execution.Request.Model = asyncTaskUpstreamModel(execution)
 	switch execution.Request.Action {
 	case asyncTaskActionEdit:
 		return executeAsyncImageEdit(ctx, channel, execution)
@@ -1482,6 +1501,38 @@ func asyncTaskUpstreamModel(execution asyncTaskExecution) string {
 		return execution.RelayInfo.UpstreamModelName
 	}
 	return execution.Request.Model
+}
+
+func asyncTaskKieImageUpstreamModel(execution asyncTaskExecution) string {
+	if upstreamModel := asyncTaskKieImageProductUpstreamModel(execution.Request.Model, execution.Request.Action); upstreamModel != "" {
+		return upstreamModel
+	}
+	upstreamModel := asyncTaskUpstreamModel(execution)
+	if resolvedModel := asyncTaskKieImageProductUpstreamModel(upstreamModel, execution.Request.Action); resolvedModel != "" {
+		return resolvedModel
+	}
+	return upstreamModel
+}
+
+func asyncTaskKieImageProductUpstreamModel(modelName string, action string) string {
+	switch strings.TrimSpace(modelName) {
+	case asyncTaskProductGemini25FlashImage:
+		if action == asyncTaskActionEdit {
+			return asyncTaskKieNanoBananaEditModel
+		}
+		return asyncTaskKieNanoBananaModel
+	case asyncTaskProductGemini31FlashImage:
+		return asyncTaskKieNanoBanana2Model
+	case asyncTaskProductGemini3ProImage:
+		return asyncTaskKieNanoBananaProModel
+	case asyncTaskProductGPTImage2:
+		if action == asyncTaskActionEdit {
+			return asyncTaskKieGPTImage2EditModel
+		}
+		return asyncTaskKieGPTImage2TextModel
+	default:
+		return ""
+	}
 }
 
 func executeAsyncImageGeneration(parentCtx context.Context, channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
@@ -1813,6 +1864,8 @@ type asyncKieRecordInfoResponse struct {
 		ID         string   `json:"id"`
 		State      string   `json:"state"`
 		Status     string   `json:"status"`
+		FailCode   string   `json:"failCode"`
+		FailMsg    string   `json:"failMsg"`
 		FailReason string   `json:"failReason"`
 		Error      string   `json:"error"`
 		ResultJSON string   `json:"resultJson"`
@@ -1843,6 +1896,57 @@ func isAsyncKieSeedanceModel(modelName string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func isAsyncKieImageModel(modelName string) bool {
+	switch strings.TrimSpace(modelName) {
+	case asyncTaskKieNanoBananaModel,
+		asyncTaskKieNanoBananaEditModel,
+		asyncTaskKieNanoBananaProModel,
+		asyncTaskKieNanoBanana2Model,
+		asyncTaskKieGPTImage2TextModel,
+		asyncTaskKieGPTImage2EditModel:
+		return true
+	default:
+		return false
+	}
+}
+
+func executeAsyncKieImageTask(parentCtx context.Context, task *model.Task, channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
+	if !isAsyncKieImageModel(request.Model) {
+		return nil, fmt.Errorf("unsupported KIE image model %s", request.Model)
+	}
+	persistAsyncTaskUpstreamModelName(task, request.Model)
+	taskID, err := createAsyncKieImageTask(parentCtx, channel, request)
+	if err != nil {
+		return nil, err
+	}
+	if taskID == "" {
+		return nil, errors.New("KIE image task returned no task id")
+	}
+	persistAsyncTaskUpstreamTaskID(task, taskID)
+	for {
+		record, err := pollAsyncKieVideoTask(parentCtx, channel, taskID)
+		if err != nil {
+			return nil, err
+		}
+		status := asyncKieTaskStatus(record)
+		if asyncKieTaskSucceeded(status) {
+			outputs := asyncKieImageOutputs(record, asyncKieImageOutputMimeType(request))
+			if len(outputs) == 0 {
+				return nil, errors.New("KIE image task succeeded without image URL")
+			}
+			return outputs, nil
+		}
+		if asyncKieTaskFailed(status) {
+			return nil, errors.New(firstAsyncNonEmpty(record.Data.FailReason, record.Data.FailMsg, record.Data.Error, record.Msg, "KIE image task failed"))
+		}
+		select {
+		case <-parentCtx.Done():
+			return nil, parentCtx.Err()
+		case <-time.After(3 * time.Second):
+		}
 	}
 }
 
@@ -2134,7 +2238,15 @@ func executeAsyncKieSeedanceVideoTask(parentCtx context.Context, task *model.Tas
 }
 
 func createAsyncKieVideoTask(parentCtx context.Context, channel *model.Channel, request asyncTaskRequest) (string, error) {
-	body, err := common.Marshal(asyncKieSeedancePayload(request))
+	return createAsyncKieTask(parentCtx, channel, asyncKieSeedancePayload(request), "video")
+}
+
+func createAsyncKieImageTask(parentCtx context.Context, channel *model.Channel, request asyncTaskRequest) (string, error) {
+	return createAsyncKieTask(parentCtx, channel, asyncKieImagePayload(request), "image")
+}
+
+func createAsyncKieTask(parentCtx context.Context, channel *model.Channel, payload map[string]interface{}, kind string) (string, error) {
+	body, err := common.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
@@ -2153,16 +2265,16 @@ func createAsyncKieVideoTask(parentCtx context.Context, channel *model.Channel, 
 	defer response.Body.Close()
 	responseBody, _ := io.ReadAll(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
-		return "", fmt.Errorf("upstream KIE video task failed: %s", common.LocalLogPreview(string(responseBody)))
+		return "", fmt.Errorf("upstream KIE %s task failed: %s", kind, common.LocalLogPreview(string(responseBody)))
 	}
-	var payload asyncKieCreateTaskResponse
-	if err := common.Unmarshal(responseBody, &payload); err != nil {
+	var responsePayload asyncKieCreateTaskResponse
+	if err := common.Unmarshal(responseBody, &responsePayload); err != nil {
 		return "", err
 	}
-	if payload.Code != 0 && payload.Code != 200 {
-		return "", errors.New(firstAsyncNonEmpty(payload.Error, payload.Msg, "KIE video task create failed"))
+	if responsePayload.Code != 0 && responsePayload.Code != 200 {
+		return "", errors.New(firstAsyncNonEmpty(responsePayload.Error, responsePayload.Msg, "KIE "+kind+" task create failed"))
 	}
-	return firstAsyncNonEmpty(payload.Data.TaskID, payload.Data.ID), nil
+	return firstAsyncNonEmpty(responsePayload.Data.TaskID, responsePayload.Data.ID), nil
 }
 
 func pollAsyncKieVideoTask(parentCtx context.Context, channel *model.Channel, taskID string) (asyncKieRecordInfoResponse, error) {
@@ -2220,6 +2332,168 @@ func asyncKieSeedancePayload(request asyncTaskRequest) map[string]interface{} {
 		"model": request.Model,
 		"input": input,
 	}
+}
+
+func asyncKieImagePayload(request asyncTaskRequest) map[string]interface{} {
+	input := map[string]interface{}{
+		"prompt": asyncKieImagePrompt(request),
+	}
+	modelName := strings.TrimSpace(request.Model)
+	imageURLs := asyncKieImageURLInputs(request.Parameters)
+
+	aspectRatio := asyncKieImageAspectRatio(request.Parameters)
+	if aspectRatio == "" {
+		aspectRatio = asyncKieImageDefaultAspectRatio(modelName)
+	}
+	if aspectRatio != "" {
+		input["aspect_ratio"] = aspectRatio
+	}
+
+	switch modelName {
+	case asyncTaskKieNanoBananaModel:
+		input["output_format"] = asyncKieImageOutputFormat(request.Parameters, "png")
+		input["nsfw_checker"] = asyncParamBoolValue(request.Parameters, "nsfw_checker", false)
+	case asyncTaskKieNanoBananaEditModel:
+		input["output_format"] = asyncKieImageOutputFormat(request.Parameters, "png")
+		if len(imageURLs) > 0 {
+			input["image_urls"] = imageURLs
+		}
+	case asyncTaskKieNanoBananaProModel:
+		input["output_format"] = asyncKieImageOutputFormat(request.Parameters, "png")
+		if len(imageURLs) > 0 {
+			input["image_input"] = imageURLs
+		}
+		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+			input["resolution"] = resolution
+		}
+	case asyncTaskKieNanoBanana2Model:
+		input["output_format"] = asyncKieImageOutputFormat(request.Parameters, "jpg")
+		if len(imageURLs) > 0 {
+			input["image_input"] = imageURLs
+		}
+		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+			input["resolution"] = resolution
+		}
+	case asyncTaskKieGPTImage2TextModel:
+		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+			input["resolution"] = resolution
+		}
+	case asyncTaskKieGPTImage2EditModel:
+		if len(imageURLs) > 0 {
+			input["input_urls"] = imageURLs
+		}
+		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+			input["resolution"] = resolution
+		}
+	}
+
+	return map[string]interface{}{
+		"model": modelName,
+		"input": input,
+	}
+}
+
+func asyncKieImagePrompt(request asyncTaskRequest) string {
+	if prompt := strings.TrimSpace(request.Input.Prompt); prompt != "" {
+		return prompt
+	}
+	prompt, _, _, _ := asyncKieSeedanceContentParts(request.Parameters["content"])
+	return prompt
+}
+
+func asyncKieImageAspectRatio(parameters map[string]interface{}) string {
+	if value := asyncParamString(parameters, "aspect_ratio"); value != "" {
+		return value
+	}
+	return asyncParamString(parameters, "ratio")
+}
+
+func asyncKieImageDefaultAspectRatio(modelName string) string {
+	switch strings.TrimSpace(modelName) {
+	case asyncTaskKieNanoBananaModel,
+		asyncTaskKieNanoBananaEditModel,
+		asyncTaskKieNanoBananaProModel:
+		return "1:1"
+	case asyncTaskKieNanoBanana2Model,
+		asyncTaskKieGPTImage2TextModel,
+		asyncTaskKieGPTImage2EditModel:
+		return "auto"
+	default:
+		return ""
+	}
+}
+
+func asyncKieImageOutputFormat(parameters map[string]interface{}, fallback string) string {
+	value := strings.ToLower(strings.TrimSpace(asyncParamString(parameters, "output_format")))
+	switch value {
+	case "jpeg":
+		return "jpeg"
+	case "jpg":
+		return "jpg"
+	case "png":
+		return "png"
+	default:
+		return fallback
+	}
+}
+
+func asyncKieImageOutputMimeType(request asyncTaskRequest) string {
+	if format := asyncParamString(request.Parameters, "output_format"); strings.TrimSpace(format) != "" {
+		return asyncImageOutputMimeType(request.Parameters)
+	}
+	switch strings.TrimSpace(request.Model) {
+	case asyncTaskKieNanoBanana2Model:
+		return "image/jpeg"
+	default:
+		return "image/png"
+	}
+}
+
+func asyncKieImageURLInputs(parameters map[string]interface{}) []string {
+	var urls []string
+	for _, key := range []string{"image_urls", "input_urls", "image_input"} {
+		urls = append(urls, asyncStringSliceParam(parameters[key])...)
+	}
+	for _, key := range []string{"image_url", "image"} {
+		if value := asyncParamString(parameters, key); value != "" {
+			urls = append(urls, value)
+		}
+	}
+	_, contentImageURLs, _, _ := asyncKieSeedanceContentParts(parameters["content"])
+	urls = append(urls, contentImageURLs...)
+	return dedupeAsyncStrings(urls)
+}
+
+func asyncStringSliceParam(raw interface{}) []string {
+	switch typed := raw.(type) {
+	case nil:
+		return nil
+	case []string:
+		result := make([]string, 0, len(typed))
+		for _, value := range typed {
+			if value = strings.TrimSpace(value); value != "" {
+				result = append(result, value)
+			}
+		}
+		return result
+	case []interface{}:
+		result := make([]string, 0, len(typed))
+		for _, value := range typed {
+			if url := asyncKieNestedURL(value); url != "" {
+				result = append(result, url)
+				continue
+			}
+			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+				result = append(result, text)
+			}
+		}
+		return result
+	case string:
+		if value := strings.TrimSpace(typed); value != "" {
+			return []string{value}
+		}
+	}
+	return nil
 }
 
 func asyncKieSeedanceContentParts(raw interface{}) (string, []string, []string, []string) {
@@ -2284,19 +2558,21 @@ func asyncKieTaskFailed(status string) bool {
 }
 
 func asyncKieVideoOutputs(payload asyncKieRecordInfoResponse) []asyncTaskStoredOutput {
+	return asyncKieOutputs(payload, "video/mp4")
+}
+
+func asyncKieImageOutputs(payload asyncKieRecordInfoResponse, mimeType string) []asyncTaskStoredOutput {
+	return asyncKieOutputs(payload, firstAsyncNonEmpty(mimeType, "image/png"))
+}
+
+func asyncKieOutputs(payload asyncKieRecordInfoResponse, mimeType string) []asyncTaskStoredOutput {
 	urls := append([]string{}, payload.Data.ResultURLs...)
 	urls = append(urls, payload.Data.Response.ResultURLs...)
 	urls = append(urls, payload.Data.VideoURL, payload.Data.OutputURL, payload.Data.Response.VideoURL, payload.Data.Response.OutputURL)
 	urls = append(urls, asyncKieResultJSONURLs(payload.Data.ResultJSON)...)
 	outputs := make([]asyncTaskStoredOutput, 0, len(urls))
-	seen := map[string]bool{}
-	for _, rawURL := range urls {
-		rawURL = strings.TrimSpace(rawURL)
-		if rawURL == "" || seen[rawURL] {
-			continue
-		}
-		seen[rawURL] = true
-		outputs = append(outputs, asyncTaskStoredOutput{MimeType: "video/mp4", URL: rawURL})
+	for _, rawURL := range dedupeAsyncStrings(urls) {
+		outputs = append(outputs, asyncTaskStoredOutput{MimeType: mimeType, URL: rawURL})
 	}
 	return outputs
 }
@@ -2328,6 +2604,19 @@ func persistAsyncTaskUpstreamTaskID(task *model.Task, upstreamTaskID string) {
 	task.PrivateData.UpstreamTaskID = strings.TrimSpace(upstreamTaskID)
 	task.UpdatedAt = time.Now().Unix()
 	_ = model.DB.Model(task).Select("private_data", "updated_at").Updates(task).Error
+}
+
+func persistAsyncTaskUpstreamModelName(task *model.Task, upstreamModelName string) {
+	upstreamModelName = strings.TrimSpace(upstreamModelName)
+	if task == nil || upstreamModelName == "" {
+		return
+	}
+	if task.Properties.UpstreamModelName == upstreamModelName {
+		return
+	}
+	task.Properties.UpstreamModelName = upstreamModelName
+	task.UpdatedAt = time.Now().Unix()
+	_ = model.DB.Model(task).Select("properties", "updated_at").Updates(task).Error
 }
 
 func doAsyncGeminiImageRequest(request *http.Request) ([]asyncTaskStoredOutput, error) {
@@ -2564,6 +2853,20 @@ func firstAsyncNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func dedupeAsyncStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		result = append(result, value)
+	}
+	return result
 }
 
 func firstAsyncTimestamp(values ...int64) int64 {
