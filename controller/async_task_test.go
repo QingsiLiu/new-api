@@ -1279,7 +1279,7 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 
 			var estimate asyncTaskPricingEstimateResponse
 			require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-			require.Equal(t, common.QuotaToCNY(tt.wantQuota), estimate.AmountCNY)
+			require.Equal(t, common.QuotaToPublicCNY(tt.wantQuota), estimate.AmountCNY)
 			require.Equal(t, "CNY", estimate.Currency)
 			require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
 
@@ -1411,7 +1411,7 @@ func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {
 	require.Equal(t, 1, usage.Total)
 	require.Len(t, usage.Items, 1)
 	require.Equal(t, "gpt-image-2", usage.Items[0].ModelName)
-	require.Equal(t, 0.01234, usage.Items[0].AmountCNY)
+	require.Equal(t, 0.0123, usage.Items[0].AmountCNY)
 	require.NotContains(t, usageRecorder.Body.String(), `"quota"`)
 	require.NotContains(t, usage.Items[0].Other, "quota")
 	require.Contains(t, usage.Items[0].Other, `"spec_total_cny":0.11`)

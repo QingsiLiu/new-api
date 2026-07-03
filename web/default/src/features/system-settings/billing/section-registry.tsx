@@ -127,7 +127,6 @@ const BILLING_SECTIONS = [
         <LegacyModelPricingNotice descriptionKey='Image and video spec prices now live on each row in the unified model center. These legacy options are retained as a fallback and audit source.' />
         <AsyncSpecPricingSettings
           pricingDefault={settings.AsyncSpecPricing}
-          quotaPerCNYDefault={settings.QuotaPerCNY}
           readOnly
         />
       </>

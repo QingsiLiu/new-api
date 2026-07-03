@@ -273,8 +273,8 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	}
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
-	other["pre_consumed_cny"] = common.QuotaToCNY(preConsumedQuota)
-	other["actual_cny"] = common.QuotaToCNY(actualQuota)
+	other["pre_consumed_cny"] = common.QuotaToPublicCNY(preConsumedQuota)
+	other["actual_cny"] = common.QuotaToPublicCNY(actualQuota)
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,

@@ -38,7 +38,7 @@ func GetSubscription(c *gin.Context) {
 		return
 	}
 	quota := remainQuota + usedQuota
-	amount := common.QuotaToCNY(quota)
+	amount := common.QuotaToPublicCNY(quota)
 	if token != nil && token.UnlimitedQuota {
 		amount = 100000000
 	}
@@ -76,7 +76,7 @@ func GetUsage(c *gin.Context) {
 		})
 		return
 	}
-	amount := common.QuotaToCNY(quota)
+	amount := common.QuotaToPublicCNY(quota)
 	usage := OpenAIUsageResponse{
 		Object:     "list",
 		TotalUsage: amount * 100,

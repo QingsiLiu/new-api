@@ -28,9 +28,6 @@ const localeFiles = ['en', 'zh', 'fr', 'ru', 'ja', 'vi'].map((locale) =>
 const specPricingI18nKeys = [
   'Spec Pricing',
   'Save spec pricing',
-  'Advanced conversion settings',
-  'Internal quota conversion',
-  'Converts CNY prices to the internal billing quota. Usually leave this unchanged.',
   'Video prices',
   'Video matrix prices',
   'Add video price',
@@ -80,8 +77,6 @@ const billingIndex = read(files.billingIndex)
 const types = read(files.types)
 
 for (const [needle, label] of [
-  ['Advanced conversion settings', 'advanced conversion disclosure'],
-  ['Internal quota conversion', 'internal quota conversion editor label'],
   ['Video matrix prices', 'video matrix section label'],
   ['CNY / second', 'video per-second price column'],
   ['VIDEO_RATIO_OPTIONS', 'video ratio option set'],
@@ -102,12 +97,13 @@ for (const [needle, label] of [
   ['NativeSelect', 'bounded option controls'],
   ['minCNY', 'video minimum price field'],
   ['maxCNY', 'video maximum price field'],
-  ['value: String(quotaPerCNY)', 'string option payload for QuotaPerCNY'],
 ]) {
   assertContains(component, needle, label)
 }
 
 for (const [needle, label] of [
+  ['quotaPerCNY', 'QuotaPerCNY prop/state in spec pricing editor'],
+  ['QuotaPerCNY', 'QuotaPerCNY option payload in spec pricing editor'],
   ['useEffect', 'effect-based state initialization'],
   ['rounded-full', 'pill styling in pricing editor'],
   ['shadow-lg', 'large decorative shadow'],
@@ -129,6 +125,11 @@ for (const [needle, label] of [
 
 assertContains(registry, "id: 'spec-pricing'", 'billing section registration')
 assertContains(registry, 'AsyncSpecPricingSettings', 'settings component import')
+assertNotContains(
+  registry,
+  'quotaPerCNYDefault',
+  'QuotaPerCNY prop wiring in billing registry'
+)
 assertContains(billingIndex, 'QuotaPerCNY', 'QuotaPerCNY default value')
 assertContains(billingIndex, 'AsyncSpecPricing', 'AsyncSpecPricing default value')
 assertContains(types, 'QuotaPerCNY: number', 'QuotaPerCNY settings type')

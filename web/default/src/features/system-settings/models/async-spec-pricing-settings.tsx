@@ -31,7 +31,6 @@ const PRICING_OPTION_KEY = 'AsyncSpecPricing'
 
 type AsyncSpecPricingSettingsProps = {
   pricingDefault: string
-  quotaPerCNYDefault: number
   readOnly?: boolean
 }
 
@@ -90,7 +89,6 @@ type ParsedSpec = {
 }
 
 type InitialEditorState = ParsedSpec & {
-  quotaPerCNY: number
   jsonText: string
   jsonError: string
   nextRowId: number
@@ -292,16 +290,12 @@ function normalizeNumber(value: string) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 }
 
-function buildInitialEditorState(
-  pricingDefault: string,
-  quotaPerCNYDefault: number
-): InitialEditorState {
+function buildInitialEditorState(pricingDefault: string): InitialEditorState {
   const spec = parseSpecPricing(pricingDefault)
   const rows = rowsFromSpec(spec)
   const rowCount = rows.videoRows.length + rows.imageRows.length
   return {
     ...rows,
-    quotaPerCNY: quotaPerCNYDefault || 0,
     jsonText: JSON.stringify(spec, null, 2),
     jsonError: '',
     nextRowId: rowCount + 1,
@@ -311,22 +305,18 @@ function buildInitialEditorState(
 export const AsyncSpecPricingSettings = memo(function AsyncSpecPricingSettings(
   props: AsyncSpecPricingSettingsProps
 ) {
-  const resetKey = `${props.pricingDefault}:${props.quotaPerCNYDefault}`
+  const resetKey = props.pricingDefault
   return <AsyncSpecPricingSettingsInner key={resetKey} {...props} />
 })
 
 const AsyncSpecPricingSettingsInner = memo(
   function AsyncSpecPricingSettingsInner({
     pricingDefault,
-    quotaPerCNYDefault,
     readOnly = false,
   }: AsyncSpecPricingSettingsProps) {
     const { t } = useTranslation()
     const updateOption = useUpdateOption()
-    const initialState = buildInitialEditorState(
-      pricingDefault,
-      quotaPerCNYDefault
-    )
+    const initialState = buildInitialEditorState(pricingDefault)
     const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
     const [videoRows, setVideoRows] = useState<VideoRow[]>(
       () => initialState.videoRows

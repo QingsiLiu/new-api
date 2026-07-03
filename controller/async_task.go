@@ -373,7 +373,7 @@ func GetAsyncBillingBalance(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, asyncBillingBalanceResponse{
 		UserID:     userID,
-		BalanceCNY: common.QuotaToCNY(quota),
+		BalanceCNY: common.QuotaToPublicCNY(quota),
 		Currency:   "CNY",
 	})
 }
@@ -407,9 +407,9 @@ func asyncTaskEstimateAmountCNY(relayInfo *relaycommon.RelayInfo) float64 {
 		return 0
 	}
 	if relayInfo.PriceData.SpecPricing != nil && relayInfo.PriceData.SpecPricing.Priced {
-		return relayInfo.PriceData.SpecPricing.TotalCNY
+		return common.RoundPublicCNY(relayInfo.PriceData.SpecPricing.TotalCNY)
 	}
-	return common.QuotaToCNY(relayInfo.PriceData.Quota)
+	return common.QuotaToPublicCNY(relayInfo.PriceData.Quota)
 }
 
 func asyncPublicEstimateRatios(ratios map[string]float64) map[string]float64 {
@@ -446,7 +446,7 @@ func asyncBillingUsageItems(logs []*model.Log) []asyncBillingUsageItem {
 			Username:          log.Username,
 			TokenName:         log.TokenName,
 			ModelName:         log.ModelName,
-			AmountCNY:         common.QuotaToCNY(log.Quota),
+			AmountCNY:         common.QuotaToPublicCNY(log.Quota),
 			PromptTokens:      log.PromptTokens,
 			CompletionTokens:  log.CompletionTokens,
 			UseTime:           log.UseTime,
