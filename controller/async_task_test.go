@@ -2278,6 +2278,124 @@ func TestAsyncKieNanoBananaEditTaskAcceptsImageURLs(t *testing.T) {
 	}, 2*time.Second, 20*time.Millisecond)
 }
 
+func TestAsyncKieImageProductModelsRouteToDocumentedUpstreamByAction(t *testing.T) {
+	cases := []struct {
+		name             string
+		productModel     string
+		action           string
+		expectedUpstream string
+		parameters       map[string]interface{}
+		expectedInputKey string
+	}{
+		{
+			name:             "gemini 2.5 generate uses nano banana",
+			productModel:     "gemini-2.5-flash-image",
+			action:           asyncTaskActionGenerate,
+			expectedUpstream: asyncTaskKieNanoBananaModel,
+			parameters:       map[string]interface{}{"ratio": "1:1", "output_format": "jpeg"},
+		},
+		{
+			name:             "gemini 2.5 edit uses nano banana edit",
+			productModel:     "gemini-2.5-flash-image",
+			action:           asyncTaskActionEdit,
+			expectedUpstream: asyncTaskKieNanoBananaEditModel,
+			parameters:       map[string]interface{}{"aspect_ratio": "4:3", "image_urls": []interface{}{"https://example.com/source.png"}},
+			expectedInputKey: "image_urls",
+		},
+		{
+			name:             "gemini 3.1 preview uses nano banana 2",
+			productModel:     "gemini-3.1-flash-image-preview",
+			action:           asyncTaskActionGenerate,
+			expectedUpstream: asyncTaskKieNanoBanana2Model,
+			parameters:       map[string]interface{}{"ratio": "auto", "resolution": "1K"},
+		},
+		{
+			name:             "gemini 3 pro preview uses nano banana pro",
+			productModel:     "gemini-3-pro-image-preview",
+			action:           asyncTaskActionGenerate,
+			expectedUpstream: asyncTaskKieNanoBananaProModel,
+			parameters:       map[string]interface{}{"ratio": "16:9", "resolution": "1K"},
+		},
+		{
+			name:             "gpt image 2 edit uses image to image",
+			productModel:     "gpt-image-2",
+			action:           asyncTaskActionEdit,
+			expectedUpstream: asyncTaskKieGPTImage2EditModel,
+			parameters:       map[string]interface{}{"ratio": "auto", "resolution": "1K", "image_urls": []interface{}{"https://example.com/source.png"}},
+			expectedInputKey: "input_urls",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			createCalled := make(chan struct{}, 1)
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/jobs/createTask":
+					body, err := io.ReadAll(r.Body)
+					require.NoError(t, err)
+					var payload map[string]interface{}
+					require.NoError(t, common.Unmarshal(body, &payload))
+					require.Equal(t, tc.expectedUpstream, payload["model"])
+					input := requireAsyncPayloadInput(t, payload)
+					require.Equal(t, "a red panda", input["prompt"])
+					if tc.expectedInputKey != "" {
+						require.ElementsMatch(t, []string{"https://example.com/source.png"}, input[tc.expectedInputKey])
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"code":200,"msg":"success","data":{"taskId":"kie-product-1"}}`))
+					createCalled <- struct{}{}
+				case "/api/v1/jobs/recordInfo":
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"code":200,"data":{"taskId":"kie-product-1","state":"success","resultJson":"{\"resultUrls\":[\"https://example.com/result.png\"]}"}}`))
+				default:
+					t.Errorf("unexpected upstream path: %s", r.URL.String())
+					http.NotFound(w, r)
+				}
+			}))
+			defer upstream.Close()
+
+			engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, tc.productModel, constant.ChannelTypeKie, "")
+			require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"`+tc.productModel+`":0.01}`))
+			body, err := common.Marshal(map[string]interface{}{
+				"action":     tc.action,
+				"model":      tc.productModel,
+				"input":      map[string]interface{}{"prompt": "a red panda"},
+				"parameters": tc.parameters,
+			})
+			require.NoError(t, err)
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", bytes.NewReader(body))
+			request.Header.Set("Authorization", "Bearer "+token)
+			request.Header.Set("Content-Type", "application/json")
+
+			engine.ServeHTTP(recorder, request)
+
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+			var created asyncTaskResponse
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+			require.Eventually(t, func() bool {
+				select {
+				case <-createCalled:
+					return true
+				default:
+					return false
+				}
+			}, 2*time.Second, 20*time.Millisecond)
+			require.Eventually(t, func() bool {
+				var task model.Task
+				err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+				return err == nil && task.Status == model.TaskStatusSuccess
+			}, 2*time.Second, 20*time.Millisecond)
+
+			var stored model.Task
+			require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&stored).Error)
+			require.Equal(t, tc.productModel, stored.Properties.OriginModelName)
+			require.Equal(t, tc.expectedUpstream, stored.Properties.UpstreamModelName)
+		})
+	}
+}
+
 func requireAsyncPayloadInput(t *testing.T, payload map[string]interface{}) map[string]interface{} {
 	t.Helper()
 	input, ok := payload["input"].(map[string]interface{})

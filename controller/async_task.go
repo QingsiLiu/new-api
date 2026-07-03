@@ -62,6 +62,10 @@ const (
 	asyncTaskKieNanoBanana2Model       = "nano-banana-2"
 	asyncTaskKieGPTImage2TextModel     = "gpt-image-2-text-to-image"
 	asyncTaskKieGPTImage2EditModel     = "gpt-image-2-image-to-image"
+	asyncTaskProductGemini25FlashImage = "gemini-2.5-flash-image"
+	asyncTaskProductGemini31FlashImage = "gemini-3.1-flash-image-preview"
+	asyncTaskProductGemini3ProImage    = "gemini-3-pro-image-preview"
+	asyncTaskProductGPTImage2          = "gpt-image-2"
 	asyncTaskProductKindContextKey     = "async_task_product_kind"
 )
 
@@ -1446,12 +1450,12 @@ func sweepAsyncTimedOutTasks(ctx context.Context, cutoffUnix int64, limit int) i
 }
 
 func executeAsyncImageTask(task *model.Task, channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
-	execution.Request.Model = asyncTaskUpstreamModel(execution)
 	ctx := execution.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if channel.Type == constant.ChannelTypeKie {
+		execution.Request.Model = asyncTaskKieImageUpstreamModel(execution)
 		switch execution.Request.Action {
 		case asyncTaskActionGenerate, asyncTaskActionEdit:
 			return executeAsyncKieImageTask(ctx, task, channel, execution.Request)
@@ -1459,6 +1463,7 @@ func executeAsyncImageTask(task *model.Task, channel *model.Channel, execution a
 			return nil, fmt.Errorf("unsupported image action %s", execution.Request.Action)
 		}
 	}
+	execution.Request.Model = asyncTaskUpstreamModel(execution)
 	switch execution.Request.Action {
 	case asyncTaskActionEdit:
 		return executeAsyncImageEdit(ctx, channel, execution)
@@ -1496,6 +1501,38 @@ func asyncTaskUpstreamModel(execution asyncTaskExecution) string {
 		return execution.RelayInfo.UpstreamModelName
 	}
 	return execution.Request.Model
+}
+
+func asyncTaskKieImageUpstreamModel(execution asyncTaskExecution) string {
+	if upstreamModel := asyncTaskKieImageProductUpstreamModel(execution.Request.Model, execution.Request.Action); upstreamModel != "" {
+		return upstreamModel
+	}
+	upstreamModel := asyncTaskUpstreamModel(execution)
+	if resolvedModel := asyncTaskKieImageProductUpstreamModel(upstreamModel, execution.Request.Action); resolvedModel != "" {
+		return resolvedModel
+	}
+	return upstreamModel
+}
+
+func asyncTaskKieImageProductUpstreamModel(modelName string, action string) string {
+	switch strings.TrimSpace(modelName) {
+	case asyncTaskProductGemini25FlashImage:
+		if action == asyncTaskActionEdit {
+			return asyncTaskKieNanoBananaEditModel
+		}
+		return asyncTaskKieNanoBananaModel
+	case asyncTaskProductGemini31FlashImage:
+		return asyncTaskKieNanoBanana2Model
+	case asyncTaskProductGemini3ProImage:
+		return asyncTaskKieNanoBananaProModel
+	case asyncTaskProductGPTImage2:
+		if action == asyncTaskActionEdit {
+			return asyncTaskKieGPTImage2EditModel
+		}
+		return asyncTaskKieGPTImage2TextModel
+	default:
+		return ""
+	}
 }
 
 func executeAsyncImageGeneration(parentCtx context.Context, channel *model.Channel, request asyncTaskRequest) ([]asyncTaskStoredOutput, error) {
@@ -1880,6 +1917,7 @@ func executeAsyncKieImageTask(parentCtx context.Context, task *model.Task, chann
 	if !isAsyncKieImageModel(request.Model) {
 		return nil, fmt.Errorf("unsupported KIE image model %s", request.Model)
 	}
+	persistAsyncTaskUpstreamModelName(task, request.Model)
 	taskID, err := createAsyncKieImageTask(parentCtx, channel, request)
 	if err != nil {
 		return nil, err
@@ -2566,6 +2604,19 @@ func persistAsyncTaskUpstreamTaskID(task *model.Task, upstreamTaskID string) {
 	task.PrivateData.UpstreamTaskID = strings.TrimSpace(upstreamTaskID)
 	task.UpdatedAt = time.Now().Unix()
 	_ = model.DB.Model(task).Select("private_data", "updated_at").Updates(task).Error
+}
+
+func persistAsyncTaskUpstreamModelName(task *model.Task, upstreamModelName string) {
+	upstreamModelName = strings.TrimSpace(upstreamModelName)
+	if task == nil || upstreamModelName == "" {
+		return
+	}
+	if task.Properties.UpstreamModelName == upstreamModelName {
+		return
+	}
+	task.Properties.UpstreamModelName = upstreamModelName
+	task.UpdatedAt = time.Now().Unix()
+	_ = model.DB.Model(task).Select("properties", "updated_at").Updates(task).Error
 }
 
 func doAsyncGeminiImageRequest(request *http.Request) ([]asyncTaskStoredOutput, error) {
