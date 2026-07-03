@@ -844,6 +844,14 @@ func GetModelPricingConfig(modelName string) (ModelPricingConfig, bool, error) {
 	if !IsModelPricingConfigTrusted() {
 		return ModelPricingConfig{}, false, nil
 	}
+	return getModelPricingConfigFromDB(modelName)
+}
+
+func GetModelPricingConfigForDisplay(modelName string) (ModelPricingConfig, bool, error) {
+	return getModelPricingConfigFromDB(modelName)
+}
+
+func getModelPricingConfigFromDB(modelName string) (ModelPricingConfig, bool, error) {
 	if DB == nil || !DB.Migrator().HasTable(&Model{}) {
 		return ModelPricingConfig{}, false, nil
 	}

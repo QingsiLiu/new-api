@@ -56,6 +56,13 @@ import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  getImageSpecDefaultPriceRow,
+  getImageSpecPriceRows,
+  getModelSpecPricingSummary,
+  getVideoMatrixPriceRows,
+  type ModelSpecPricingSummary,
+} from '../lib/spec-pricing'
 import type {
   Modality,
   ModelCapability,
@@ -361,6 +368,174 @@ function ModelHeader(props: { model: PricingModel }) {
 // Base price card (used in the Overview tab)
 // ----------------------------------------------------------------------------
 
+function SpecPricingSummaryLine(props: { summary: ModelSpecPricingSummary }) {
+  const { t } = useTranslation()
+
+  if (props.summary.mode === 'image_spec') {
+    return (
+      <div className='text-muted-foreground flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm'>
+        <span>{t(props.summary.labelKey)}</span>
+        {props.summary.entries.map((entry) => (
+          <span key={entry.label} className='font-mono tabular-nums'>
+            <span className='text-muted-foreground/70'>{entry.label}</span>{' '}
+            <span className='text-foreground font-semibold'>
+              {entry.formattedPrice}
+            </span>
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  if (props.summary.mode === 'video_matrix') {
+    return (
+      <div className='text-muted-foreground text-sm'>
+        {t(props.summary.labelKey)}
+        <span className='text-muted-foreground/40'> · </span>
+        {t('Starting at')}{' '}
+        <span className='text-foreground font-mono font-semibold tabular-nums'>
+          {props.summary.startPrice}
+        </span>
+        /{t(props.summary.unitKey)}
+      </div>
+    )
+  }
+
+  return (
+    <div className='text-success font-mono text-sm font-semibold'>
+      {t(props.summary.labelKey)} {props.summary.formattedPrice}
+    </div>
+  )
+}
+
+function ImageSpecPricingSection(props: {
+  model: PricingModel
+  summary: ModelSpecPricingSummary
+}) {
+  const { t } = useTranslation()
+  const rows = getImageSpecPriceRows(props.model)
+  const defaultRow = getImageSpecDefaultPriceRow(props.model)
+  const tableRows = defaultRow
+    ? [
+        {
+          key: '_default',
+          label: t(defaultRow.labelKey),
+          formattedPrice: defaultRow.formattedPrice,
+        },
+        ...rows.map((row) => ({
+          key: row.resolution,
+          label: row.label,
+          formattedPrice: row.formattedPrice,
+        })),
+      ]
+    : rows.map((row) => ({
+        key: row.resolution,
+        label: row.label,
+        formattedPrice: row.formattedPrice,
+      }))
+
+  return (
+    <section>
+      <SectionTitle>{t('Base Price')}</SectionTitle>
+      <div className='space-y-3'>
+        <SpecPricingSummaryLine summary={props.summary} />
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0 sm:rounded-lg sm:border'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={tableRows}
+          getRowKey={(row) => row.key}
+          columns={[
+            {
+              id: 'resolution',
+              header: t('Resolution'),
+              className:
+                'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase',
+              cellClassName: 'py-2.5',
+              cell: (row) => row.label,
+            },
+            {
+              id: 'price',
+              header: t('CNY / image'),
+              className:
+                'text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase',
+              cellClassName:
+                'py-2.5 text-right font-mono font-semibold tabular-nums',
+              cell: (row) => row.formattedPrice,
+            },
+          ]}
+        />
+      </div>
+    </section>
+  )
+}
+
+function VideoMatrixPricingSection(props: {
+  model: PricingModel
+  summary: ModelSpecPricingSummary
+}) {
+  const { t } = useTranslation()
+  const rows = getVideoMatrixPriceRows(props.model)
+  const thClass =
+    'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
+
+  return (
+    <section>
+      <SectionTitle>{t('Base Price')}</SectionTitle>
+      <div className='space-y-3'>
+        <SpecPricingSummaryLine summary={props.summary} />
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0 sm:rounded-lg sm:border'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={rows}
+          getRowKey={(row, index) =>
+            `${row.resolution}-${row.ratio}-${row.mode}-${index}`
+          }
+          columns={[
+            {
+              id: 'resolution',
+              header: t('Resolution'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (row) => row.resolution,
+            },
+            {
+              id: 'ratio',
+              header: t('Ratio'),
+              className: thClass,
+              cellClassName: 'text-muted-foreground py-2.5 font-mono',
+              cell: (row) => row.ratio,
+            },
+            {
+              id: 'mode',
+              header: t('Mode'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (row) => t(row.modeLabelKey),
+            },
+            {
+              id: 'price',
+              header: t('CNY / second'),
+              className: `${thClass} text-right`,
+              cellClassName:
+                'py-2.5 text-right font-mono font-semibold tabular-nums',
+              cell: (row) =>
+                row.supported ? (
+                  row.formattedPrice
+                ) : (
+                  <span className='text-muted-foreground font-sans text-xs font-medium'>
+                    {t(row.labelKey)}
+                  </span>
+                ),
+            },
+          ]}
+        />
+      </div>
+    </section>
+  )
+}
+
 function PriceSection(props: {
   model: PricingModel
   priceRate: number
@@ -370,6 +545,7 @@ function PriceSection(props: {
 }) {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
+  const specSummary = getModelSpecPricingSummary(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const baseGroupKey = '_base'
   const baseGroupRatioMap = { [baseGroupKey]: 1 }
@@ -418,6 +594,27 @@ function PriceSection(props: {
         props.model.audio_completion_ratio != null,
     },
   ]
+
+  if (specSummary?.mode === 'image_spec') {
+    return (
+      <ImageSpecPricingSection model={props.model} summary={specSummary} />
+    )
+  }
+
+  if (specSummary?.mode === 'video_matrix') {
+    return (
+      <VideoMatrixPricingSection model={props.model} summary={specSummary} />
+    )
+  }
+
+  if (specSummary?.mode === 'free') {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <SpecPricingSummaryLine summary={specSummary} />
+      </section>
+    )
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {

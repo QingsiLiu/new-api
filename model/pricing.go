@@ -26,6 +26,8 @@ type Pricing struct {
 	ModelRatio             float64                 `json:"model_ratio"`
 	ModelPrice             float64                 `json:"model_price"`
 	AmountCNY              *float64                `json:"amount_cny,omitempty"`
+	PricingMode            string                  `json:"pricing_mode,omitempty"`
+	SpecPricing            interface{}             `json:"spec_pricing,omitempty"`
 	OwnerBy                string                  `json:"owner_by"`
 	CompletionRatio        float64                 `json:"completion_ratio"`
 	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
@@ -307,17 +309,8 @@ func updatePricing() {
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
 		}
-		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
-		if findPrice {
-			pricing.ModelPrice = modelPrice
-			amountCNY := modelPrice
-			pricing.AmountCNY = &amountCNY
-			pricing.QuotaType = 1
-		} else {
-			modelRatio, _, _ := ratio_setting.GetModelRatio(model)
-			pricing.ModelRatio = modelRatio
-			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
-			pricing.QuotaType = 0
+		if !applyDisplayPricingConfig(model, &pricing) {
+			applyLegacyDisplayPricing(model, &pricing)
 		}
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
 			pricing.CacheRatio = &cacheRatio
@@ -361,6 +354,145 @@ func updatePricing() {
 	modelEnableGroupsLock.Unlock()
 
 	lastGetPricingTime = time.Now()
+}
+
+func applyDisplayPricingConfig(modelName string, pricing *Pricing) bool {
+	cfg, ok, err := GetModelPricingConfigForDisplay(modelName)
+	if err != nil || !ok {
+		return false
+	}
+
+	switch cfg.Mode {
+	case PricingModeImageSpec:
+		pricing.PricingMode = PricingModeImageSpec
+		pricing.SpecPricing = cfg.Resolutions
+		pricing.QuotaType = 1
+		if amount, ok := imageSpecAmountCNY(cfg); ok {
+			pricing.ModelPrice = amount
+			pricing.AmountCNY = &amount
+		}
+		return true
+	case PricingModeVideoMatrix:
+		pricing.PricingMode = PricingModeVideoMatrix
+		pricing.SpecPricing = cfg.Prices
+		pricing.QuotaType = 1
+		if amount, ok := videoMatrixStartAmountCNY(cfg); ok {
+			pricing.ModelPrice = amount
+			pricing.AmountCNY = &amount
+		}
+		return true
+	case PricingModeRatio:
+		pricing.PricingMode = PricingModeRatio
+		if cfg.UsePrice {
+			pricing.ModelPrice = cfg.ModelPrice
+			amount := cfg.ModelPrice
+			pricing.AmountCNY = &amount
+			pricing.QuotaType = 1
+			return true
+		}
+		if cfg.UseRatio || cfg.BaseRatio > 0 {
+			pricing.ModelRatio = cfg.BaseRatio
+			pricing.CompletionRatio = cfg.CompletionRatio
+			pricing.QuotaType = 0
+			if cfg.CacheRatio > 0 {
+				cacheRatio := cfg.CacheRatio
+				pricing.CacheRatio = &cacheRatio
+			}
+			if cfg.CreateCacheRatio > 0 {
+				createCacheRatio := cfg.CreateCacheRatio
+				pricing.CreateCacheRatio = &createCacheRatio
+			}
+			if cfg.ImageRatio > 0 {
+				imageRatio := cfg.ImageRatio
+				pricing.ImageRatio = &imageRatio
+			}
+			if cfg.AudioRatio > 0 {
+				audioRatio := cfg.AudioRatio
+				pricing.AudioRatio = &audioRatio
+			}
+			if cfg.AudioCompletionRatio > 0 {
+				audioCompletionRatio := cfg.AudioCompletionRatio
+				pricing.AudioCompletionRatio = &audioCompletionRatio
+			}
+			return true
+		}
+	case PricingModeFree:
+		pricing.PricingMode = PricingModeFree
+		amount := 0.0
+		pricing.ModelPrice = amount
+		pricing.AmountCNY = &amount
+		pricing.QuotaType = 1
+		return true
+	}
+	return false
+}
+
+func applyLegacyDisplayPricing(modelName string, pricing *Pricing) {
+	modelPrice, findPrice := ratio_setting.GetModelPrice(modelName, false)
+	if findPrice {
+		pricing.ModelPrice = modelPrice
+		amountCNY := modelPrice
+		pricing.AmountCNY = &amountCNY
+		pricing.QuotaType = 1
+		return
+	}
+	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
+	pricing.ModelRatio = modelRatio
+	pricing.CompletionRatio = ratio_setting.GetCompletionRatio(modelName)
+	pricing.QuotaType = 0
+}
+
+func imageSpecAmountCNY(cfg ModelPricingConfig) (float64, bool) {
+	if cfg.DefaultCNYPerImage != nil {
+		return *cfg.DefaultCNYPerImage, true
+	}
+	if price, ok := cfg.Resolutions["1k"]; ok && price.CNYPerImage != nil {
+		return *price.CNYPerImage, true
+	}
+	return minImageResolutionAmountCNY(cfg.Resolutions)
+}
+
+func minImageResolutionAmountCNY(resolutions map[string]ModelSpecResolutionPrice) (float64, bool) {
+	var minValue float64
+	found := false
+	for _, price := range resolutions {
+		if price.CNYPerImage == nil {
+			continue
+		}
+		if !found || *price.CNYPerImage < minValue {
+			minValue = *price.CNYPerImage
+			found = true
+		}
+	}
+	return minValue, found
+}
+
+func videoMatrixStartAmountCNY(cfg ModelPricingConfig) (float64, bool) {
+	var minValue float64
+	found := false
+	for _, ratioPrices := range cfg.Prices {
+		for _, modePrices := range ratioPrices {
+			for _, price := range modePrices {
+				if price.Unsupported || price.CNYPerSecond == nil {
+					continue
+				}
+				if !found || *price.CNYPerSecond < minValue {
+					minValue = *price.CNYPerSecond
+					found = true
+				}
+			}
+		}
+	}
+	if found {
+		return minValue, true
+	}
+	if cfg.MinCNY > 0 {
+		return cfg.MinCNY, true
+	}
+	if cfg.DefaultCNYPerSecond != nil {
+		return *cfg.DefaultCNYPerSecond, true
+	}
+	return 0, false
 }
 
 // GetSupportedEndpointMap 返回全局端点到路径的映射

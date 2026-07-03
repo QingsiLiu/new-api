@@ -31,6 +31,10 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  getModelSpecPricingSummary,
+  type ModelSpecPricingSummary,
+} from '../lib/spec-pricing'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 
@@ -42,6 +46,54 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   perf?: ModelPerfBadgeData
+}
+
+function SpecPricingInlineSummary(props: { summary: ModelSpecPricingSummary }) {
+  const { t } = useTranslation()
+
+  if (props.summary.mode === 'image_spec') {
+    return (
+      <span className='text-muted-foreground min-w-0'>
+        {t(props.summary.labelKey)}
+        {props.summary.entries.length > 0 && (
+          <>
+            <span className='text-muted-foreground/40'> · </span>
+            {props.summary.entries.map((entry, index) => (
+              <span key={entry.label} className='whitespace-nowrap'>
+                {index > 0 && (
+                  <span className='text-muted-foreground/40'> / </span>
+                )}
+                {entry.label}{' '}
+                <span className='text-foreground font-mono font-semibold'>
+                  {entry.formattedPrice}
+                </span>
+              </span>
+            ))}
+          </>
+        )}
+      </span>
+    )
+  }
+
+  if (props.summary.mode === 'video_matrix') {
+    return (
+      <span className='text-muted-foreground whitespace-nowrap'>
+        {t(props.summary.labelKey)}
+        <span className='text-muted-foreground/40'> · </span>
+        {t('Starting at')}{' '}
+        <span className='text-foreground font-mono font-semibold'>
+          {props.summary.startPrice}
+        </span>
+        /{t(props.summary.unitKey)}
+      </span>
+    )
+  }
+
+  return (
+    <span className='text-success font-mono text-xs font-semibold'>
+      {t(props.summary.labelKey)} {props.summary.formattedPrice}
+    </span>
+  )
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -65,6 +117,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
+  const specPricingSummary = getModelSpecPricingSummary(props.model)
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -75,6 +128,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         groupRatioMultiplier: getDynamicDisplayGroupRatio(props.model),
       })
     : null
+  let pricingTypeLabel = isTokenBased ? t('Token-based') : t('Per Request')
+  if (specPricingSummary) {
+    pricingTypeLabel = t(specPricingSummary.labelKey)
+  }
 
   const primaryGroup = groups[0]
   const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
@@ -131,7 +188,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </div>
             )}
             <div className='mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs sm:mt-1 sm:gap-x-3'>
-              {dynamicSummary ? (
+              {specPricingSummary ? (
+                <SpecPricingInlineSummary summary={specPricingSummary} />
+              ) : dynamicSummary ? (
                 dynamicSummary.isSpecialExpression ? (
                   <span className='min-w-0'>
                     <span className='text-warning'>
@@ -261,7 +320,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </span>
           )}
           <span className='text-muted-foreground text-xs font-medium'>
-            {isTokenBased ? t('Token-based') : t('Per Request')}
+            {pricingTypeLabel}
           </span>
           {isDynamicPricing && (
             <StatusBadge
@@ -280,9 +339,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               {item}
             </span>
           ))}
-          <span className='text-muted-foreground/50 text-xs'>
-            {tokenUnitLabel}
-          </span>
+          {!specPricingSummary && (
+            <span className='text-muted-foreground/50 text-xs'>
+              {tokenUnitLabel}
+            </span>
+          )}
           {hiddenCount > 0 && (
             <span className='text-muted-foreground/40 text-xs'>
               +{hiddenCount}
