@@ -17,10 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatCreemPrice } from '../lib/format'
+import { formatCreemPrice, formatQuotaShort } from '../lib/format'
 import type { CreemProduct } from '../types'
 
 interface CreemProductsSectionProps {
@@ -62,7 +61,7 @@ export function CreemProductsSection({
           <CardContent className='p-3 text-center sm:p-4'>
             <div className='mb-2 text-lg font-medium'>{product.name}</div>
             <div className='text-muted-foreground mb-2 text-sm'>
-              {t('Quota')}: {formatNumber(product.quota)}
+              {t('Balance')}: {formatQuotaShort(product.quota)}
             </div>
             <div className='text-primary text-lg font-semibold'>
               {formatCreemPrice(product.price, product.currency)}

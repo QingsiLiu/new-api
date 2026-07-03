@@ -134,7 +134,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       id: 'quota',
       accessorKey: 'remain_quota',
-      header: t('Quota'),
+      header: t('Balance'),
       cell: ({ row }) => {
         const apiKey = row.original
         if (apiKey.unlimited_quota) {

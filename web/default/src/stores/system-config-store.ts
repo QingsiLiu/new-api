@@ -23,17 +23,17 @@ import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 export type CurrencyDisplayType = 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
 
 export interface CurrencyConfig {
-  /** Whether to render quota values as currency instead of raw units */
+  /** Whether to render wallet values as currency instead of raw units */
   displayInCurrency: boolean
   /** Currency presentation strategy configured by the admin */
   quotaDisplayType: CurrencyDisplayType
-  /** Number of quota units that equal one USD */
+  /** Number of internal billing units that equal one CNY */
   quotaPerUnit: number
-  /** Exchange rate from USD to the configured local currency */
+  /** Legacy compatibility field; CNY-native display does not use USD conversion */
   usdExchangeRate: number
   /** Custom currency symbol configured by the admin (used when type === CUSTOM) */
   customCurrencySymbol: string
-  /** Exchange rate from USD to the custom currency (used when type === CUSTOM) */
+  /** Legacy compatibility field; CNY-native display does not use custom exchange conversion */
   customCurrencyExchangeRate: number
 }
 
@@ -48,8 +48,8 @@ export interface SystemConfig {
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   displayInCurrency: true,
-  quotaDisplayType: 'USD',
-  quotaPerUnit: 500000,
+  quotaDisplayType: 'CNY',
+  quotaPerUnit: 100000,
   usdExchangeRate: 1,
   customCurrencySymbol: '¤',
   customCurrencyExchangeRate: 1,

@@ -73,10 +73,6 @@ import { TagInput } from '@/components/tag-input'
 import { getChannels } from '@/features/channels/api'
 import type { Channel } from '@/features/channels/types'
 import {
-  getOptionValue,
-  useSystemOptions,
-} from '@/features/system-settings/hooks/use-system-options'
-import {
   createModel,
   getModel,
   getVendors,
@@ -85,7 +81,6 @@ import {
 } from '../../api'
 import { ENDPOINT_TEMPLATES, getNameRuleOptions } from '../../constants'
 import {
-  formatNumber,
   imageRowsFromConfig,
   imageRowsToResolutions,
   MODEL_MODAL_VALUES,
@@ -93,7 +88,6 @@ import {
   parseModelPricingConfig,
   parseModelTags,
   parseNonNegativeNumber,
-  quotaPreview,
   stringifyModelPricingConfig,
   videoRowsFromConfig,
   videoRowsToPrices,
@@ -256,10 +250,6 @@ function buildPricingConfig(
   return { mode: pricingMode }
 }
 
-function readQuotaPerCNY(options?: Array<{ key: string; value: string }>) {
-  return getOptionValue(options, { QuotaPerCNY: 0 }).QuotaPerCNY
-}
-
 function parsePastedVideoRows(text: string, startId: number): VideoMatrixRow[] {
   const rows: VideoMatrixRow[] = []
   let id = startId
@@ -358,8 +348,6 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
     enabled: props.open && isEditing,
   })
 
-  const { data: systemOptionsData } = useSystemOptions()
-  const quotaPerCNY = readQuotaPerCNY(systemOptionsData?.data)
   const vendors = useMemo(
     () => vendorsData?.data?.items || [],
     [vendorsData?.data?.items]
@@ -909,14 +897,6 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
                 <h3 className='text-sm font-semibold'>
                   {t('Pricing Configuration')}
                 </h3>
-                <StatusBadge
-                  label={t('Quota/CNY {{quota}}', {
-                    quota: formatNumber(quotaPerCNY),
-                  })}
-                  variant='info'
-                  size='sm'
-                  copyable={false}
-                />
               </div>
               <Tabs
                 value={pricingMode}
@@ -943,7 +923,6 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
                 <RatioPricingEditor
                   ratioState={ratioState}
                   onChange={updateRatioField}
-                  quotaPerCNY={quotaPerCNY}
                 />
               )}
               {pricingMode === 'image_spec' && (
@@ -953,7 +932,6 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
                   defaultCNY={imageDefault}
                   onDefaultCNYChange={setImageDefault}
                   onAddRow={addImageRow}
-                  quotaPerCNY={quotaPerCNY}
                 />
               )}
               {pricingMode === 'video_matrix' && (
@@ -970,7 +948,6 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
                   onPasteTextChange={setPasteText}
                   onAddRow={addVideoRow}
                   onApplyPaste={applyVideoPaste}
-                  quotaPerCNY={quotaPerCNY}
                 />
               )}
               {(pricingMode === 'free' || pricingMode === 'inherit') && (
@@ -1073,12 +1050,8 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
 function RatioPricingEditor(props: {
   ratioState: RatioFormState
   onChange: (field: keyof RatioFormState, value: string | boolean) => void
-  quotaPerCNY: number
 }) {
   const { t } = useTranslation()
-  const previewCNY = props.ratioState.usePrice
-    ? parseNonNegativeNumber(props.ratioState.modelPrice)
-    : 0
   return (
     <div className='grid gap-4 md:grid-cols-2'>
       <label className={sideDrawerSwitchItemClassName()}>
@@ -1100,9 +1073,6 @@ function RatioPricingEditor(props: {
         value={props.ratioState.modelPrice}
         onChange={(value) => props.onChange('modelPrice', value)}
         disabled={!props.ratioState.usePrice}
-        suffix={t('{{quota}} quota', {
-          quota: quotaPreview(previewCNY, props.quotaPerCNY),
-        })}
       />
       <NumberField
         label={t('Base ratio')}
@@ -1149,7 +1119,6 @@ function ImageSpecEditor(props: {
   defaultCNY: string
   onDefaultCNYChange: (value: string) => void
   onAddRow: () => void
-  quotaPerCNY: number
 }) {
   const { t } = useTranslation()
   const updateRow = (id: number, patch: Partial<ImageSpecRow>) => {
@@ -1164,12 +1133,6 @@ function ImageSpecEditor(props: {
           label={t('Default CNY per image')}
           value={props.defaultCNY}
           onChange={props.onDefaultCNYChange}
-          suffix={t('{{quota}} quota', {
-            quota: quotaPreview(
-              parseNonNegativeNumber(props.defaultCNY),
-              props.quotaPerCNY
-            ),
-          })}
         />
         <div className='flex items-end'>
           <Button type='button' variant='outline' onClick={props.onAddRow}>
@@ -1195,12 +1158,6 @@ function ImageSpecEditor(props: {
                 label={t('CNY per image')}
                 value={row.cnyPerImage}
                 onChange={(value) => updateRow(row.id, { cnyPerImage: value })}
-                suffix={t('{{quota}} quota', {
-                  quota: quotaPreview(
-                    parseNonNegativeNumber(row.cnyPerImage),
-                    props.quotaPerCNY
-                  ),
-                })}
               />
               <div className='text-muted-foreground pb-2 text-xs'>
                 {t('n=1 preview')}
@@ -1234,7 +1191,6 @@ function VideoMatrixEditor(props: {
   onPasteTextChange: (value: string) => void
   onAddRow: () => void
   onApplyPaste: () => void
-  quotaPerCNY: number
 }) {
   const { t } = useTranslation()
   const updateRow = (id: number, patch: Partial<VideoMatrixRow>) => {
@@ -1318,12 +1274,6 @@ function VideoMatrixEditor(props: {
                 value={row.cnyPerSecond}
                 onChange={(value) => updateRow(row.id, { cnyPerSecond: value })}
                 disabled={!row.supported}
-                suffix={t('{{quota}} quota', {
-                  quota: quotaPreview(
-                    parseNonNegativeNumber(row.cnyPerSecond) * 5,
-                    props.quotaPerCNY
-                  ),
-                })}
               />
               <div className='text-muted-foreground pb-2 text-xs'>
                 {t('5s preview')}

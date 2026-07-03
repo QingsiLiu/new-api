@@ -216,10 +216,10 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "theme.frontend":
-		if option.Value != "default" && option.Value != "classic" {
+		if option.Value != "default" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无效的主题值，可选值：default（新版前端）、classic（经典前端）",
+				"message": "无效的主题值，人民币原生计费仅支持 default（新版前端）",
 			})
 			return
 		}
@@ -246,7 +246,7 @@ func UpdateOption(c *gin.Context) {
 		if err != nil || quotaPerCNY <= 0 {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "QuotaPerCNY must be greater than 0",
+				"message": "CNY billing unit must be greater than 0",
 			})
 			return
 		}

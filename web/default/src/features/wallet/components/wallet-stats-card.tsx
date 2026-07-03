@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { formatQuota } from '@/lib/format'
+import { formatCNYAmount } from '@/lib/currency'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EditorialStat, EditorialStatGroup } from '@/components/editorial'
 import type { UserWalletData } from '../types'
@@ -48,13 +48,13 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   const stats = [
     {
       label: t('Current Balance'),
-      value: formatQuota(props.user?.quota ?? 0),
-      description: t('Remaining quota'),
+      value: formatCNYAmount(props.user?.balance_cny ?? 0),
+      description: t('Available balance'),
     },
     {
       label: t('Total Usage'),
-      value: formatQuota(props.user?.used_quota ?? 0),
-      description: t('Total consumed quota'),
+      value: formatCNYAmount(props.user?.used_cny ?? 0),
+      description: t('Total spending'),
     },
     {
       label: t('API Requests'),

@@ -121,7 +121,7 @@ func TestEpayNotifyCreditsQuotaAndIsIdempotent(t *testing.T) {
 
 	var reloaded model.User
 	require.NoError(t, db.First(&reloaded, user.Id).Error)
-	require.Equal(t, 100+int(2*common.QuotaPerUnit), reloaded.Quota)
+	require.Equal(t, 100+common.CNYToQuota(2), reloaded.Quota)
 
 	reloadedTopUp := model.GetTopUpByTradeNo(tradeNo)
 	require.NotNil(t, reloadedTopUp)

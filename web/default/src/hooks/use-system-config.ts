@@ -49,15 +49,6 @@ interface StatusApiResponse {
   }
 }
 
-function toNumber(value: unknown, fallback: number): number {
-  if (typeof value === 'number' && !Number.isNaN(value)) return value
-  if (typeof value === 'string') {
-    const parsed = Number(value)
-    if (!Number.isNaN(parsed)) return parsed
-  }
-  return fallback
-}
-
 /**
  * Map `/api/status` response data to our persisted system config structure
  */
@@ -66,29 +57,16 @@ export function mapStatusDataToConfig(
 ): Partial<SystemConfig> {
   if (!data) return {}
 
-  const quotaDisplayType =
-    (data.quota_display_type as CurrencyDisplayType | undefined) ??
-    DEFAULT_CURRENCY_CONFIG.quotaDisplayType
-
   const currency: CurrencyConfig = {
-    displayInCurrency:
-      data.display_in_currency ?? DEFAULT_CURRENCY_CONFIG.displayInCurrency,
-    quotaDisplayType,
-    quotaPerUnit: toNumber(
-      data.quota_per_unit,
-      DEFAULT_CURRENCY_CONFIG.quotaPerUnit
-    ),
-    usdExchangeRate: toNumber(
-      data.usd_exchange_rate,
-      DEFAULT_CURRENCY_CONFIG.usdExchangeRate
-    ),
+    displayInCurrency: true,
+    quotaDisplayType: 'CNY',
+    quotaPerUnit: DEFAULT_CURRENCY_CONFIG.quotaPerUnit,
+    usdExchangeRate: DEFAULT_CURRENCY_CONFIG.usdExchangeRate,
     customCurrencySymbol:
       data.custom_currency_symbol?.trim() ||
       DEFAULT_CURRENCY_CONFIG.customCurrencySymbol,
-    customCurrencyExchangeRate: toNumber(
-      data.custom_currency_exchange_rate,
-      DEFAULT_CURRENCY_CONFIG.customCurrencyExchangeRate
-    ),
+    customCurrencyExchangeRate:
+      DEFAULT_CURRENCY_CONFIG.customCurrencyExchangeRate,
   }
 
   return {

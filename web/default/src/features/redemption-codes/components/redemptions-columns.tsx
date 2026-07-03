@@ -154,7 +154,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'quota',
-      header: t('Quota'),
+      header: t('Amount'),
       cell: ({ row }) => {
         const quota = row.getValue('quota') as number
         return (

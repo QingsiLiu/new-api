@@ -116,7 +116,7 @@ export function UserInfoDialog({
               value={formatQuota(userInfo.quota)}
             />
             <InfoItem
-              label={t('Used Quota')}
+              label={t('Used Balance')}
               value={formatQuota(userInfo.used_quota)}
             />
           </div>
@@ -154,7 +154,7 @@ export function UserInfoDialog({
 
               {userInfo.aff_quota !== undefined && userInfo.aff_quota > 0 && (
                 <InfoItem
-                  label={t('Invitation Quota')}
+                  label={t('Invitation Balance')}
                   value={formatQuota(userInfo.aff_quota)}
                 />
               )}

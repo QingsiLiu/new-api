@@ -70,10 +70,10 @@ export interface CreemProduct {
   productId: string
   /** Product price */
   price: number
-  /** Quota amount to credit */
+  /** CNY amount to credit, represented in internal billing units for legacy payloads */
   quota: number
-  /** Currency (USD or EUR) */
-  currency: 'USD' | 'EUR'
+  /** Payment provider currency; public UI displays CNY */
+  currency: 'CNY' | 'USD' | 'EUR'
 }
 
 /**
@@ -216,7 +216,7 @@ export interface AmountRequest {
  * Affiliate quota transfer request
  */
 export interface AffiliateTransferRequest {
-  /** Quota amount to transfer */
+  /** Internal billing units to transfer */
   quota: number
 }
 
@@ -228,16 +228,26 @@ export interface UserWalletData {
   id: number
   /** Username */
   username: string
-  /** Current quota balance */
-  quota: number
-  /** Total used quota */
-  used_quota: number
+  /** Public CNY balance */
+  balance_cny: number
+  /** Public CNY usage total */
+  used_cny: number
+  /** Currency code for public money fields */
+  currency?: 'CNY' | string
+  /** Legacy compatibility for admin/history payloads. */
+  quota?: number
+  /** Legacy compatibility for admin/history payloads. */
+  used_quota?: number
   /** Total request count */
   request_count: number
-  /** Affiliate quota (pending rewards) */
-  aff_quota: number
-  /** Total affiliate quota earned (historical) */
-  aff_history_quota: number
+  /** Affiliate CNY balance (pending rewards) */
+  aff_balance_cny: number
+  /** Total affiliate CNY earned (historical) */
+  aff_history_cny: number
+  /** Legacy compatibility for admin/history payloads. */
+  aff_quota?: number
+  /** Legacy compatibility for admin/history payloads. */
+  aff_history_quota?: number
   /** Number of successful affiliate invites */
   aff_count: number
   /** User group */
@@ -257,7 +267,7 @@ export interface TopupRecord {
   id: number
   /** User ID */
   user_id: number
-  /** Topup amount (quota) */
+  /** Topup amount in CNY */
   amount: number
   /** Payment amount (actual money paid) */
   money: number

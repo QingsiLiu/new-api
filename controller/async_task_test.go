@@ -815,10 +815,10 @@ func TestAsyncImageGenerationSpecPricingUsesConfiguredCNYPerImage(t *testing.T) 
 		})
 	})
 
-	require.Equal(t, 110, oneKQuota)
-	require.Equal(t, 180, twoKQuota)
-	require.Equal(t, 290, fourKQuota)
-	require.Equal(t, 360, countQuota)
+	require.Equal(t, 11000, oneKQuota)
+	require.Equal(t, 18000, twoKQuota)
+	require.Equal(t, 29000, fourKQuota)
+	require.Equal(t, 36000, countQuota)
 }
 
 func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *testing.T) {
@@ -856,14 +856,13 @@ func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *tes
 
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-	require.Equal(t, "quota", estimate.Unit)
-	require.Equal(t, 360, estimate.Quota)
+	require.Equal(t, "CNY", estimate.Unit)
+	require.Equal(t, "CNY", estimate.Currency)
+	require.Equal(t, 0.36, estimate.AmountCNY)
+	require.Equal(t, 0.18, estimate.Breakdown.SpecUnitCNY)
+	require.Equal(t, 0.36, estimate.Breakdown.SpecTotalCNY)
 	require.Equal(t, map[string]float64{
-		"spec_priced":    1,
-		"spec_total_cny": 0.36,
-		"spec_unit_cny":  0.18,
-		"spec_quota":     360,
-		"quota_per_cny":  1000,
+		"spec_priced": 1,
 	}, estimate.Breakdown.OtherRatios)
 
 	var taskCount int64
@@ -890,7 +889,7 @@ func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *tes
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, estimate.Quota, task.Quota)
+	require.Equal(t, common.CNYToQuota(0.36), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.True(t, task.PrivateData.BillingContext.SpecPricing.Priced)
@@ -907,6 +906,8 @@ func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *tes
 	require.Contains(t, consumeLogs[0].Other, `"spec_priced":true`)
 	require.Contains(t, consumeLogs[0].Other, `"spec_key":"2k"`)
 	require.Contains(t, consumeLogs[0].Other, `"spec_total_cny":0.36`)
+	require.NotContains(t, consumeLogs[0].Other, "quota")
+	require.NotContains(t, consumeLogs[0].Content, "quota")
 }
 
 func TestAsyncPricingEstimateAndChargePreferModelPricingConfig(t *testing.T) {
@@ -953,7 +954,9 @@ func TestAsyncPricingEstimateAndChargePreferModelPricingConfig(t *testing.T) {
 	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-	require.Equal(t, 360, estimate.Quota)
+	require.Equal(t, 0.36, estimate.AmountCNY)
+	require.Equal(t, "CNY", estimate.Currency)
+	require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
 
 	createRecorder := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
@@ -966,7 +969,7 @@ func TestAsyncPricingEstimateAndChargePreferModelPricingConfig(t *testing.T) {
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, estimate.Quota, task.Quota)
+	require.Equal(t, common.CNYToQuota(0.36), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.Equal(t, "2k", task.PrivateData.BillingContext.SpecPricing.SpecKey)
 }
@@ -1009,7 +1012,8 @@ func TestAsyncPricingEstimateSkipsModelPricingConfigWhenUntrusted(t *testing.T) 
 	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-	require.Equal(t, 1980, estimate.Quota)
+	require.Equal(t, 1.98, estimate.AmountCNY)
+	require.Equal(t, "CNY", estimate.Currency)
 }
 
 func TestAsyncPricingModelConfigSpecOnlyRequiresMatchedSpec(t *testing.T) {
@@ -1095,7 +1099,8 @@ func TestAsyncPricingModelConfigSpecOnlyMatchedSpecEstimatesAndCharges(t *testin
 	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-	require.Equal(t, 360, estimate.Quota)
+	require.Equal(t, 0.36, estimate.AmountCNY)
+	require.Equal(t, "CNY", estimate.Currency)
 
 	createRecorder := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
@@ -1107,7 +1112,7 @@ func TestAsyncPricingModelConfigSpecOnlyMatchedSpecEstimatesAndCharges(t *testin
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, estimate.Quota, task.Quota)
+	require.Equal(t, common.CNYToQuota(0.36), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.Equal(t, "2k", task.PrivateData.BillingContext.SpecPricing.SpecKey)
 }
@@ -1143,8 +1148,9 @@ func TestAsyncPricingEstimateUsesMultipartImageResolution(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &estimate))
-	require.Equal(t, 490, estimate.Quota)
-	require.Equal(t, float64(490), estimate.Breakdown.OtherRatios["spec_quota"])
+	require.Equal(t, 0.49, estimate.AmountCNY)
+	require.Equal(t, "CNY", estimate.Currency)
+	require.NotContains(t, recorder.Body.String(), `"quota"`)
 }
 
 func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
@@ -1184,70 +1190,70 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 			name:       "gemini-2.5-default",
 			model:      "gemini-2.5-flash-image",
 			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
-			wantQuota:  120,
+			wantQuota:  12000,
 			wantKey:    "default",
 		},
 		{
 			name:       "gemini-3.1-1k",
 			model:      "gemini-3.1-flash-image-preview",
 			parameters: map[string]interface{}{"resolution": "1K", "n": 1},
-			wantQuota:  180,
+			wantQuota:  18000,
 			wantKey:    "1k",
 		},
 		{
 			name:       "gemini-3.1-2k",
 			model:      "gemini-3.1-flash-image-preview",
 			parameters: map[string]interface{}{"resolution": "2K", "n": 1},
-			wantQuota:  280,
+			wantQuota:  28000,
 			wantKey:    "2k",
 		},
 		{
 			name:       "gemini-3.1-4k",
 			model:      "gemini-3.1-flash-image-preview",
 			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
-			wantQuota:  420,
+			wantQuota:  42000,
 			wantKey:    "4k",
 		},
 		{
 			name:       "gemini-3-pro-1k",
 			model:      "gemini-3-pro-image-preview",
 			parameters: map[string]interface{}{"resolution": "1K", "n": 1},
-			wantQuota:  320,
+			wantQuota:  32000,
 			wantKey:    "1k",
 		},
 		{
 			name:       "gemini-3-pro-2k",
 			model:      "gemini-3-pro-image-preview",
 			parameters: map[string]interface{}{"resolution": "2K", "n": 1},
-			wantQuota:  320,
+			wantQuota:  32000,
 			wantKey:    "2k",
 		},
 		{
 			name:       "gemini-3-pro-4k",
 			model:      "gemini-3-pro-image-preview",
 			parameters: map[string]interface{}{"resolution": "4K", "n": 1},
-			wantQuota:  490,
+			wantQuota:  49000,
 			wantKey:    "4k",
 		},
 		{
 			name:       "gpt-image-2-1k",
 			model:      "gpt-image-2",
 			parameters: map[string]interface{}{"size": "1024x1024", "n": 1},
-			wantQuota:  110,
+			wantQuota:  11000,
 			wantKey:    "1k",
 		},
 		{
 			name:       "gpt-image-2-2k",
 			model:      "gpt-image-2",
 			parameters: map[string]interface{}{"size": "2048x2048", "n": 1},
-			wantQuota:  180,
+			wantQuota:  18000,
 			wantKey:    "2k",
 		},
 		{
 			name:       "gpt-image-2-4k",
 			model:      "gpt-image-2",
 			parameters: map[string]interface{}{"size": "4096x2048", "n": 1},
-			wantQuota:  290,
+			wantQuota:  29000,
 			wantKey:    "4k",
 		},
 	}
@@ -1273,8 +1279,9 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 
 			var estimate asyncTaskPricingEstimateResponse
 			require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-			require.Equal(t, tt.wantQuota, estimate.Quota)
-			require.Equal(t, float64(tt.wantQuota), estimate.Breakdown.OtherRatios["spec_quota"])
+			require.Equal(t, common.QuotaToCNY(tt.wantQuota), estimate.AmountCNY)
+			require.Equal(t, "CNY", estimate.Currency)
+			require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
 
 			createRecorder := httptest.NewRecorder()
 			createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
@@ -1287,7 +1294,7 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 			require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 			var task model.Task
 			require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-			require.Equal(t, estimate.Quota, task.Quota)
+			require.Equal(t, tt.wantQuota, task.Quota)
 			require.NotNil(t, task.PrivateData.BillingContext)
 			require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 			require.Equal(t, tt.model, task.PrivateData.BillingContext.SpecPricing.Model)
@@ -1375,6 +1382,7 @@ func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {
 		TokenId:   3001,
 		Group:     "default",
 		CreatedAt: 100,
+		Other:     `{"spec_total_cny":0.11,"spec_quota":11000,"quota_per_cny":100000,"nested":{"actual_quota":11000,"actual_cny":0.11},"label":"safe"}`,
 	}).Error)
 
 	balanceRecorder := httptest.NewRecorder()
@@ -1385,9 +1393,10 @@ func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {
 
 	var balance asyncBillingBalanceResponse
 	require.NoError(t, common.Unmarshal(balanceRecorder.Body.Bytes(), &balance))
-	require.Equal(t, 1000000, balance.Quota)
-	require.Equal(t, "quota", balance.Unit)
+	require.Equal(t, 10.0, balance.BalanceCNY)
+	require.Equal(t, "CNY", balance.Currency)
 	require.Equal(t, 2001, balance.UserID)
+	require.NotContains(t, balanceRecorder.Body.String(), `"quota"`)
 
 	usageRecorder := httptest.NewRecorder()
 	usageRequest := httptest.NewRequest(http.MethodGet, "/v1/billing/usage?p=1&page_size=10", nil)
@@ -1402,7 +1411,11 @@ func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {
 	require.Equal(t, 1, usage.Total)
 	require.Len(t, usage.Items, 1)
 	require.Equal(t, "gpt-image-2", usage.Items[0].ModelName)
-	require.Equal(t, 1234, usage.Items[0].Quota)
+	require.Equal(t, 0.01234, usage.Items[0].AmountCNY)
+	require.NotContains(t, usageRecorder.Body.String(), `"quota"`)
+	require.NotContains(t, usage.Items[0].Other, "quota")
+	require.Contains(t, usage.Items[0].Other, `"spec_total_cny":0.11`)
+	require.Contains(t, usage.Items[0].Other, `"actual_cny":0.11`)
 	require.Equal(t, model.LogTypeConsume, usage.Items[0].Type)
 
 	var user model.User
@@ -1465,9 +1478,9 @@ func TestAsyncVideoGenerationSpecPricingUsesConfiguredCNYPerSecond(t *testing.T)
 		})
 	})
 
-	require.Equal(t, 800, baseQuota)
-	require.Equal(t, 1600, highResolutionQuota)
-	require.Equal(t, 2000, longDurationQuota)
+	require.Equal(t, 80000, baseQuota)
+	require.Equal(t, 160000, highResolutionQuota)
+	require.Equal(t, 200000, longDurationQuota)
 }
 
 func TestAsyncVideoSpecPricingFallsBackToPerModelWhenModelUnconfigured(t *testing.T) {
@@ -1575,10 +1588,11 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-	require.Equal(t, 5217, estimate.Quota)
-	require.Equal(t, float64(5217), estimate.Breakdown.OtherRatios["spec_quota"])
-	require.Equal(t, 1.0433, estimate.Breakdown.OtherRatios["spec_unit_cny"])
-	require.Equal(t, 5.2165, estimate.Breakdown.OtherRatios["spec_total_cny"])
+	require.Equal(t, 5.2165, estimate.AmountCNY)
+	require.Equal(t, "CNY", estimate.Currency)
+	require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
+	require.Equal(t, 1.0433, estimate.Breakdown.SpecUnitCNY)
+	require.Equal(t, 5.2165, estimate.Breakdown.SpecTotalCNY)
 
 	createRecorder := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(payload))
@@ -1591,7 +1605,7 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, estimate.Quota, task.Quota)
+	require.Equal(t, common.CNYToQuota(5.2165), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
 	require.Equal(t, "720p:16:9:no_video_input", task.PrivateData.BillingContext.SpecPricing.SpecKey)
@@ -2214,7 +2228,7 @@ func TestAsyncProductImageTaskRouteReturnsPaymentRequiredWhenQuotaInsufficient(t
 	engine.ServeHTTP(recorder, request)
 
 	require.Equal(t, http.StatusPaymentRequired, recorder.Code, recorder.Body.String())
-	require.Contains(t, recorder.Body.String(), "需要预扣费额度")
+	require.Contains(t, recorder.Body.String(), "需要预扣费金额")
 	var taskCount int64
 	require.NoError(t, model.DB.Model(&model.Task{}).Count(&taskCount).Error)
 	require.Zero(t, taskCount)

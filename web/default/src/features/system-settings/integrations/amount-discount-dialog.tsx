@@ -146,7 +146,7 @@ export function AmountDiscountDialog({
             name='amount'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Recharge Amount (USD)')}</FormLabel>
+                <FormLabel>{t('Recharge Amount (CNY)')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'

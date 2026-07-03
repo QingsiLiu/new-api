@@ -62,7 +62,7 @@ const FIELD_LABELS: Record<string, string> = {
   name_rule: 'Name Rule',
   status: 'Status',
   endpoints: 'Endpoints',
-  quota_types: 'Quota Types',
+  quota_types: 'Billing Types',
   enable_groups: 'Enable Groups',
 }
 

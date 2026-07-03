@@ -18,7 +18,7 @@ type QuotaData struct {
 	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
 	TokenUsed int    `json:"token_used" gorm:"default:0"`
 	Count     int    `json:"count" gorm:"default:0"`
-	Quota     int    `json:"quota" gorm:"default:0"`
+	Quota     int    `json:"quota" gorm:"type:bigint;default:0"`
 }
 
 func UpdateQuotaData() {

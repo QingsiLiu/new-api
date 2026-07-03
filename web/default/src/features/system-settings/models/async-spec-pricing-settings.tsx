@@ -28,7 +28,6 @@ import { StaticDataTable } from '@/components/data-table'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const PRICING_OPTION_KEY = 'AsyncSpecPricing'
-const QUOTA_PER_CNY_OPTION_KEY = 'QuotaPerCNY'
 
 type AsyncSpecPricingSettingsProps = {
   pricingDefault: string
@@ -335,9 +334,6 @@ const AsyncSpecPricingSettingsInner = memo(
     const [imageRows, setImageRows] = useState<ImageRow[]>(
       () => initialState.imageRows
     )
-    const [quotaPerCNY, setQuotaPerCNY] = useState(
-      () => initialState.quotaPerCNY
-    )
     const [jsonText, setJsonText] = useState(() => initialState.jsonText)
     const [jsonError, setJsonError] = useState(() => initialState.jsonError)
     const [nextRowId, setNextRowId] = useState(() => initialState.nextRowId)
@@ -474,20 +470,7 @@ const AsyncSpecPricingSettingsInner = memo(
         key: PRICING_OPTION_KEY,
         value,
       })
-      await updateOption.mutateAsync({
-        key: QUOTA_PER_CNY_OPTION_KEY,
-        value: String(quotaPerCNY),
-      })
-    }, [
-      currentJson,
-      editMode,
-      jsonError,
-      jsonText,
-      quotaPerCNY,
-      readOnly,
-      t,
-      updateOption,
-    ])
+    }, [currentJson, editMode, jsonError, jsonText, readOnly, t, updateOption])
 
     return (
       <div className='space-y-5'>
@@ -850,33 +833,6 @@ const AsyncSpecPricingSettingsInner = memo(
             />
           </div>
         )}
-
-        <details className='border-border border-t pt-4'>
-          <summary className='text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium'>
-            {t('Advanced conversion settings')}
-          </summary>
-          <div className='mt-3 max-w-md space-y-1.5'>
-            <label className='text-sm font-medium' htmlFor='quota-per-cny'>
-              {t('Internal quota conversion')}
-            </label>
-            <Input
-              id='quota-per-cny'
-              type='number'
-              min={0}
-              step={1}
-              value={quotaPerCNY}
-              disabled={readOnly}
-              onChange={(event) =>
-                setQuotaPerCNY(normalizeNumber(event.target.value))
-              }
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Converts CNY prices to the internal billing quota. Usually leave this unchanged.'
-              )}
-            </p>
-          </div>
-        </details>
       </div>
     )
   }

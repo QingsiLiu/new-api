@@ -165,7 +165,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       id: 'quota',
       accessorKey: 'quota',
-      header: t('Quota'),
+      header: t('Balance'),
       cell: ({ row }) => {
         const user = row.original
         const used = user.used_quota
@@ -176,7 +176,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         if (total === 0) {
           return (
             <StatusBadge
-              label={t('No Quota')}
+              label={t('No Balance')}
               variant='neutral'
               copyable={false}
               className='-ml-1.5'

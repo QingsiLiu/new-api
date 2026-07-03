@@ -49,13 +49,13 @@ func TestManageUserQuotaIsIdempotentWithRequestID(t *testing.T) {
 	db := setupUserControllerTestDB(t)
 
 	target := &model.User{
-		Username:  "bridge-user",
-		Password:  "hash",
+		Username:    "bridge-user",
+		Password:    "hash",
 		DisplayName: "Bridge User",
-		Role:      common.RoleCommonUser,
-		Status:    common.UserStatusEnabled,
-		Quota:     10,
-		Group:     "default",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Quota:       10,
+		Group:       "default",
 	}
 	require.NoError(t, db.Create(target).Error)
 
@@ -86,4 +86,48 @@ func TestManageUserQuotaIsIdempotentWithRequestID(t *testing.T) {
 	require.Equal(t, "req-123", records[0].RequestId)
 	require.Equal(t, 10, records[0].BeforeQuota)
 	require.Equal(t, 17, records[0].AfterQuota)
+}
+
+func TestGetSelfReturnsCNYBalancesWithoutRawQuota(t *testing.T) {
+	db := setupUserControllerTestDB(t)
+
+	user := &model.User{
+		Username:        "cny-self-user",
+		Password:        "hash",
+		DisplayName:     "CNY User",
+		Role:            common.RoleCommonUser,
+		Status:          common.UserStatusEnabled,
+		Quota:           110000,
+		UsedQuota:       242550,
+		AffQuota:        333333,
+		AffHistoryQuota: 444444,
+		Group:           "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self", nil)
+	ctx.Set("id", user.Id)
+	ctx.Set("role", common.RoleCommonUser)
+
+	GetSelf(ctx)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool                   `json:"success"`
+		Data    map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+
+	require.Equal(t, "CNY", response.Data["currency"])
+	require.InDelta(t, 1.1, response.Data["balance_cny"], 0.000001)
+	require.InDelta(t, 2.4255, response.Data["used_cny"], 0.000001)
+	require.InDelta(t, 3.33333, response.Data["aff_balance_cny"], 0.000001)
+	require.InDelta(t, 4.44444, response.Data["aff_history_cny"], 0.000001)
+	require.NotContains(t, response.Data, "quota")
+	require.NotContains(t, response.Data, "used_quota")
+	require.NotContains(t, response.Data, "aff_quota")
+	require.NotContains(t, response.Data, "aff_history_quota")
 }

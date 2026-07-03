@@ -21,6 +21,7 @@ import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { deferEffect } from '@/lib/defer-effect'
+import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -300,12 +301,14 @@ export function UserSubscriptionsDialog(props: Props) {
                 },
                 {
                   id: 'quota',
-                  header: t('Total Quota'),
+                  header: t('Included Balance'),
                   cell: (record) => {
                     const sub = record.subscription
                     const total = Number(sub.amount_total || 0)
                     const used = Number(sub.amount_used || 0)
-                    return total > 0 ? `${used}/${total}` : t('Unlimited')
+                    return total > 0
+                      ? `${formatQuota(used)}/${formatQuota(total)}`
+                      : t('Unlimited')
                   },
                 },
                 {

@@ -173,7 +173,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
       {/* Warning Threshold */}
       <div className='space-y-1.5'>
-        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
+        <Label htmlFor='threshold'>{t('Balance Warning Threshold')}</Label>
         <Input
           id='threshold'
           type='number'

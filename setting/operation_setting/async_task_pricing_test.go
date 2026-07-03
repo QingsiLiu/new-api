@@ -3,6 +3,8 @@ package operation_setting
 import (
 	"math"
 	"testing"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 func resetAsyncSpecPricingForTest(t *testing.T) {
@@ -41,8 +43,8 @@ func TestResolveVideoSpecQuotaUsesResolutionSecondsAndCNYConversion(t *testing.T
 	if !result.Matched {
 		t.Fatalf("expected spec pricing match")
 	}
-	if result.Quota != 2800 {
-		t.Fatalf("want quota 2800, got %d", result.Quota)
+	if result.Quota != common.CNYToQuota(2.8) {
+		t.Fatalf("want quota %d, got %d", common.CNYToQuota(2.8), result.Quota)
 	}
 	if result.SpecKey != "1080p" {
 		t.Fatalf("want spec key 1080p, got %q", result.SpecKey)
@@ -85,7 +87,7 @@ func TestResolveVideoSpecQuotaUsesResolutionRatioAndModeMatrix(t *testing.T) {
 	if textToVideo.SpecKey != "720p:16:9:no_video_input" || textToVideo.Resolution != "720p" || textToVideo.Ratio != "16:9" || textToVideo.Mode != "no_video_input" {
 		t.Fatalf("matrix metadata mismatch: %+v", textToVideo)
 	}
-	if !closeFloat(textToVideo.UnitCNY, 1.0433) || !closeFloat(textToVideo.TotalCNY, 5.2165) || textToVideo.Quota != 5217 {
+	if !closeFloat(textToVideo.UnitCNY, 1.0433) || !closeFloat(textToVideo.TotalCNY, 5.2165) || textToVideo.Quota != common.CNYToQuota(5.2165) {
 		t.Fatalf("text-to-video price mismatch: %+v", textToVideo)
 	}
 
@@ -93,7 +95,7 @@ func TestResolveVideoSpecQuotaUsesResolutionRatioAndModeMatrix(t *testing.T) {
 	if !videoInput.Matched || videoInput.Unsupported {
 		t.Fatalf("expected video-input matrix match, got %+v", videoInput)
 	}
-	if videoInput.SpecKey != "720p:21:9:with_video_input" || !closeFloat(videoInput.UnitCNY, 0.8335) || !closeFloat(videoInput.TotalCNY, 4.1675) || videoInput.Quota != 4168 {
+	if videoInput.SpecKey != "720p:21:9:with_video_input" || !closeFloat(videoInput.UnitCNY, 0.8335) || !closeFloat(videoInput.TotalCNY, 4.1675) || videoInput.Quota != common.CNYToQuota(4.1675) {
 		t.Fatalf("video-input price mismatch: %+v", videoInput)
 	}
 }
@@ -132,7 +134,7 @@ func TestResolveVideoSpecQuotaSupportsSeedance15ProModesAndUnsupportedCells(t *t
 	if !imageNoAudio.Matched || imageNoAudio.Unsupported {
 		t.Fatalf("expected image-no-audio matrix match, got %+v", imageNoAudio)
 	}
-	if imageNoAudio.SpecKey != "480p:4:3:image_no_audio" || !closeFloat(imageNoAudio.UnitCNY, 0.058) || !closeFloat(imageNoAudio.TotalCNY, 0.29) || imageNoAudio.Quota != 290 {
+	if imageNoAudio.SpecKey != "480p:4:3:image_no_audio" || !closeFloat(imageNoAudio.UnitCNY, 0.058) || !closeFloat(imageNoAudio.TotalCNY, 0.29) || imageNoAudio.Quota != common.CNYToQuota(0.29) {
 		t.Fatalf("image-no-audio price mismatch: %+v", imageNoAudio)
 	}
 
@@ -185,7 +187,7 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			mode:       "with_video_input",
 			seconds:    5,
 			wantUnit:   0.8335,
-			wantQuota:  4168,
+			wantQuota:  common.CNYToQuota(0.8335 * 5),
 		},
 		{
 			name:       "seedance-2-fast-720p-4-3-no-video",
@@ -195,7 +197,7 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			mode:       "no_video_input",
 			seconds:    5,
 			wantUnit:   0.6294,
-			wantQuota:  3147,
+			wantQuota:  common.CNYToQuota(0.6294 * 5),
 		},
 		{
 			name:       "seedance-2-mini-480p-1-1-with-video",
@@ -205,7 +207,7 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			mode:       "with_video_input",
 			seconds:    5,
 			wantUnit:   0.1411,
-			wantQuota:  706,
+			wantQuota:  common.CNYToQuota(0.1411 * 5),
 		},
 		{
 			name:       "seedance-15-pro-1080p-21-9-text-no-audio",
@@ -215,7 +217,7 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			mode:       "text_no_audio",
 			seconds:    5,
 			wantUnit:   0.4109,
-			wantQuota:  2055,
+			wantQuota:  common.CNYToQuota(0.4109 * 5),
 		},
 	}
 
@@ -283,12 +285,12 @@ func TestResolveVideoSpecQuotaAppliesDefaultMinMaxAndAllowsZeroPrice(t *testing.
 	}
 
 	minBound := ResolveVideoSpecQuota("video-bounded", "unlisted", 1)
-	if !minBound.Matched || minBound.Quota != 200 || minBound.SpecKey != "default" {
+	if !minBound.Matched || minBound.Quota != common.CNYToQuota(2) || minBound.SpecKey != "default" {
 		t.Fatalf("min bound mismatch: %+v", minBound)
 	}
 
 	maxBound := ResolveVideoSpecQuota("video-bounded", "unlisted", 20)
-	if !maxBound.Matched || maxBound.Quota != 300 || maxBound.SpecKey != "default" {
+	if !maxBound.Matched || maxBound.Quota != common.CNYToQuota(3) || maxBound.SpecKey != "default" {
 		t.Fatalf("max bound mismatch: %+v", maxBound)
 	}
 }
@@ -317,8 +319,8 @@ func TestResolveImageSpecQuotaUsesResolutionCountAndAliases(t *testing.T) {
 	if !result.Matched {
 		t.Fatalf("expected spec pricing match")
 	}
-	if result.Quota != 360 {
-		t.Fatalf("want quota 360, got %d", result.Quota)
+	if result.Quota != common.CNYToQuota(0.18*2) {
+		t.Fatalf("want quota %d, got %d", common.CNYToQuota(0.18*2), result.Quota)
 	}
 	if result.SpecKey != "2k" {
 		t.Fatalf("want spec key 2k, got %q", result.SpecKey)
@@ -350,11 +352,11 @@ func TestResolveImageSpecQuotaNormalizesResolutionCandidates(t *testing.T) {
 		wantKey    string
 		wantQuota  int
 	}{
-		{name: "explicit-resolution", resolution: "4K", wantKey: "4k", wantQuota: 490},
-		{name: "numeric-resolution", resolution: "2048", wantKey: "2k", wantQuota: 320},
-		{name: "size-max-dimension-1k", size: "768x1024", wantKey: "1k", wantQuota: 320},
-		{name: "size-max-dimension-2k", size: "1024x2048", wantKey: "2k", wantQuota: 320},
-		{name: "size-max-dimension-4k", size: "4096x2048", wantKey: "4k", wantQuota: 490},
+		{name: "explicit-resolution", resolution: "4K", wantKey: "4k", wantQuota: common.CNYToQuota(0.49)},
+		{name: "numeric-resolution", resolution: "2048", wantKey: "2k", wantQuota: common.CNYToQuota(0.32)},
+		{name: "size-max-dimension-1k", size: "768x1024", wantKey: "1k", wantQuota: common.CNYToQuota(0.32)},
+		{name: "size-max-dimension-2k", size: "1024x2048", wantKey: "2k", wantQuota: common.CNYToQuota(0.32)},
+		{name: "size-max-dimension-4k", size: "4096x2048", wantKey: "4k", wantQuota: common.CNYToQuota(0.49)},
 	}
 
 	for _, tt := range tests {
@@ -385,7 +387,7 @@ func TestResolveImageSpecQuotaFallsBackFromResolutionToQuality(t *testing.T) {
 
 	result := ResolveImageSpecQuota("legacy-image-model", "bad-size", "", "hd", 2)
 
-	if !result.Matched || result.SpecKey != "high" || result.Quota != 600 {
+	if !result.Matched || result.SpecKey != "high" || result.Quota != common.CNYToQuota(0.3*2) {
 		t.Fatalf("quality fallback mismatch: %+v", result)
 	}
 }
@@ -404,7 +406,7 @@ func TestResolveImageSpecQuotaDefaultsCountAndFallsBackWhenUnconfigured(t *testi
 	}
 
 	result := ResolveImageSpecQuota("image-model", "unknown", "", "", 0)
-	if !result.Matched || result.Quota != 25 || result.SpecKey != "default" {
+	if !result.Matched || result.Quota != common.CNYToQuota(0.25) || result.SpecKey != "default" {
 		t.Fatalf("default image mismatch: %+v", result)
 	}
 
@@ -431,7 +433,7 @@ func TestAsyncSpecPricingBadJSONClearsToSafeFallback(t *testing.T) {
 	}
 }
 
-func TestResolveSpecQuotaUsesDefaultQuotaPerCNYWhenConfiguredRateInvalid(t *testing.T) {
+func TestResolveSpecQuotaUsesFixedCNY100KRateWhenConfiguredRateInvalid(t *testing.T) {
 	resetAsyncSpecPricingForTest(t)
 	QuotaPerCNY = 0
 	if err := UpdateAsyncSpecPricingByJSONString(`{
@@ -449,8 +451,11 @@ func TestResolveSpecQuotaUsesDefaultQuotaPerCNYWhenConfiguredRateInvalid(t *test
 	if !result.Matched {
 		t.Fatalf("expected spec pricing match")
 	}
-	if result.Quota != 50000 {
-		t.Fatalf("want quota 50000 from default QuotaPerCNY fallback, got %d", result.Quota)
+	if result.Quota != 72000 {
+		t.Fatalf("want quota 72000 from fixed CNY 100k rate, got %d", result.Quota)
+	}
+	if result.QuotaPerCNY != common.CNYQuotaUnit {
+		t.Fatalf("want quota_per_cny %f from fixed CNY 100k rate, got %f", common.CNYQuotaUnit, result.QuotaPerCNY)
 	}
 }
 
@@ -474,7 +479,7 @@ func TestAsyncSpecPricingCoexistsWithGPTImage1NativePriceTable(t *testing.T) {
 	spec := ResolveImageSpecQuota("gpt-image-1", "", "", "high", 2)
 	unchangedNativePrice := GetGPTImage1PriceOnceCall("high", "1024x1024")
 
-	if !spec.Matched || spec.Quota != 1000 {
+	if !spec.Matched || spec.Quota != common.CNYToQuota(0.5*2) {
 		t.Fatalf("expected configured async spec price to match, got %+v", spec)
 	}
 	if unchangedNativePrice != nativePrice {

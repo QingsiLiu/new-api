@@ -170,7 +170,7 @@ func InitOptionMap() {
 	common.OptionMap["AsyncTaskProductRoutesEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskProductRoutesEnabled)
 	common.OptionMap["AsyncTaskServiceUserProxyEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskServiceUserProxyEnabled)
 	common.OptionMap["AsyncSpecPricing"] = operation_setting.AsyncSpecPricing2JSONString()
-	common.OptionMap["QuotaPerCNY"] = strconv.FormatFloat(operation_setting.QuotaPerCNY, 'f', -1, 64)
+	common.OptionMap["QuotaPerCNY"] = strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(setting.ModelRequestRateLimitEnabled)
 	common.OptionMap["CheckSensitiveOnPromptEnabled"] = strconv.FormatBool(setting.CheckSensitiveOnPromptEnabled)
 	common.OptionMap["StopOnSensitiveEnabled"] = strconv.FormatBool(setting.StopOnSensitiveEnabled)
@@ -245,6 +245,7 @@ func UpdateOption(key string, value string) error {
 	if err := validateOptionBeforePersist(key, value); err != nil {
 		return err
 	}
+	value = normalizeOptionValueBeforePersist(key, value)
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -265,12 +266,19 @@ func validateOptionBeforePersist(key string, value string) error {
 	case "QuotaPerCNY":
 		quotaPerCNY, parseErr := strconv.ParseFloat(value, 64)
 		if parseErr != nil || quotaPerCNY <= 0 {
-			return fmt.Errorf("QuotaPerCNY must be greater than 0")
+			return fmt.Errorf("CNY billing unit must be greater than 0")
 		}
 	case "AsyncSpecPricing":
 		return operation_setting.ValidateAsyncSpecPricingJSONString(value)
 	}
 	return nil
+}
+
+func normalizeOptionValueBeforePersist(key string, value string) string {
+	if key == "QuotaPerCNY" || key == "QuotaPerUnit" {
+		return strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
+	}
+	return value
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
@@ -284,6 +292,11 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
+			if err := validateOptionBeforePersist(k, v); err != nil {
+				return err
+			}
+			v = normalizeOptionValueBeforePersist(k, v)
+			values[k] = v
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
@@ -610,13 +623,15 @@ func updateOptionMap(key string, value string) (err error) {
 	case "ChannelDisableThreshold":
 		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
 	case "QuotaPerUnit":
-		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
+		common.QuotaPerUnit = common.CNYQuotaUnit
+		common.OptionMap[key] = strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
 	case "QuotaPerCNY":
 		quotaPerCNY, parseErr := strconv.ParseFloat(value, 64)
 		if parseErr != nil || quotaPerCNY <= 0 {
-			return fmt.Errorf("QuotaPerCNY must be greater than 0")
+			return fmt.Errorf("CNY billing unit must be greater than 0")
 		}
-		operation_setting.QuotaPerCNY = quotaPerCNY
+		operation_setting.QuotaPerCNY = common.CNYQuotaUnit
+		common.OptionMap[key] = strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
 	case "AsyncSpecPricing":
 		err = operation_setting.UpdateAsyncSpecPricingByJSONString(value)
 	case "SensitiveWords":

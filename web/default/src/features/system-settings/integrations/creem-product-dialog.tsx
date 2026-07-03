@@ -48,8 +48,8 @@ const creemProductDialogSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   productId: z.string().min(1, 'Product ID is required'),
   price: z.number().min(0.01, 'Price must be greater than 0'),
-  quota: z.number().min(1, 'Quota must be at least 1'),
-  currency: z.enum(['USD', 'EUR']),
+  quota: z.number().min(1, 'Balance amount must be at least 1 unit'),
+  currency: z.enum(['CNY', 'USD', 'EUR']),
 })
 
 type CreemProductDialogFormValues = z.infer<typeof creemProductDialogSchema>
@@ -82,7 +82,7 @@ export function CreemProductDialog({
       productId: '',
       price: 0,
       quota: 0,
-      currency: 'USD',
+      currency: 'CNY',
     },
   })
 
@@ -95,7 +95,7 @@ export function CreemProductDialog({
         productId: '',
         price: 0,
         quota: 0,
-        currency: 'USD',
+        currency: 'CNY',
       })
     }
   }, [editData, form, open])
@@ -190,8 +190,7 @@ export function CreemProductDialog({
                   <FormLabel>{t('Currency')}</FormLabel>
                   <Select
                     items={[
-                      { value: 'USD', label: 'USD ($)' },
-                      { value: 'EUR', label: 'EUR (€)' },
+                      { value: 'CNY', label: 'CNY (¥)' },
                     ]}
                     onValueChange={field.onChange}
                     value={field.value}
@@ -203,8 +202,7 @@ export function CreemProductDialog({
                     </FormControl>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
-                        <SelectItem value='USD'>USD ($)</SelectItem>
-                        <SelectItem value='EUR'>EUR (€)</SelectItem>
+                        <SelectItem value='CNY'>CNY (¥)</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
@@ -239,17 +237,17 @@ export function CreemProductDialog({
             name='quota'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Quota')}</FormLabel>
+                <FormLabel>{t('Balance')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
                     min={1}
-                    placeholder={t('e.g., 500000')}
+                    placeholder={t('e.g., 1000000')}
                     {...safeNumberFieldProps(field)}
                   />
                 </FormControl>
                 <FormDescription>
-                  {t('Amount of quota to credit to user account.')}
+                  {t('Amount of CNY balance to credit to the user account.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

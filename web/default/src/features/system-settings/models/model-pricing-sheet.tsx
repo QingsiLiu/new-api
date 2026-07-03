@@ -562,7 +562,7 @@ export const ModelPricingEditorPanel = forwardRef<
                           onChange={handlePromptPriceChange}
                         />
                         <FieldDescription>
-                          {t('USD price per 1M input tokens.')}
+                          {t('CNY price per 1M input tokens.')}
                         </FieldDescription>
                       </Field>
 
@@ -624,7 +624,7 @@ export const ModelPricingEditorPanel = forwardRef<
                               </FormControl>
                               <FieldDescription>
                                 {t(
-                                  'Cost in USD per request, regardless of tokens used.'
+                                  'Cost in CNY per request, regardless of tokens used.'
                                 )}
                               </FieldDescription>
                               <FormMessage />

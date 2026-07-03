@@ -333,7 +333,7 @@ export function MonitoringSettingsSection({
               name='QuotaRemindThreshold'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Quota reminder (tokens)')}</FormLabel>
+                  <FormLabel>{t('Balance reminder')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -344,7 +344,7 @@ export function MonitoringSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Send email alerts when a user falls below this quota')}
+                    {t('Send email alerts when a user falls below this balance')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

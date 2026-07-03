@@ -55,7 +55,7 @@ const getGroupDefaults = (settings: BillingSettings) => ({
 const BILLING_SECTIONS = [
   {
     id: 'quota',
-    titleKey: 'Quota Settings',
+    titleKey: 'Balance Settings',
     build: (settings: BillingSettings) => (
       <QuotaSettingsSection
         defaultValues={{
@@ -182,7 +182,7 @@ const BILLING_SECTIONS = [
           WaffoSandboxPrivateKey: settings.WaffoSandboxPrivateKey ?? '',
           WaffoSandbox: settings.WaffoSandbox ?? false,
           WaffoMerchantId: settings.WaffoMerchantId ?? '',
-          WaffoCurrency: settings.WaffoCurrency ?? 'USD',
+          WaffoCurrency: settings.WaffoCurrency ?? 'CNY',
           WaffoUnitPrice: settings.WaffoUnitPrice ?? 1,
           WaffoMinTopUp: settings.WaffoMinTopUp ?? 1,
           WaffoNotifyUrl: settings.WaffoNotifyUrl ?? '',

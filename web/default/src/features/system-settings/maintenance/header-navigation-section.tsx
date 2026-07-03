@@ -159,7 +159,7 @@ export function HeaderNavigationSection({
     {
       key: 'console',
       title: t('Console'),
-      description: t('User dashboard and quota controls.'),
+      description: t('User dashboard and balance controls.'),
     },
     {
       key: 'docs',

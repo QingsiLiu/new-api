@@ -355,7 +355,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          '0 means unlimited. The value is converted to quota units when saved.'
+                          '0 means unlimited. The value is saved as CNY balance.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -581,11 +581,11 @@ export function SubscriptionsMutateDrawer({
               </div>
             </SideDrawerSection>
 
-            {/* Quota Reset */}
+            {/* Balance reset */}
             <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <RefreshCw className='h-4 w-4' />
-                {t('Quota Reset')}
+                {t('Balance Reset')}
               </h3>
 
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
