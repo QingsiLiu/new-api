@@ -119,7 +119,7 @@ export function CopyChannelDialog({
             disabled={isCopying}
           />
           <Label htmlFor='reset-balance' className='text-sm font-normal'>
-            {t('Reset balance and used quota')}
+            {t('Reset balance and used amount')}
           </Label>
         </div>
       </div>

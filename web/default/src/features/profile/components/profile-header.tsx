@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { formatCompactNumber, formatQuota } from '@/lib/format'
+import { formatCNYAmount } from '@/lib/currency'
+import { formatCompactNumber } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
@@ -87,13 +88,13 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const stats = [
     {
       label: t('Current Balance'),
-      value: formatQuota(profile.quota),
-      description: t('Remaining quota'),
+      value: formatCNYAmount(profile.balance_cny),
+      description: t('Available balance'),
     },
     {
       label: t('Total Usage'),
-      value: formatQuota(profile.used_quota),
-      description: t('Total consumed quota'),
+      value: formatCNYAmount(profile.used_cny),
+      description: t('Total spending'),
     },
     {
       label: t('API Requests'),

@@ -24,10 +24,9 @@ import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
-import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -66,6 +65,7 @@ import {
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { MultiSelect } from '@/components/multi-select'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -240,13 +240,11 @@ export function ApiKeysMutateDrawer({
     form.setValue('expired_time', now)
   }
 
-  const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
-  const tokensOnly = currencyMeta.kind === 'tokens'
-  const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
-  const quotaPlaceholder = tokensOnly
-    ? t('Enter quota in tokens')
-    : t('Enter quota in {{currency}}', { currency: currencyLabel })
+  const balanceLabel = t('Balance ({{currency}})', { currency: currencyLabel })
+  const balancePlaceholder = t('Enter balance in {{currency}}', {
+    currency: currencyLabel,
+  })
   const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
 
@@ -436,8 +434,8 @@ export function ApiKeysMutateDrawer({
 
             <SideDrawerSection>
               <SideDrawerSectionHeader
-                title={t('Quota Settings')}
-                description={t('Set quota amount and limits')}
+                title={t('Balance Settings')}
+                description={t('Set balance amount and limits')}
                 icon={<WalletCards className='size-4' />}
               />
               {!unlimitedQuota && (
@@ -446,24 +444,22 @@ export function ApiKeysMutateDrawer({
                   name='remain_quota_dollars'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{quotaLabel}</FormLabel>
+                      <FormLabel>{balanceLabel}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
-                          step={tokensOnly ? 1 : 0.01}
-                          placeholder={quotaPlaceholder}
+                          step={0.01}
+                          placeholder={balancePlaceholder}
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
                           }
                         />
                       </FormControl>
                       <FormDescription>
-                        {tokensOnly
-                          ? t('Enter the quota amount in tokens')
-                          : t('Enter the quota amount in {{currency}}', {
-                              currency: currencyLabel,
-                            })}
+                        {t('Enter the balance amount in {{currency}}', {
+                          currency: currencyLabel,
+                        })}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -478,10 +474,10 @@ export function ApiKeysMutateDrawer({
                   <FormItem className={sideDrawerSwitchItemClassName()}>
                     <div className='flex flex-col gap-0.5'>
                       <FormLabel className='text-sm'>
-                        {t('Unlimited Quota')}
+                        {t('Unlimited Balance')}
                       </FormLabel>
                       <FormDescription className='text-xs'>
-                        {t('Enable unlimited quota for this API key')}
+                        {t('Enable unlimited balance for this API key')}
                       </FormDescription>
                     </div>
                     <FormControl>

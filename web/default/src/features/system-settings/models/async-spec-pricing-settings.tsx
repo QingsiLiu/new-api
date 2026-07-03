@@ -28,11 +28,9 @@ import { StaticDataTable } from '@/components/data-table'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const PRICING_OPTION_KEY = 'AsyncSpecPricing'
-const QUOTA_PER_CNY_OPTION_KEY = 'QuotaPerCNY'
 
 type AsyncSpecPricingSettingsProps = {
   pricingDefault: string
-  quotaPerCNYDefault: number
   readOnly?: boolean
 }
 
@@ -91,7 +89,6 @@ type ParsedSpec = {
 }
 
 type InitialEditorState = ParsedSpec & {
-  quotaPerCNY: number
   jsonText: string
   jsonError: string
   nextRowId: number
@@ -293,16 +290,12 @@ function normalizeNumber(value: string) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 }
 
-function buildInitialEditorState(
-  pricingDefault: string,
-  quotaPerCNYDefault: number
-): InitialEditorState {
+function buildInitialEditorState(pricingDefault: string): InitialEditorState {
   const spec = parseSpecPricing(pricingDefault)
   const rows = rowsFromSpec(spec)
   const rowCount = rows.videoRows.length + rows.imageRows.length
   return {
     ...rows,
-    quotaPerCNY: quotaPerCNYDefault || 0,
     jsonText: JSON.stringify(spec, null, 2),
     jsonError: '',
     nextRowId: rowCount + 1,
@@ -312,31 +305,24 @@ function buildInitialEditorState(
 export const AsyncSpecPricingSettings = memo(function AsyncSpecPricingSettings(
   props: AsyncSpecPricingSettingsProps
 ) {
-  const resetKey = `${props.pricingDefault}:${props.quotaPerCNYDefault}`
+  const resetKey = props.pricingDefault
   return <AsyncSpecPricingSettingsInner key={resetKey} {...props} />
 })
 
 const AsyncSpecPricingSettingsInner = memo(
   function AsyncSpecPricingSettingsInner({
     pricingDefault,
-    quotaPerCNYDefault,
     readOnly = false,
   }: AsyncSpecPricingSettingsProps) {
     const { t } = useTranslation()
     const updateOption = useUpdateOption()
-    const initialState = buildInitialEditorState(
-      pricingDefault,
-      quotaPerCNYDefault
-    )
+    const initialState = buildInitialEditorState(pricingDefault)
     const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
     const [videoRows, setVideoRows] = useState<VideoRow[]>(
       () => initialState.videoRows
     )
     const [imageRows, setImageRows] = useState<ImageRow[]>(
       () => initialState.imageRows
-    )
-    const [quotaPerCNY, setQuotaPerCNY] = useState(
-      () => initialState.quotaPerCNY
     )
     const [jsonText, setJsonText] = useState(() => initialState.jsonText)
     const [jsonError, setJsonError] = useState(() => initialState.jsonError)
@@ -474,20 +460,7 @@ const AsyncSpecPricingSettingsInner = memo(
         key: PRICING_OPTION_KEY,
         value,
       })
-      await updateOption.mutateAsync({
-        key: QUOTA_PER_CNY_OPTION_KEY,
-        value: String(quotaPerCNY),
-      })
-    }, [
-      currentJson,
-      editMode,
-      jsonError,
-      jsonText,
-      quotaPerCNY,
-      readOnly,
-      t,
-      updateOption,
-    ])
+    }, [currentJson, editMode, jsonError, jsonText, readOnly, t, updateOption])
 
     return (
       <div className='space-y-5'>
@@ -850,33 +823,6 @@ const AsyncSpecPricingSettingsInner = memo(
             />
           </div>
         )}
-
-        <details className='border-border border-t pt-4'>
-          <summary className='text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium'>
-            {t('Advanced conversion settings')}
-          </summary>
-          <div className='mt-3 max-w-md space-y-1.5'>
-            <label className='text-sm font-medium' htmlFor='quota-per-cny'>
-              {t('Internal quota conversion')}
-            </label>
-            <Input
-              id='quota-per-cny'
-              type='number'
-              min={0}
-              step={1}
-              value={quotaPerCNY}
-              disabled={readOnly}
-              onChange={(event) =>
-                setQuotaPerCNY(normalizeNumber(event.target.value))
-              }
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Converts CNY prices to the internal billing quota. Usually leave this unchanged.'
-              )}
-            </p>
-          </div>
-        </details>
       </div>
     )
   }

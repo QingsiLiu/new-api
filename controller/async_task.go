@@ -106,31 +106,60 @@ type asyncTaskPricingEstimateResponse struct {
 	Kind      string                            `json:"kind"`
 	Action    string                            `json:"action"`
 	Model     string                            `json:"model"`
-	Quota     int                               `json:"quota"`
+	Quota     int                               `json:"-"`
+	AmountCNY float64                           `json:"amount_cny"`
+	Currency  string                            `json:"currency"`
 	Unit      string                            `json:"unit"`
 	Breakdown asyncTaskPricingEstimateBreakdown `json:"breakdown"`
 }
 
 type asyncTaskPricingEstimateBreakdown struct {
-	ModelPrice  float64            `json:"model_price"`
-	ModelRatio  float64            `json:"model_ratio,omitempty"`
-	GroupRatio  float64            `json:"group_ratio"`
-	OtherRatios map[string]float64 `json:"other_ratios,omitempty"`
-	FreeModel   bool               `json:"free_model"`
-	UsePrice    bool               `json:"use_price"`
+	ModelPrice   float64            `json:"model_price"`
+	ModelRatio   float64            `json:"model_ratio,omitempty"`
+	GroupRatio   float64            `json:"group_ratio"`
+	SpecUnitCNY  float64            `json:"spec_unit_cny,omitempty"`
+	SpecTotalCNY float64            `json:"spec_total_cny,omitempty"`
+	OtherRatios  map[string]float64 `json:"other_ratios,omitempty"`
+	FreeModel    bool               `json:"free_model"`
+	UsePrice     bool               `json:"use_price"`
 }
 
 type asyncBillingBalanceResponse struct {
-	UserID int    `json:"user_id"`
-	Quota  int    `json:"quota"`
-	Unit   string `json:"unit"`
+	UserID     int     `json:"user_id"`
+	BalanceCNY float64 `json:"balance_cny"`
+	Currency   string  `json:"currency"`
 }
 
 type asyncBillingUsageResponse struct {
-	Page     int          `json:"page"`
-	PageSize int          `json:"page_size"`
-	Total    int          `json:"total"`
-	Items    []*model.Log `json:"items"`
+	Page     int                     `json:"page"`
+	PageSize int                     `json:"page_size"`
+	Total    int                     `json:"total"`
+	Items    []asyncBillingUsageItem `json:"items"`
+}
+
+type asyncBillingUsageItem struct {
+	ID                int     `json:"id"`
+	UserID            int     `json:"user_id"`
+	CreatedAt         int64   `json:"created_at"`
+	Type              int     `json:"type"`
+	Content           string  `json:"content"`
+	Username          string  `json:"username"`
+	TokenName         string  `json:"token_name"`
+	ModelName         string  `json:"model_name"`
+	AmountCNY         float64 `json:"amount_cny"`
+	PromptTokens      int     `json:"prompt_tokens"`
+	CompletionTokens  int     `json:"completion_tokens"`
+	UseTime           int     `json:"use_time"`
+	IsStream          bool    `json:"is_stream"`
+	ChannelID         int     `json:"channel"`
+	ChannelName       string  `json:"channel_name"`
+	TokenID           int     `json:"token_id"`
+	Group             string  `json:"group"`
+	GroupDisplay      string  `json:"group_display,omitempty"`
+	IP                string  `json:"ip"`
+	RequestID         string  `json:"request_id,omitempty"`
+	UpstreamRequestID string  `json:"upstream_request_id,omitempty"`
+	Other             string  `json:"other"`
 }
 
 type asyncTaskData struct {
@@ -310,20 +339,28 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": priceErr.Error()}})
 		return
 	}
+	breakdown := asyncTaskPricingEstimateBreakdown{
+		ModelPrice:  relayInfo.PriceData.ModelPrice,
+		ModelRatio:  relayInfo.PriceData.ModelRatio,
+		GroupRatio:  relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+		OtherRatios: asyncPublicEstimateRatios(relayInfo.PriceData.OtherRatios),
+		FreeModel:   relayInfo.PriceData.FreeModel,
+		UsePrice:    relayInfo.PriceData.UsePrice,
+	}
+	if relayInfo.PriceData.SpecPricing != nil && relayInfo.PriceData.SpecPricing.Priced {
+		breakdown.SpecUnitCNY = relayInfo.PriceData.SpecPricing.UnitCNY
+		breakdown.SpecTotalCNY = relayInfo.PriceData.SpecPricing.TotalCNY
+	}
+
 	c.JSON(http.StatusOK, asyncTaskPricingEstimateResponse{
-		Kind:   request.Kind,
-		Action: request.Action,
-		Model:  request.Model,
-		Quota:  relayInfo.PriceData.Quota,
-		Unit:   "quota",
-		Breakdown: asyncTaskPricingEstimateBreakdown{
-			ModelPrice:  relayInfo.PriceData.ModelPrice,
-			ModelRatio:  relayInfo.PriceData.ModelRatio,
-			GroupRatio:  relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			OtherRatios: relayInfo.PriceData.OtherRatios,
-			FreeModel:   relayInfo.PriceData.FreeModel,
-			UsePrice:    relayInfo.PriceData.UsePrice,
-		},
+		Kind:      request.Kind,
+		Action:    request.Action,
+		Model:     request.Model,
+		Quota:     relayInfo.PriceData.Quota,
+		AmountCNY: asyncTaskEstimateAmountCNY(relayInfo),
+		Currency:  "CNY",
+		Unit:      "CNY",
+		Breakdown: breakdown,
 	})
 }
 
@@ -331,13 +368,13 @@ func GetAsyncBillingBalance(c *gin.Context) {
 	userID := c.GetInt("id")
 	quota, err := model.GetUserQuota(userID, false)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to query user quota"}})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to query user balance"}})
 		return
 	}
 	c.JSON(http.StatusOK, asyncBillingBalanceResponse{
-		UserID: userID,
-		Quota:  quota,
-		Unit:   "quota",
+		UserID:     userID,
+		BalanceCNY: common.QuotaToPublicCNY(quota),
+		Currency:   "CNY",
 	})
 }
 
@@ -361,8 +398,140 @@ func GetAsyncBillingUsage(c *gin.Context) {
 		Page:     pageInfo.Page,
 		PageSize: pageInfo.PageSize,
 		Total:    int(total),
-		Items:    logs,
+		Items:    asyncBillingUsageItems(logs),
 	})
+}
+
+func asyncTaskEstimateAmountCNY(relayInfo *relaycommon.RelayInfo) float64 {
+	if relayInfo == nil {
+		return 0
+	}
+	if relayInfo.PriceData.SpecPricing != nil && relayInfo.PriceData.SpecPricing.Priced {
+		return common.RoundPublicCNY(relayInfo.PriceData.SpecPricing.TotalCNY)
+	}
+	return common.QuotaToPublicCNY(relayInfo.PriceData.Quota)
+}
+
+func asyncPublicEstimateRatios(ratios map[string]float64) map[string]float64 {
+	if len(ratios) == 0 {
+		return nil
+	}
+	public := make(map[string]float64, len(ratios))
+	for key, value := range ratios {
+		switch key {
+		case "quota_per_cny", "spec_quota", "spec_unit_cny", "spec_total_cny":
+			continue
+		default:
+			public[key] = value
+		}
+	}
+	if len(public) == 0 {
+		return nil
+	}
+	return public
+}
+
+func asyncBillingUsageItems(logs []*model.Log) []asyncBillingUsageItem {
+	items := make([]asyncBillingUsageItem, 0, len(logs))
+	for _, log := range logs {
+		if log == nil {
+			continue
+		}
+		items = append(items, asyncBillingUsageItem{
+			ID:                log.Id,
+			UserID:            log.UserId,
+			CreatedAt:         log.CreatedAt,
+			Type:              log.Type,
+			Content:           log.Content,
+			Username:          log.Username,
+			TokenName:         log.TokenName,
+			ModelName:         log.ModelName,
+			AmountCNY:         common.QuotaToPublicCNY(log.Quota),
+			PromptTokens:      log.PromptTokens,
+			CompletionTokens:  log.CompletionTokens,
+			UseTime:           log.UseTime,
+			IsStream:          log.IsStream,
+			ChannelID:         log.ChannelId,
+			ChannelName:       log.ChannelName,
+			TokenID:           log.TokenId,
+			Group:             log.Group,
+			GroupDisplay:      log.GroupDisplay,
+			IP:                log.Ip,
+			RequestID:         log.RequestId,
+			UpstreamRequestID: log.UpstreamRequestId,
+			Other:             sanitizeAsyncBillingUsageOther(log.Other),
+		})
+	}
+	return items
+}
+
+func sanitizeAsyncBillingUsageOther(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var payload any
+	if err := common.UnmarshalJsonStr(raw, &payload); err != nil {
+		if strings.Contains(strings.ToLower(raw), "quota") {
+			return ""
+		}
+		return raw
+	}
+	cleaned, ok := sanitizeAsyncBillingUsageValue(payload)
+	if !ok {
+		return ""
+	}
+	bytes, err := common.Marshal(cleaned)
+	if err != nil {
+		return ""
+	}
+	result := string(bytes)
+	if strings.Contains(strings.ToLower(result), "quota") {
+		return ""
+	}
+	return result
+}
+
+func sanitizeAsyncBillingUsageValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case nil:
+		return nil, false
+	case map[string]any:
+		cleaned := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if strings.Contains(strings.ToLower(key), "quota") {
+				continue
+			}
+			value, ok := sanitizeAsyncBillingUsageValue(nested)
+			if !ok {
+				continue
+			}
+			cleaned[key] = value
+		}
+		if len(cleaned) == 0 {
+			return nil, false
+		}
+		return cleaned, true
+	case []any:
+		cleaned := make([]any, 0, len(typed))
+		for _, nested := range typed {
+			value, ok := sanitizeAsyncBillingUsageValue(nested)
+			if ok {
+				cleaned = append(cleaned, value)
+			}
+		}
+		if len(cleaned) == 0 {
+			return nil, false
+		}
+		return cleaned, true
+	case string:
+		if strings.Contains(strings.ToLower(typed), "quota") {
+			return nil, false
+		}
+		return typed, true
+	default:
+		return typed, true
+	}
 }
 
 func GetAsyncTask(c *gin.Context) {
@@ -747,11 +916,7 @@ func applyResolvedAsyncTaskSpecPricing(relayInfo *relaycommon.RelayInfo, result 
 		QuotaPerCNY: result.QuotaPerCNY,
 	}
 	relayInfo.PriceData.OtherRatios = map[string]float64{
-		"spec_priced":    1,
-		"spec_quota":     float64(result.Quota),
-		"spec_unit_cny":  result.UnitCNY,
-		"spec_total_cny": result.TotalCNY,
-		"quota_per_cny":  result.QuotaPerCNY,
+		"spec_priced": 1,
 	}
 	return nil
 }

@@ -83,7 +83,7 @@ export function PriceLane(props: {
       />
       <p className='text-muted-foreground text-xs'>
         {props.enabled
-          ? t('USD price per 1M tokens.')
+          ? t('CNY price per 1M tokens.')
           : t('Disabled lanes are omitted on save.')}
       </p>
     </SettingsControlGroup>

@@ -128,7 +128,7 @@ export function CheckinSettingsSection({
                   <FormLabel>{t('Enable check-in feature')}</FormLabel>
                   <FormDescription>
                     {t(
-                      'Allow users to check in daily for random quota rewards'
+                      'Allow users to check in daily for random balance rewards'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>
@@ -150,7 +150,7 @@ export function CheckinSettingsSection({
                 name='minQuota'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum check-in quota')}</FormLabel>
+                    <FormLabel>{t('Minimum check-in reward')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -160,7 +160,7 @@ export function CheckinSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Minimum quota amount awarded for check-in')}
+                      {t('Minimum balance amount awarded for check-in')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -172,7 +172,7 @@ export function CheckinSettingsSection({
                 name='maxQuota'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Maximum check-in quota')}</FormLabel>
+                    <FormLabel>{t('Maximum check-in reward')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -182,7 +182,7 @@ export function CheckinSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Maximum quota amount awarded for check-in')}
+                      {t('Maximum balance amount awarded for check-in')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

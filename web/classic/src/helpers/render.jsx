@@ -100,13 +100,12 @@ import {
   SiOkta,
   SiOpenid,
   SiReddit,
-  SiSlack,
   SiTelegram,
   SiTwitch,
   SiWechat,
   SiX,
 } from 'react-icons/si';
-import { FaLinkedin } from 'react-icons/fa';
+import { FaLinkedin, FaSlack } from 'react-icons/fa';
 
 function KieIcon({ size = 14 }) {
   const gradientId = `kie-icon-gradient-${useId().replace(/:/g, '')}`;
@@ -588,7 +587,7 @@ const oauthProviderIconMap = {
   linkedin: FaLinkedin,
   x: SiX,
   twitter: SiX,
-  slack: SiSlack,
+  slack: FaSlack,
   telegram: SiTelegram,
   wechat: SiWechat,
   keycloak: SiKeycloak,

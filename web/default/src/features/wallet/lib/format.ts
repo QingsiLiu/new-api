@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { formatLocalCurrencyAmount, CNY_QUOTA_UNIT } from '@/lib/currency'
 import { DEFAULT_DISCOUNT_RATE } from '../constants'
 
 // ============================================================================
@@ -23,42 +24,43 @@ import { DEFAULT_DISCOUNT_RATE } from '../constants'
 // ============================================================================
 
 /**
- * Format Creem price with currency symbol (USD/EUR)
+ * Format Creem price as public CNY money.
  */
 export function formatCreemPrice(
   price: number,
-  currency: 'USD' | 'EUR'
+  _currency: 'CNY' | 'USD' | 'EUR'
 ): string {
-  const symbol = currency === 'EUR' ? '€' : '$'
-  return `${symbol}${price.toFixed(2)}`
+  return formatLocalCurrencyAmount(price, {
+    digitsLarge: 2,
+    digitsSmall: 2,
+    abbreviate: false,
+  })
 }
 
 /**
- * Format large quota numbers with K/M suffix
+ * Format internal billing units as a compact CNY amount.
  */
 export function formatQuotaShort(quota: number): string {
-  if (quota >= 1000000) {
-    return `${(quota / 1000000).toFixed(1)}M`
-  }
-  if (quota >= 1000) {
-    return `${(quota / 1000).toFixed(1)}K`
-  }
-  return quota.toString()
+  return formatLocalCurrencyAmount(quota / CNY_QUOTA_UNIT, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: true,
+  })
 }
 
 /**
- * Format currency amount that is already in local currency.
- * This is used for payment amounts that have been calculated via priceRatio.
+ * Format a CNY amount.
  */
 export function formatCurrency(amount: number | string): string {
   const numeric =
     typeof amount === 'number' ? amount : Number.parseFloat(String(amount))
   if (!Number.isFinite(numeric)) return '-'
 
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Math.abs(numeric) >= 1 ? 2 : 4,
-  }).format(numeric)
+  return formatLocalCurrencyAmount(numeric, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
 }
 
 /**
@@ -77,15 +79,15 @@ export function getDiscountLabel(discount: number): string {
  */
 export function calculatePresetPricing(
   presetValue: number,
-  priceRatio: number,
+  _priceRatio: number,
   discount: number,
-  usdExchangeRate: number = 1
+  _usdExchangeRate: number = 1
 ) {
-  const originalPrice = presetValue * priceRatio
+  const originalPrice = presetValue
   const actualPrice = originalPrice * discount
   const savedAmount = originalPrice - actualPrice
   const hasDiscount = discount < 1.0
-  const displayValue = presetValue * usdExchangeRate
+  const displayValue = presetValue
 
   return {
     displayValue,

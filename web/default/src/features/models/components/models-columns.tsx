@@ -434,10 +434,10 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       enableSorting: false,
     },
 
-    // Quota Types column
+    // Billing Types column
     {
       accessorKey: 'quota_types',
-      header: t('Quota Types'),
+      header: t('Billing Types'),
       meta: { mobileHidden: true },
       cell: ({ row }) => {
         const quotaTypes = row.getValue('quota_types') as number[]

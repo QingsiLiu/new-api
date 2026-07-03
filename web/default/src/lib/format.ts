@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import dayjs from '@/lib/dayjs'
 import {
+  CNY_QUOTA_UNIT,
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
-  getCurrencyDisplay,
 } from './currency'
 
 // ============================================================================
@@ -55,12 +55,11 @@ export function formatCurrencyUSD(value: number | null | undefined): string {
 }
 
 // ============================================================================
-// Quota Formatting (500,000 units = $1)
+// CNY Billing Formatting (100,000 units = ¥1)
 // ============================================================================
 
 /**
- * Format quota into the configured display amount.
- * Quota is stored in units where `quotaPerUnit` equals 1 USD.
+ * Format internal billing units into a public CNY amount.
  */
 export function formatQuota(quota: number): string {
   return formatQuotaWithCurrency(quota, {
@@ -71,42 +70,19 @@ export function formatQuota(quota: number): string {
 }
 
 /**
- * Parse quota from the current display input back to quota units.
+ * Parse a CNY amount from an input back to internal billing units.
  */
 export function parseQuotaFromDollars(amount: number): number {
   if (!Number.isFinite(amount)) return 0
-
-  const { config, meta } = getCurrencyDisplay()
-
-  // Tokens-only or raw quota mode
-  if (meta.kind === 'tokens') {
-    return Math.round(amount)
-  }
-
-  const exchangeRate =
-    meta.kind === 'currency' || meta.kind === 'custom' ? meta.exchangeRate : 1
-
-  const usdAmount = exchangeRate > 0 ? amount / exchangeRate : amount
-
-  return Math.round(usdAmount * config.quotaPerUnit)
+  return Math.round(amount * CNY_QUOTA_UNIT)
 }
 
 /**
- * Convert quota units to the configured display amount.
+ * Convert internal billing units to a CNY amount.
  * Reverse of parseQuotaFromDollars.
  */
 export function quotaUnitsToDollars(units: number): number {
-  const { config, meta } = getCurrencyDisplay()
-
-  if (meta.kind === 'tokens') {
-    return units
-  }
-
-  const usdAmount = units / config.quotaPerUnit
-  const exchangeRate =
-    meta.kind === 'currency' || meta.kind === 'custom' ? meta.exchangeRate : 1
-
-  return usdAmount * exchangeRate
+  return units / CNY_QUOTA_UNIT
 }
 
 // ============================================================================
@@ -155,7 +131,7 @@ export function formatTimeStr(date: Date): string {
 }
 
 /**
- * Format quota for usage logs with higher precision
+ * Format billing units for usage logs with higher precision.
  * Uses 6 decimal places to show very small costs accurately
  */
 export function formatLogQuota(quota: number): string {

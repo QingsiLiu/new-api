@@ -368,7 +368,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                   <FormLabel>{t('Question')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('How to reset my quota?')}
+                      placeholder={t('How to reset my balance?')}
                       {...field}
                     />
                   </FormControl>
@@ -388,7 +388,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                   <FormControl>
                     <Textarea
                       placeholder={t(
-                        'Visit Settings → General and adjust quota options...'
+                        'Visit Settings → General and adjust balance options...'
                       )}
                       rows={8}
                       {...field}

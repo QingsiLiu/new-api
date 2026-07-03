@@ -31,12 +31,21 @@ export interface AuthUser {
   role: number
   status?: number
   group?: string
+  currency?: 'CNY' | string
+  balance_cny?: number
+  used_cny?: number
+  aff_balance_cny?: number
+  aff_history_cny?: number
+  /** Legacy compatibility for admin/history payloads. */
   quota?: number
+  /** Legacy compatibility for admin/history payloads. */
   used_quota?: number
   request_count?: number
   aff_code?: string
   aff_count?: number
+  /** Legacy compatibility for admin/history payloads. */
   aff_quota?: number
+  /** Legacy compatibility for admin/history payloads. */
   aff_history_quota?: number
   inviter_id?: number
   github_id?: string

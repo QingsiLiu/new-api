@@ -51,8 +51,8 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
     },
     {
       key: 'quota',
-      title: t('Total Quota'),
-      description: t('Statistical quota'),
+      title: t('Total Spend'),
+      description: t('Statistical spend'),
       icon: Coins,
       getValue: (stat) => stat?.quota ?? 0,
     },
@@ -107,7 +107,7 @@ export function useSummaryCardsConfig(totals: {
       value: totals.usedDisplay,
       description: totals.currencyEnabled
         ? `${t('Total consumed')} (${totals.currencyLabel})`
-        : t('Total consumed quota'),
+        : t('Total consumed'),
       icon: TrendingUp,
     },
     {
