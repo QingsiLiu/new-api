@@ -1094,6 +1094,8 @@ func FetchModels(c *gin.Context) {
 	if baseURL == "" {
 		baseURL = constant.ChannelBaseURLs[req.Type]
 	}
+	// 去除 base_url 末尾的斜杠，避免拼接出双斜杠导致 404/HTML 响应
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
