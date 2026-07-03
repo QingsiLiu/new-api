@@ -2111,6 +2111,53 @@ func TestValidateAsyncKieImageRequestRejectsMoreThanTenImageURLs(t *testing.T) {
 	require.ErrorContains(t, err, "at most 10")
 }
 
+func TestSelectAsyncTaskChannelHonorsSpecificChannelContext(t *testing.T) {
+	db := setupAsyncTaskTestDB(t)
+	baseURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      4001,
+		Type:    constant.ChannelTypeKie,
+		Key:     "sk-kie",
+		Status:  common.ChannelStatusEnabled,
+		Name:    "kie",
+		BaseURL: &baseURL,
+		Models:  "gpt-image-2",
+		Group:   "default",
+	}).Error)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:       4002,
+		Type:     constant.ChannelTypeOpenAI,
+		Key:      "sk-openai",
+		Status:   common.ChannelStatusEnabled,
+		Name:     "high priority",
+		BaseURL:  &baseURL,
+		Models:   "gpt-image-2",
+		Group:    "default",
+		Priority: common.GetPointer[int64](10),
+	}).Error)
+	for _, channelID := range []int{4001, 4002} {
+		require.NoError(t, db.Create(&model.Ability{
+			Group:     "default",
+			Model:     "gpt-image-2",
+			ChannelId: channelID,
+			Enabled:   true,
+			Priority:  common.GetPointer[int64](0),
+			Weight:    1,
+		}).Error)
+	}
+	model.InitChannelCache()
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "default")
+	channel, err := selectAsyncTaskChannel(ctx, "gpt-image-2")
+	require.NoError(t, err)
+	require.Equal(t, 4002, channel.Id)
+
+	common.SetContextKey(ctx, constant.ContextKeyTokenSpecificChannelId, "4001")
+	channel, err = selectAsyncTaskChannel(ctx, "gpt-image-2")
+	require.NoError(t, err)
+	require.Equal(t, 4001, channel.Id)
+}
+
 func TestAsyncKieImageModelRecognitionUsesUpstreamIDs(t *testing.T) {
 	for _, modelName := range []string{
 		"google/nano-banana",

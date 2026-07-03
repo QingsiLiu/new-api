@@ -733,6 +733,20 @@ func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, e
 	if strings.TrimSpace(modelName) == "" {
 		return nil, errors.New("model is required")
 	}
+	if channelID, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId); ok {
+		id, err := strconv.Atoi(fmt.Sprint(channelID))
+		if err != nil {
+			return nil, fmt.Errorf("invalid channel id %v", channelID)
+		}
+		channel, err := model.GetChannelById(id, true)
+		if err != nil {
+			return nil, err
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			return nil, fmt.Errorf("channel %d is disabled", id)
+		}
+		return channel, nil
+	}
 	group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	if group == "" {
 		group = "default"
