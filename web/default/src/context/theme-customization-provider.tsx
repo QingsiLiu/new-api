@@ -64,8 +64,7 @@ function readCookie<T extends string>(
     allowedValues: allowed,
     fallback,
     legacyDefault: migration?.legacyDefault,
-    shouldMigrateLegacyDefault:
-      migration?.shouldMigrateLegacyDefault ?? false,
+    shouldMigrateLegacyDefault: migration?.shouldMigrateLegacyDefault ?? false,
   })
 }
 
@@ -141,7 +140,11 @@ export function ThemeCustomizationProvider(props: {
     readCookie<ThemeRadius>(
       THEME_COOKIE_KEYS.radius,
       THEME_RADIUS_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.radius
+      DEFAULT_THEME_CUSTOMIZATION.radius,
+      {
+        legacyDefault: 'default',
+        shouldMigrateLegacyDefault: shouldMigrateThemeDefaults(),
+      }
     )
   )
   const [scale, _setScale] = useState<ThemeScale>(() =>
@@ -173,6 +176,9 @@ export function ThemeCustomizationProvider(props: {
       if (getCookie(THEME_COOKIE_KEYS.scale) === 'default') {
         removeCookie(THEME_COOKIE_KEYS.scale)
       }
+      if (getCookie(THEME_COOKIE_KEYS.radius) === 'default') {
+        removeCookie(THEME_COOKIE_KEYS.radius)
+      }
     }
     setCookie(
       THEME_DEFAULTS_VERSION_COOKIE_NAME,
@@ -196,17 +202,11 @@ export function ThemeCustomizationProvider(props: {
   }, [font, preset])
 
   useEffect(() => {
-    applyAttribute(
-      'data-theme-radius',
-      radius === DEFAULT_THEME_CUSTOMIZATION.radius ? null : radius
-    )
+    applyAttribute('data-theme-radius', radius === 'default' ? null : radius)
   }, [radius])
 
   useEffect(() => {
-    applyAttribute(
-      'data-theme-scale',
-      scale === DEFAULT_THEME_CUSTOMIZATION.scale ? null : scale
-    )
+    applyAttribute('data-theme-scale', scale === 'default' ? null : scale)
   }, [scale])
 
   useEffect(() => {

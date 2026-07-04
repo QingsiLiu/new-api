@@ -34,7 +34,7 @@ const LAYOUT_VARIANT_COOKIE_NAME = 'layout_variant'
 const LAYOUT_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
 // Default values
-const DEFAULT_VARIANT = 'sidebar'
+const DEFAULT_VARIANT = 'floating'
 const DEFAULT_COLLAPSIBLE = 'icon'
 
 const LAYOUT_COLLAPSIBLE_VALUES: ReadonlySet<Collapsible> = new Set([
@@ -84,8 +84,7 @@ function readLayoutCookie<T extends string>(
     allowedValues: allowed,
     fallback,
     legacyDefault: migration?.legacyDefault,
-    shouldMigrateLegacyDefault:
-      migration?.shouldMigrateLegacyDefault ?? false,
+    shouldMigrateLegacyDefault: migration?.shouldMigrateLegacyDefault ?? false,
   })
 }
 
@@ -108,7 +107,7 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
       LAYOUT_VARIANT_VALUES,
       DEFAULT_VARIANT,
       {
-        legacyDefault: 'inset',
+        legacyDefault: 'sidebar',
         shouldMigrateLegacyDefault: shouldMigrateLayoutDefaults(),
       }
     )
@@ -116,7 +115,7 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
 
   useEffect(() => {
     if (shouldMigrateLayoutDefaults()) {
-      if (getCookie(LAYOUT_VARIANT_COOKIE_NAME) === 'inset') {
+      if (getCookie(LAYOUT_VARIANT_COOKIE_NAME) === 'sidebar') {
         removeCookie(LAYOUT_VARIANT_COOKIE_NAME)
       }
     }

@@ -10,8 +10,28 @@ import {
 const themePresetsCss = readFileSync('src/styles/theme-presets.css', 'utf8')
 const indexCss = readFileSync('src/styles/index.css', 'utf8')
 const themeCss = readFileSync('src/styles/theme.css', 'utf8')
-const layoutProviderTsx = readFileSync('src/context/layout-provider.tsx', 'utf8')
+const layoutProviderTsx = readFileSync(
+  'src/context/layout-provider.tsx',
+  'utf8'
+)
+const themeProviderTsx = readFileSync('src/context/theme-provider.tsx', 'utf8')
+const themeCustomizationProviderTsx = readFileSync(
+  'src/context/theme-customization-provider.tsx',
+  'utf8'
+)
+const preferenceDefaultsTs = readFileSync(
+  'src/lib/preference-defaults.ts',
+  'utf8'
+)
 const sourceFiles = listSourceFiles('src')
+const localeFiles = [
+  'src/i18n/locales/en.json',
+  'src/i18n/locales/zh.json',
+  'src/i18n/locales/fr.json',
+  'src/i18n/locales/ja.json',
+  'src/i18n/locales/ru.json',
+  'src/i18n/locales/vi.json',
+]
 
 function listSourceFiles(dir: string): string[] {
   const files: string[] = []
@@ -49,7 +69,10 @@ function readVars(selector: string) {
   return vars
 }
 
-function expectVars(vars: Map<string, string>, expected: Record<string, string>) {
+function expectVars(
+  vars: Map<string, string>,
+  expected: Record<string, string>
+) {
   for (const [name, value] of Object.entries(expected)) {
     assert.equal(vars.get(name), value, `--${name}`)
   }
@@ -65,7 +88,9 @@ function geiliModernIndexCss() {
 
 function readIndexRule(selector: string) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const match = indexCss.match(new RegExp(`\\n\\s*${escaped}\\s*\\{([\\s\\S]*?)\\n\\s*\\}`, 'm'))
+  const match = indexCss.match(
+    new RegExp(`\\n\\s*${escaped}\\s*\\{([\\s\\S]*?)\\n\\s*\\}`, 'm')
+  )
   assert.ok(match, `missing index.css rule for ${selector}`)
   return match[1]
 }
@@ -74,7 +99,10 @@ describe('geili-modern borderless preset', () => {
   test('is the default modern sans preset registered for users', () => {
     assert.equal(DEFAULT_THEME_CUSTOMIZATION.preset, 'geili-modern')
     assert.equal(PRESET_DEFAULT_FONT['geili-modern'], 'sans')
+    assert.equal(DEFAULT_THEME_CUSTOMIZATION.font, 'default')
+    assert.equal(DEFAULT_THEME_CUSTOMIZATION.radius, 'none')
     assert.equal(DEFAULT_THEME_CUSTOMIZATION.scale, 'sm')
+    assert.equal(DEFAULT_THEME_CUSTOMIZATION.contentLayout, 'full')
     assert.deepEqual(THEME_PRESETS[0], {
       value: 'geili-modern',
       name: '现代 / Modern',
@@ -84,10 +112,49 @@ describe('geili-modern borderless preset', () => {
     })
   })
 
-  test('uses compact density and the standard sidebar layout by default', () => {
+  test('uses the owner-selected theme drawer defaults for new users', () => {
+    assert.match(themeProviderTsx, /const DEFAULT_THEME = 'system'/)
     assert.equal(DEFAULT_THEME_CUSTOMIZATION.scale, 'sm')
-    assert.match(layoutProviderTsx, /const DEFAULT_VARIANT = 'sidebar'/)
+    assert.equal(DEFAULT_THEME_CUSTOMIZATION.radius, 'none')
+    assert.equal(DEFAULT_THEME_CUSTOMIZATION.contentLayout, 'full')
+    assert.match(layoutProviderTsx, /const DEFAULT_VARIANT = 'floating'/)
     assert.match(layoutProviderTsx, /const DEFAULT_COLLAPSIBLE = 'icon'/)
+  })
+
+  test('applies compact density and zero radius even when they are the defaults', () => {
+    assert.match(
+      themeCustomizationProviderTsx,
+      /'data-theme-radius',\s*radius === 'default' \? null : radius/
+    )
+    assert.match(
+      themeCustomizationProviderTsx,
+      /'data-theme-scale',\s*scale === 'default' \? null : scale/
+    )
+    assert.match(
+      preferenceDefaultsTs,
+      /THEME_DEFAULTS_VERSION = 'geili-modern-v2'/
+    )
+    assert.match(
+      preferenceDefaultsTs,
+      /LAYOUT_DEFAULTS_VERSION = 'floating-v2'/
+    )
+  })
+
+  test('localizes the geili-modern preset label in the theme drawer', () => {
+    for (const file of localeFiles) {
+      const locale = JSON.parse(readFileSync(file, 'utf8')) as {
+        translation: Record<string, string>
+      }
+      const translations = locale.translation
+      assert.ok(
+        translations['preset.geili-modern'],
+        `${file} preset.geili-modern`
+      )
+      assert.notEqual(
+        translations['preset.geili-modern'],
+        'preset.geili-modern'
+      )
+    }
   })
 
   test('uses the approved light and dark token values without gradient tokens', () => {
@@ -130,7 +197,8 @@ describe('geili-modern borderless preset', () => {
       success: '#3ecf8e',
       sidebar: '#111111',
       'sidebar-border': 'transparent',
-      'shadow-card': '0 0 0 1px rgba(255,255,255,.07), 0 4px 16px rgba(0,0,0,.5)',
+      'shadow-card':
+        '0 0 0 1px rgba(255,255,255,.07), 0 4px 16px rgba(0,0,0,.5)',
       'grain-opacity': '0.045',
     })
 
