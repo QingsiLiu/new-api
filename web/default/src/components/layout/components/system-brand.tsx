@@ -64,7 +64,10 @@ export function SystemBrand(props: SystemBrandProps) {
           'hover:bg-accent focus-visible:ring-ring/35 focus-visible:ring-2'
         )}
       >
-        <div className='border-border bg-card flex size-6 items-center justify-center overflow-hidden rounded-md border'>
+        <div
+          data-geili-modern-logo='inline'
+          className='border-border bg-card flex size-6 items-center justify-center overflow-hidden rounded-md border'
+        >
           <img
             src={logo}
             alt={t('Logo')}
@@ -84,7 +87,10 @@ export function SystemBrand(props: SystemBrandProps) {
           className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
           render={<div />}
         >
-          <div className='border-sidebar-border bg-sidebar-accent flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md border'>
+          <div
+            data-geili-modern-logo='sidebar'
+            className='border-sidebar-border bg-sidebar-accent flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md border'
+          >
             <img
               src={logo}
               alt={t('Logo')}

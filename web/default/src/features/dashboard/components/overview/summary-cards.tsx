@@ -270,7 +270,10 @@ export function SummaryCards() {
           </StaggerContainer>
         </div>
 
-        <div className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div
+          data-modern-hero='balance'
+          className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'
+        >
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>
@@ -287,7 +290,7 @@ export function SummaryCards() {
               </span>
             </div>
 
-            <div className='editorial-stat-value text-foreground text-3xl'>
+            <div className='geili-modern-gradient-text editorial-stat-value text-foreground text-3xl'>
               {formatQuota(remainQuota)}
             </div>
 
@@ -337,7 +340,10 @@ export function SummaryCards() {
             </div>
           </div>
 
-          <Button className='justify-between' render={<Link to='/wallet' />}>
+          <Button
+            className='geili-modern-primary-cta justify-between'
+            render={<Link to='/wallet' />}
+          >
             <span>{t('Wallet')}</span>
             <ArrowRight data-icon='inline-end' />
           </Button>
