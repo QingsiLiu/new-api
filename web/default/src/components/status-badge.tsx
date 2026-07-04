@@ -74,31 +74,31 @@ export const textColorMap = {
 export type StatusVariant = keyof typeof dotColorMap
 
 export const badgeSurfaceMap: Record<StatusVariant, string> = {
-  success: 'border-success/25 bg-success/15',
-  warning: 'border-warning/30 bg-warning/15',
-  danger: 'border-destructive/30 bg-destructive/15',
-  info: 'border-info/25 bg-info/15',
-  neutral: 'border-border bg-muted/60',
-  purple: 'border-chart-2/25 bg-chart-2/15',
-  amber: 'border-warning/30 bg-warning/15',
-  blue: 'border-chart-5/25 bg-chart-5/15',
-  cyan: 'border-chart-3/25 bg-chart-3/15',
-  green: 'border-success/25 bg-success/15',
-  grey: 'border-border bg-muted/60',
-  indigo: 'border-chart-2/25 bg-chart-2/15',
-  'light-blue': 'border-info/25 bg-info/15',
-  'light-green': 'border-success/25 bg-success/15',
-  lime: 'border-success/25 bg-success/15',
-  orange: 'border-warning/30 bg-warning/15',
-  pink: 'border-chart-1/25 bg-chart-1/15',
-  red: 'border-destructive/30 bg-destructive/15',
-  teal: 'border-chart-3/25 bg-chart-3/15',
-  violet: 'border-chart-2/25 bg-chart-2/15',
-  yellow: 'border-warning/30 bg-warning/15',
+  success: 'bg-success/15',
+  warning: 'bg-warning/15',
+  danger: 'bg-destructive/15',
+  info: 'bg-info/15',
+  neutral: 'bg-muted/70',
+  purple: 'bg-chart-2/15',
+  amber: 'bg-warning/15',
+  blue: 'bg-chart-5/15',
+  cyan: 'bg-chart-3/15',
+  green: 'bg-success/15',
+  grey: 'bg-muted/70',
+  indigo: 'bg-chart-2/15',
+  'light-blue': 'bg-info/15',
+  'light-green': 'bg-success/15',
+  lime: 'bg-success/15',
+  orange: 'bg-warning/15',
+  pink: 'bg-chart-1/15',
+  red: 'bg-destructive/15',
+  teal: 'bg-chart-3/15',
+  violet: 'bg-chart-2/15',
+  yellow: 'bg-warning/15',
 }
 
 /** Controls the visual style of the badge.
- * - `badge`    — default editorial chip with dot and mono text (default)
+ * - `badge`    — default soft-filled chip with mono text (default)
  * - `text`     — plain text, no background or padding, only color
  * - `underline`— plain text with a bottom border underline
  */
@@ -129,7 +129,7 @@ export interface StatusBadgeProps extends Omit<
   children?: React.ReactNode
   icon?: LucideIcon
   pulse?: boolean
-  /** Kept for compatibility; badges render a leading dot by default. */
+  /** Kept for compatibility; badges render without a leading dot by default. */
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
@@ -147,7 +147,7 @@ export function StatusBadge({
   variant,
   size = 'sm',
   pulse = false,
-  showDot = true,
+  showDot = false,
   copyable = true,
   copyText,
   autoColor,
@@ -191,7 +191,7 @@ export function StatusBadge({
         'font-mono tracking-[0.12em] uppercase',
         isBadge
           ? cn(
-              'rounded-full border',
+              'rounded-full',
               badgeSurfaceMap[computedVariant],
               sizeMap[size ?? 'sm']
             )

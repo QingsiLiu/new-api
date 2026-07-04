@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import {
   avatarColorMap,
@@ -11,6 +12,8 @@ import {
   dotColorMap,
   textColorMap,
 } from '@/components/status-badge'
+
+const statusBadgeSource = readFileSync('src/components/status-badge.tsx', 'utf8')
 
 describe('semantic data colors', () => {
   test('maps color names to the geili-modern vivid token identity', () => {
@@ -32,8 +35,16 @@ describe('semantic data colors', () => {
 
     assert.equal(dotColorMap.blue, 'bg-chart-5')
     assert.equal(textColorMap.violet, 'text-chart-2')
-    assert.equal(badgeSurfaceMap.teal, 'border-chart-3/25 bg-chart-3/15')
-    assert.equal(badgeSurfaceMap.pink, 'border-chart-1/25 bg-chart-1/15')
+    assert.equal(badgeSurfaceMap.teal, 'bg-chart-3/15')
+    assert.equal(badgeSurfaceMap.pink, 'bg-chart-1/15')
+    for (const surfaceClass of Object.values(badgeSurfaceMap)) {
+      assert.doesNotMatch(surfaceClass, /\bborder(?:-|$)/)
+    }
+  })
+
+  test('status badges are soft-filled without default dots or borders', () => {
+    assert.match(statusBadgeSource, /showDot = false/)
+    assert.doesNotMatch(statusBadgeSource, /'rounded-full border'/)
   })
 
   test('keeps stable string-to-color assignment inside the semantic palette', () => {
