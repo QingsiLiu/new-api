@@ -124,7 +124,7 @@ export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
   preset: 'geili-editorial',
   font: 'default',
   radius: 'default',
-  scale: 'default',
+  scale: 'sm',
   contentLayout: 'full',
 }
 
