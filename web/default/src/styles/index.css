@@ -75,13 +75,24 @@ For commercial licensing, please contact support@quantumnous.com
     text-wrap: balance;
   }
 
-  :is(h1, h2, h3),
+  :is(h1, h2),
   .editorial-display,
   .editorial-stat-value {
+    font-weight: 600;
     font-variation-settings:
       'SOFT' 50,
       'WONK' 0,
-      'opsz' 72;
+      'opsz' 72,
+      'wght' 600;
+    line-height: 1;
+  }
+
+  h3 {
+    font-variation-settings:
+      'SOFT' 50,
+      'WONK' 0,
+      'opsz' 72,
+      'wght' 500;
     line-height: 1;
   }
 
@@ -97,10 +108,10 @@ For commercial licensing, please contact support@quantumnous.com
   [data-slot='table-head'],
   .editorial-label,
   .editorial-status {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 1.2;
     font-weight: 500;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--muted-foreground);
   }
@@ -216,10 +227,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 @utility editorial-label {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.2;
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
@@ -247,9 +258,14 @@ For commercial licensing, please contact support@quantumnous.com
   font-family: var(--font-serif);
   font-size: clamp(1.875rem, 4vw, 3.5rem);
   line-height: 0.98;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
+  font-variation-settings:
+    'SOFT' 50,
+    'WONK' 0,
+    'opsz' 72,
+    'wght' 600;
 }
 
 @utility editorial-hairline {
@@ -619,6 +635,22 @@ For commercial licensing, please contact support@quantumnous.com
     opacity: 1 !important;
     transform: none !important;
   }
+}
+
+/* Geili Editorial — faint card elevation.
+ * The preset ships near-white cards on a warm paper canvas; a soft warm shadow
+ * makes surfaces read as raised (the base reset zeroes card shadows). Unlayered
+ * + preset-scoped so it wins over the `@layer base` reset yet leaves every other
+ * theme flat. */
+[data-theme-preset='geili-editorial'] [data-slot='card'] {
+  box-shadow:
+    0 1px 2px rgba(70, 55, 30, 0.05),
+    0 8px 22px rgba(70, 55, 30, 0.06);
+}
+.dark [data-theme-preset='geili-editorial'] [data-slot='card'] {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 10px 26px rgba(0, 0, 0, 0.32);
 }
 
 /* Micro-interactions — Vercel-style subtle hover/active feedback */
