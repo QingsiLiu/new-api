@@ -34,26 +34,12 @@ export function ClerkFullLogo(props: SVGProps<SVGSVGElement>) {
       />
       <path
         d='M19.116 3.16l-2.88 2.881a.571.571 0 01-.701.084 6.854 6.854 0 00-10.39 5.647 6.867 6.867 0 00.979 3.764.571.571 0 01-.084.699l-2.88 2.88a.57.57 0 01-.865-.063A11.994 11.994 0 0119.051 2.295a.57.57 0 01.065.866z'
-        fill='url(#paint0_linear_26568_214324)'
+        fill='#1F0256'
       />
       <path
         d='M19.113 20.829l-2.88-2.88a.571.571 0 00-.7-.085 6.854 6.854 0 01-7.081 0 .571.571 0 00-.7.084l-2.881 2.88a.57.57 0 00.062.877 11.994 11.994 0 0014.114 0 .571.571 0 00.066-.876zM11.997 15.422a3.427 3.427 0 100-6.854 3.427 3.427 0 000 6.854z'
         fill='#1F0256'
       />
-      <defs>
-        <linearGradient
-          id='paint0_linear_26568_214324'
-          x1={16.4087}
-          y1={-1.75881}
-          x2={-7.88473}
-          y2={22.5365}
-          gradientUnits='userSpaceOnUse'
-        >
-          <stop stopColor='#17CCFC' />
-          <stop offset={0.5} stopColor='#5D31FF' />
-          <stop offset={1} stopColor='#F35AFF' />
-        </linearGradient>
-      </defs>
     </svg>
   )
 }

@@ -379,10 +379,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* Launch UI Animations and Effects - Matching Template Exactly */
 @layer utilities {
-  .bg-radial {
-    background-color: color-mix(in oklch, var(--primary) 12%, transparent);
-  }
-
   /* Soft surface utilities retained as compatibility aliases. */
   .glass-1 {
     @apply bg-card/80 shadow-[var(--shadow-card)];
@@ -404,7 +400,7 @@ For commercial licensing, please contact support@quantumnous.com
     @apply bg-card shadow-[var(--shadow-card)];
   }
 
-  /* Fade utility aliases kept non-gradient for the consolidated system. */
+  /* Fade utility aliases kept neutral for the consolidated system. */
   .fade-x {
     mask-image: none;
   }
@@ -612,11 +608,6 @@ For commercial licensing, please contact support@quantumnous.com
     opacity: 1 !important;
     transform: none !important;
   }
-}
-
-/* Modern compatibility utilities — non-scoped, no gradients. */
-.geili-modern-gradient-text {
-  color: var(--foreground);
 }
 
 [data-modern-hero='balance'] {
