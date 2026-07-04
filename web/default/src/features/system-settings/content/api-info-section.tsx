@@ -360,7 +360,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               cell: (apiInfo) => (
                 <div className='flex items-center gap-2'>
                   <div
-                    className={`h-4 w-4 rounded-full ${getColorClass(apiInfo.color)}`}
+                    className={`h-4 w-1 rounded-sm ${getColorClass(apiInfo.color)}`}
                   />
                   <span className='text-sm capitalize'>{apiInfo.color}</span>
                 </div>
@@ -481,7 +481,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                         label: (
                           <div className='flex items-center gap-2'>
                             <div
-                              className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
+                              className={`h-4 w-1 rounded-sm ${getBgColorClass(option.value)}`}
                             />
                             {option.label}
                           </div>
@@ -502,7 +502,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                           <SelectItem key={option.value} value={option.value}>
                             <div className='flex items-center gap-2'>
                               <div
-                                className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
+                                className={`h-4 w-1 rounded-sm ${getBgColorClass(option.value)}`}
                               />
                               {option.label}
                             </div>
