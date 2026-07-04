@@ -19,4 +19,44 @@ For commercial licensing, please contact support@quantumnous.com
 export const VCHART_OPTION = {
   // 与老前端保持一致（浏览器环境渲染优化）
   mode: 'desktop-browser',
+  theme: {
+    background: 'transparent',
+    fontFamily: 'var(--font-body)',
+    colorScheme: {
+      default: {
+        palette: {
+          borderColor: 'var(--border)',
+          axisLabelFontColor: 'var(--muted-foreground)',
+          axisGridColor: 'var(--border)',
+          axisDomainColor: 'var(--border)',
+          popupBackgroundColor: 'var(--popover)',
+          primaryFontColor: 'var(--popover-foreground)',
+          secondaryFontColor: 'var(--muted-foreground)',
+          shadowColor: 'rgba(0, 0, 0, 0.16)',
+        },
+      },
+    },
+    component: {
+      axisX: {
+        grid: { style: { stroke: 'var(--border)', lineWidth: 1 } },
+        domainLine: { style: { stroke: 'var(--border)', lineWidth: 1 } },
+        label: { style: { fill: 'var(--muted-foreground)', fontSize: 12 } },
+      },
+      axisY: {
+        grid: { style: { stroke: 'var(--border)', lineWidth: 1 } },
+        domainLine: { style: { stroke: 'var(--border)', lineWidth: 1 } },
+        label: { style: { fill: 'var(--muted-foreground)', fontSize: 12 } },
+      },
+      tooltip: {
+        panel: {
+          backgroundColor: 'var(--popover)',
+          border: { color: 'var(--border)', width: 1, radius: 8 },
+          shadow: { x: 0, y: 8, blur: 18, spread: 0, color: 'rgba(0, 0, 0, 0.16)' },
+        },
+        keyLabel: { fontColor: 'var(--muted-foreground)', fontSize: 12 },
+        valueLabel: { fontColor: 'var(--popover-foreground)', fontSize: 12 },
+        titleLabel: { fontColor: 'var(--popover-foreground)', fontSize: 12 },
+      },
+    },
+  },
 } as const

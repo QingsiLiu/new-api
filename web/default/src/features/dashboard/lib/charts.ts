@@ -595,13 +595,13 @@ export function processChartData(
       },
       area: {
         style: {
-          fillOpacity: 0.08,
+          fillOpacity: 0.14,
           curveType: 'monotone',
         },
       },
       line: {
         style: {
-          lineWidth: 2,
+          lineWidth: 3,
           curveType: 'monotone',
         },
       },
@@ -673,13 +673,13 @@ export function processChartData(
       },
       area: {
         style: {
-          fillOpacity: 0.08,
+          fillOpacity: 0.14,
           curveType: 'monotone',
         },
       },
       line: {
         style: {
-          lineWidth: 2,
+          lineWidth: 3,
           curveType: 'monotone',
         },
       },
@@ -980,7 +980,7 @@ export function processUserChartData(
       },
       line: {
         style: {
-          lineWidth: 2,
+          lineWidth: 3,
           curveType: 'monotone',
         },
       },

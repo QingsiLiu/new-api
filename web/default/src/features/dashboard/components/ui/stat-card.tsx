@@ -21,7 +21,7 @@ import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
-type StatCardTone = 'primary' | 'success' | 'neutral'
+type StatCardTone = 'primary' | 'success' | 'accent' | 'neutral'
 type StatCardSparklineVariant = 'bars' | 'line'
 type StatCardDetailTone =
   | 'default'
@@ -53,12 +53,14 @@ interface StatCardProps {
 const TONE_CLASSES: Record<StatCardTone, string> = {
   primary: 'bg-primary',
   success: 'bg-success',
+  accent: 'bg-primary',
   neutral: 'bg-muted-foreground',
 }
 
 const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
   primary: 'text-primary',
   success: 'text-success',
+  accent: 'text-primary',
   neutral: 'text-muted-foreground',
 }
 
