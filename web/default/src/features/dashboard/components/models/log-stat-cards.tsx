@@ -134,7 +134,7 @@ export function LogStatCards(props: LogStatCardsProps) {
                 </div>
               ) : error ? (
                 <>
-                  <div className='text-muted-foreground mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
+                  <div className='editorial-stat-value text-muted-foreground mt-1.5 text-2xl sm:mt-2'>
                     --
                   </div>
                   <div className='text-muted-foreground/80 mt-1 hidden text-xs md:block'>
@@ -143,7 +143,7 @@ export function LogStatCards(props: LogStatCardsProps) {
                 </>
               ) : (
                 <>
-                  <div className='text-foreground mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
+                  <div className='editorial-stat-value text-foreground mt-1.5 text-2xl sm:mt-2'>
                     {it.value}
                   </div>
                   <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
