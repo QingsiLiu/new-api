@@ -44,6 +44,7 @@ export function Pricing() {
     models,
     vendors,
     groupRatio,
+    groupDisplay,
     usableGroup,
     endpointMap,
     autoGroups,
@@ -128,6 +129,7 @@ export function Pricing() {
           usdExchangeRate={usdExchangeRate}
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
+          groupDisplay={groupDisplay}
         />
       )
     }
@@ -139,6 +141,7 @@ export function Pricing() {
         usdExchangeRate={usdExchangeRate}
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
+        groupDisplay={groupDisplay}
         onModelClick={handleModelClick}
       />
     )
@@ -250,6 +253,7 @@ export function Pricing() {
               }}
               model={selectedModel}
               groupRatio={groupRatio || {}}
+              groupDisplay={groupDisplay || {}}
               usableGroup={usableGroup || {}}
               endpointMap={
                 (endpointMap as Record<

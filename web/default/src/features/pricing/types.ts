@@ -100,9 +100,12 @@ export type PricingData = {
   data: PricingModel[]
   vendors: PricingVendor[]
   group_ratio: Record<string, number>
+  group_display?: Record<string, string>
   usable_group: Record<string, { desc: string; ratio: number }>
+  usable_group_display?: Record<string, string>
   supported_endpoint: Record<string, string>
   auto_groups: string[]
+  auto_groups_display?: string[]
 }
 
 export type TokenUnit = 'M' | 'K'

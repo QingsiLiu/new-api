@@ -36,6 +36,7 @@ export interface PricingTableProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  groupDisplay?: Record<string, string>
   onModelClick?: (modelName: string) => void
 }
 
@@ -48,6 +49,7 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate = 1,
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
+    groupDisplay = {},
     onModelClick,
   } = props
 
@@ -61,6 +63,7 @@ export function PricingTable(props: PricingTableProps) {
     priceRate,
     usdExchangeRate,
     showRechargePrice,
+    groupDisplay,
   })
 
   const { table } = useDataTable({

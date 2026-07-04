@@ -46,6 +46,7 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   perf?: ModelPerfBadgeData
+  groupDisplay?: Record<string, string>
 }
 
 function SpecPricingInlineSummary(props: { summary: ModelSpecPricingSummary }) {
@@ -308,7 +309,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
         <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
           {visibleGroups.map((group) => (
-            <GroupBadge key={group} group={group} size='sm' copyable={false} />
+            <GroupBadge
+              key={group}
+              group={group}
+              label={props.groupDisplay?.[group]}
+              size='sm'
+              copyable={false}
+            />
           ))}
         </div>
         <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
