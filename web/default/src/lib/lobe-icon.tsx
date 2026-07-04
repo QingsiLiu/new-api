@@ -26,11 +26,10 @@ For commercial licensing, please contact support@quantumnous.com
  * - Size parameter: getLobeIcon("OpenAI", 20)
  */
 import * as LobeIcons from '@lobehub/icons'
-import { useId } from 'react'
 
 function KieIcon(props: { size?: number | string }) {
   const size = props.size ?? 20
-  const gradientId = `kie-icon-gradient-${useId().replace(/:/g, '')}`
+  const strokeColor = '#234bc4'
 
   return (
     <svg
@@ -41,29 +40,16 @@ function KieIcon(props: { size?: number | string }) {
       width={size}
       xmlns='http://www.w3.org/2000/svg'
     >
-      <defs>
-        <linearGradient
-          id={gradientId}
-          x1='32'
-          x2='32'
-          y1='4'
-          y2='60'
-          gradientUnits='userSpaceOnUse'
-        >
-          <stop stopColor='#10a5f5' />
-          <stop offset='1' stopColor='#234bc4' />
-        </linearGradient>
-      </defs>
       <path
         d='M7.5 49.5 25 18.8c2.8-4.9 5.2-6.4 10.8-6.4h4.8c5.4 0 7.5 1.5 10.2 6.2l15.7 30.9'
-        stroke={`url(#${gradientId})`}
+        stroke={strokeColor}
         strokeLinecap='round'
         strokeLinejoin='round'
         strokeWidth='7'
       />
       <path
         d='M22.2 48.5 37 22.6M27.2 42h18.4L35.2 24.2M42 23.5l8.2 15.6M52.5 47.7l6 11.5M13 55.5h13.5M48.8 55.5h8.7'
-        stroke={`url(#${gradientId})`}
+        stroke={strokeColor}
         strokeLinecap='round'
         strokeLinejoin='round'
         strokeWidth='7'
@@ -73,7 +59,7 @@ function KieIcon(props: { size?: number | string }) {
         cy='18.4'
         fill='white'
         r='4.6'
-        stroke={`url(#${gradientId})`}
+        stroke={strokeColor}
         strokeWidth='5'
       />
       <circle
@@ -81,7 +67,7 @@ function KieIcon(props: { size?: number | string }) {
         cy='55.5'
         fill='white'
         r='5.8'
-        stroke={`url(#${gradientId})`}
+        stroke={strokeColor}
         strokeWidth='5'
       />
       <circle
@@ -89,7 +75,7 @@ function KieIcon(props: { size?: number | string }) {
         cy='55.5'
         fill='white'
         r='5.8'
-        stroke={`url(#${gradientId})`}
+        stroke={strokeColor}
         strokeWidth='5'
       />
     </svg>

@@ -228,7 +228,7 @@ export function JsonCodeEditor({
           <span
             className={cn(
               'flex items-center gap-1 text-xs',
-              jsonStatus.valid ? 'text-emerald-600' : 'text-destructive'
+              jsonStatus.valid ? 'text-success' : 'text-destructive'
             )}
           >
             {jsonStatus.valid ? (
