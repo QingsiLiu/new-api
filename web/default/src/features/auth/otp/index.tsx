@@ -27,7 +27,9 @@ export function Otp() {
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-3'>
-          <p className='editorial-label'>{t('Verification')}</p>
+          <p className='text-muted-foreground text-xs font-medium'>
+            {t('Verification')}
+          </p>
           <h2 className='editorial-section-title text-left'>
             {t('Two-factor Authentication')}
           </h2>

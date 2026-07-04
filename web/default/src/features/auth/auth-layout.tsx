@@ -49,13 +49,15 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (
-          <h1 className='editorial-label text-foreground'>{systemName}</h1>
+          <h1 className='text-foreground text-sm font-semibold'>{systemName}</h1>
         )}
       </Link>
 
       <div className='mx-auto grid min-h-svh w-full max-w-6xl px-5 pt-24 pb-8 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(26rem,0.62fr)] lg:items-center lg:gap-16 lg:pt-8'>
         <aside className='hidden border-l pl-6 lg:block'>
-          <p className='editorial-label mb-5'>{t('Access Console')}</p>
+          <p className='text-muted-foreground mb-5 text-xs font-medium'>
+            {t('Access Console')}
+          </p>
           <h2 className='editorial-display max-w-xl text-5xl'>{systemName}</h2>
           <p className='text-muted-foreground mt-6 max-w-sm text-sm leading-7'>
             {t(

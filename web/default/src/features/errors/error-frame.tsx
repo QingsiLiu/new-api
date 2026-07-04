@@ -46,7 +46,9 @@ export function ErrorFrame(props: ErrorFrameProps) {
           </div>
         )}
         <div className='space-y-5'>
-          <p className='editorial-label'>{props.eyebrow}</p>
+          <p className='text-muted-foreground text-xs font-medium'>
+            {props.eyebrow}
+          </p>
           <div className='space-y-3'>
             <h1 className='editorial-section-title'>{props.title}</h1>
             <p className='text-muted-foreground max-w-xl text-sm leading-7'>

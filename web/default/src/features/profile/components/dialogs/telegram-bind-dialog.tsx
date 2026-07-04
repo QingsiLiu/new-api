@@ -78,7 +78,7 @@ export function TelegramBindDialog({
           {/* Telegram Login Widget will be injected here by react-telegram-login */}
           <div id='telegram-login-widget' className='flex justify-center'>
             {/* This would require the react-telegram-login library */}
-            <div className='text-muted-foreground rounded-lg border border-dashed px-6 py-3 text-sm'>
+            <div className='bg-muted/30 text-muted-foreground rounded-lg px-6 py-3 text-sm shadow-[var(--shadow-card)]'>
               {t('Telegram Login Widget')}
             </div>
           </div>
