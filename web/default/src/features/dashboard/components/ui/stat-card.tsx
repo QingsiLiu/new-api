@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useId, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -137,8 +137,6 @@ function buildLineSparkline(values?: number[]) {
 }
 
 function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
-  const rawGradientId = useId()
-  const gradientId = `stat-card-line-${rawGradientId.replace(/:/g, '')}`
   const paths = buildLineSparkline(props.values)
 
   if (!paths) return <div className='h-8' aria-hidden='true' />
@@ -156,13 +154,7 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
         preserveAspectRatio='none'
         className='size-full'
       >
-        <defs>
-          <linearGradient id={gradientId} x1='0' x2='0' y1='0' y2='1'>
-            <stop offset='0%' stopColor='currentColor' stopOpacity='0.24' />
-            <stop offset='100%' stopColor='currentColor' stopOpacity='0' />
-          </linearGradient>
-        </defs>
-        <path d={paths.areaPath} fill={`url(#${gradientId})`} />
+        <path d={paths.areaPath} fill='currentColor' opacity='0.1' />
         <path
           d={paths.linePath}
           fill='none'

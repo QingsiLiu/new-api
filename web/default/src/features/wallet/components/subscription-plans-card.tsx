@@ -276,7 +276,7 @@ export function SubscriptionPlansCard({
               <span className='flex items-center gap-1.5 text-xs font-medium'>
                 <span
                   className={cn(
-                    'size-1.5 shrink-0 rounded-full',
+                    'h-3 w-0.5 shrink-0 rounded-sm',
                     hasActive ? dotColorMap.success : dotColorMap.neutral
                   )}
                   aria-hidden='true'

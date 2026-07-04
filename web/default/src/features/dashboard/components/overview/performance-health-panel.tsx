@@ -161,7 +161,7 @@ export function PerformanceHealthPanel() {
                     <span className='inline-flex shrink-0 items-center gap-1'>
                       <span
                         className={cn(
-                          'size-1.5 rounded-full',
+                          'h-3 w-0.5 rounded-sm',
                           rateDotClass(model.success_rate)
                         )}
                         aria-hidden='true'

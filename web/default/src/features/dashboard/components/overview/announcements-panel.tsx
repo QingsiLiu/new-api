@@ -35,7 +35,7 @@ const AnnouncementStatusDot = memo(function AnnouncementStatusDot(props: {
   return (
     <span
       className={cn(
-        'mt-1.5 inline-block size-2 shrink-0 rounded-full',
+        'mt-1.5 inline-block h-3 w-0.5 shrink-0 rounded-sm',
         getAnnouncementColorClass(props.type)
       )}
     />
