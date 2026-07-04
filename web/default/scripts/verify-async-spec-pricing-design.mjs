@@ -19,6 +19,28 @@ const files = {
     'src/features/system-settings/billing/index.tsx'
   ),
   types: path.join(root, 'src/features/system-settings/types.ts'),
+  pricingTypes: path.join(root, 'src/features/pricing/types.ts'),
+  pricingSpecHelper: path.join(
+    root,
+    'src/features/pricing/lib/spec-pricing.ts'
+  ),
+  pricingModelCard: path.join(
+    root,
+    'src/features/pricing/components/model-card.tsx'
+  ),
+  pricingModelDetails: path.join(
+    root,
+    'src/features/pricing/components/model-details.tsx'
+  ),
+  pricingSidebar: path.join(
+    root,
+    'src/features/pricing/components/pricing-sidebar.tsx'
+  ),
+  pricingToolbar: path.join(
+    root,
+    'src/features/pricing/components/pricing-toolbar.tsx'
+  ),
+  pricingFiltersHook: path.join(root, 'src/features/pricing/hooks/use-filters.ts'),
 }
 
 const localeFiles = ['en', 'zh', 'fr', 'ru', 'ja', 'vi'].map((locale) =>
@@ -75,6 +97,13 @@ const component = read(files.component)
 const registry = read(files.registry)
 const billingIndex = read(files.billingIndex)
 const types = read(files.types)
+const pricingTypes = read(files.pricingTypes)
+const pricingSpecHelper = read(files.pricingSpecHelper)
+const pricingModelCard = read(files.pricingModelCard)
+const pricingModelDetails = read(files.pricingModelDetails)
+const pricingSidebar = read(files.pricingSidebar)
+const pricingToolbar = read(files.pricingToolbar)
+const pricingFiltersHook = read(files.pricingFiltersHook)
 
 for (const [needle, label] of [
   ['Video matrix prices', 'video matrix section label'],
@@ -134,6 +163,89 @@ assertContains(billingIndex, 'QuotaPerCNY', 'QuotaPerCNY default value')
 assertContains(billingIndex, 'AsyncSpecPricing', 'AsyncSpecPricing default value')
 assertContains(types, 'QuotaPerCNY: number', 'QuotaPerCNY settings type')
 assertContains(types, 'AsyncSpecPricing: string', 'AsyncSpecPricing settings type')
+assertContains(pricingTypes, 'pricing_mode?', 'pricing mode API field')
+assertContains(pricingTypes, 'spec_pricing?', 'spec pricing API field')
+assertContains(pricingTypes, 'amount_cny?', 'CNY amount API field')
+assertContains(
+  pricingSpecHelper,
+  'getImageSpecPriceRows',
+  'image spec pricing helper'
+)
+assertContains(
+  pricingSpecHelper,
+  'getVideoMatrixPriceRows',
+  'video matrix pricing helper'
+)
+assertContains(
+  pricingSpecHelper,
+  'formatCNYAmount',
+  'CNY-native spec pricing formatter'
+)
+assertContains(
+  pricingModelCard,
+  'SpecPricingInlineSummary',
+  'pricing card spec summary'
+)
+assertContains(
+  pricingModelCard,
+  'getModelSpecPricingSummary',
+  'pricing card spec pricing branch'
+)
+assertContains(
+  pricingModelDetails,
+  'ImageSpecPricingSection',
+  'image spec detail table'
+)
+assertContains(
+  pricingModelDetails,
+  'VideoMatrixPricingSection',
+  'video matrix detail table'
+)
+assertContains(
+  pricingModelDetails,
+  'CNY / image',
+  'image spec detail CNY column'
+)
+assertContains(
+  pricingModelDetails,
+  'CNY / second',
+  'video matrix detail CNY column'
+)
+assertNotContains(
+  pricingSpecHelper,
+  'formatCurrencyFromUSD',
+  'legacy USD formatter in spec pricing helper'
+)
+assertNotContains(
+  pricingSidebar,
+  "title={t('Pricing Type')}",
+  'low-value pricing type sidebar filter'
+)
+assertNotContains(
+  pricingSidebar,
+  "title={t('Endpoint Type')}",
+  'low-value endpoint type sidebar filter'
+)
+assertNotContains(
+  pricingSidebar,
+  'type, and tags',
+  'sidebar copy that references hidden type filters'
+)
+assertNotContains(
+  pricingToolbar,
+  'type, endpoint, and tags',
+  'mobile filter copy that references hidden type filters'
+)
+assertNotContains(
+  pricingFiltersHook,
+  'quotaType: search.quotaType',
+  'hidden pricing type URL filter initialization'
+)
+assertNotContains(
+  pricingFiltersHook,
+  'endpointType: search.endpointType',
+  'hidden endpoint type URL filter initialization'
+)
 
 for (const file of localeFiles) {
   const relativePath = path.relative(root, file)

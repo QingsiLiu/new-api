@@ -57,8 +57,6 @@ export function useFilters(models: PricingModel[]) {
     sort: search.sort,
     vendor: search.vendor,
     group: search.group,
-    quotaType: search.quotaType,
-    endpointType: search.endpointType,
     tag: search.tag,
     tokenUnit: search.tokenUnit,
     view: search.view,
