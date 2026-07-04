@@ -32,6 +32,15 @@ const files = {
     root,
     'src/features/pricing/components/model-details.tsx'
   ),
+  pricingSidebar: path.join(
+    root,
+    'src/features/pricing/components/pricing-sidebar.tsx'
+  ),
+  pricingToolbar: path.join(
+    root,
+    'src/features/pricing/components/pricing-toolbar.tsx'
+  ),
+  pricingFiltersHook: path.join(root, 'src/features/pricing/hooks/use-filters.ts'),
 }
 
 const localeFiles = ['en', 'zh', 'fr', 'ru', 'ja', 'vi'].map((locale) =>
@@ -97,6 +106,9 @@ const pricingTypes = read(files.pricingTypes)
 const pricingSpecHelper = read(files.pricingSpecHelper)
 const pricingModelCard = read(files.pricingModelCard)
 const pricingModelDetails = read(files.pricingModelDetails)
+const pricingSidebar = read(files.pricingSidebar)
+const pricingToolbar = read(files.pricingToolbar)
+const pricingFiltersHook = read(files.pricingFiltersHook)
 
 for (const [needle, label] of [
   ['Video matrix prices', 'video matrix section label'],
@@ -208,6 +220,36 @@ assertNotContains(
   pricingSpecHelper,
   'formatCurrencyFromUSD',
   'legacy USD formatter in spec pricing helper'
+)
+assertNotContains(
+  pricingSidebar,
+  "title={t('Pricing Type')}",
+  'low-value pricing type sidebar filter'
+)
+assertNotContains(
+  pricingSidebar,
+  "title={t('Endpoint Type')}",
+  'low-value endpoint type sidebar filter'
+)
+assertNotContains(
+  pricingSidebar,
+  'type, and tags',
+  'sidebar copy that references hidden type filters'
+)
+assertNotContains(
+  pricingToolbar,
+  'type, endpoint, and tags',
+  'mobile filter copy that references hidden type filters'
+)
+assertNotContains(
+  pricingFiltersHook,
+  'quotaType: search.quotaType',
+  'hidden pricing type URL filter initialization'
+)
+assertNotContains(
+  pricingFiltersHook,
+  'endpointType: search.endpointType',
+  'hidden endpoint type URL filter initialization'
 )
 
 for (const file of localeFiles) {
