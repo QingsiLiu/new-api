@@ -236,6 +236,16 @@ assertNotContains(
   'type, and tags',
   'sidebar copy that references hidden type filters'
 )
+assertContains(
+  pricingSidebar,
+  'groupDisplay',
+  'pricing sidebar public group display mapping'
+)
+assertNotContains(
+  pricingSidebar,
+  'useGroupRegistry',
+  'authenticated group registry lookup in public pricing sidebar'
+)
 assertNotContains(
   pricingToolbar,
   'type, endpoint, and tags',

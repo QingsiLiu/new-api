@@ -84,6 +84,7 @@ export interface PricingToolbarProps {
   onTagChange: (value: string) => void
   vendors: PricingVendor[]
   groups: string[]
+  groupDisplay?: Record<string, string>
   groupRatios?: Record<string, number>
   tags: string[]
   models: PricingModel[]
@@ -296,6 +297,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
               onTagChange={props.onTagChange}
               vendors={props.vendors}
               groups={props.groups}
+              groupDisplay={props.groupDisplay}
               groupRatios={props.groupRatios}
               tags={props.tags}
               models={props.models}

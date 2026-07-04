@@ -201,6 +201,7 @@ export function Pricing() {
               onTagChange={setTagFilter}
               vendors={vendors || []}
               groups={availableGroups}
+              groupDisplay={groupDisplay}
               groupRatios={groupRatio}
               tags={availableTags}
               models={models || []}
@@ -233,6 +234,7 @@ export function Pricing() {
                 onTagChange={setTagFilter}
                 vendors={vendors || []}
                 groups={availableGroups}
+                groupDisplay={groupDisplay}
                 groupRatios={groupRatio}
                 tags={availableTags}
                 models={models || []}
