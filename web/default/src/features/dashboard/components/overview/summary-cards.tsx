@@ -217,7 +217,7 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['primary', 'success', 'accent'] as const
+    const tones = ['chart-1', 'chart-2', 'chart-3'] as const
 
     return {
       key: config.key,
