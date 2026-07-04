@@ -41,8 +41,8 @@ export function FormDirtyIndicator({
 
   return (
     <SettingsPageTitleStatusPortal>
-      <span className='inline-flex h-5 items-center gap-1.5 rounded-full bg-warning/10 px-2 text-[11px] font-medium whitespace-nowrap text-warning ring-1 ring-warning/25 ring-inset dark:bg-warning/10 dark:ring-warning/25'>
-        <span className='size-1.5 rounded-full bg-warning dark:bg-warning' />
+      <span className='inline-flex h-5 items-center gap-1.5 rounded-md bg-warning/10 px-2 text-[11px] font-medium whitespace-nowrap text-warning'>
+        <span className='h-3 w-0.5 rounded-sm bg-warning dark:bg-warning' />
         {message ? t(message) : t('Unsaved changes')}
       </span>
     </SettingsPageTitleStatusPortal>
