@@ -181,4 +181,21 @@ describe('geili-modern borderless preset', () => {
       /\[data-theme-preset='geili-modern'\]\s+\.geili-modern-primary-cta[\s\S]*?background:\s*var\(--primary\);/
     )
   })
+
+  test('keeps modern detail treatments scoped and motion-safe', () => {
+    const css = geiliModernIndexCss()
+    assert.match(
+      css,
+      /body\[data-theme-preset='geili-modern'\]::after[\s\S]*?position:\s*fixed;[\s\S]*?opacity:\s*var\(--grain-opacity\);[\s\S]*?feTurbulence/
+    )
+    assert.match(
+      css,
+      /\[data-theme-preset='geili-modern'\]\s+\.geili-modern-status-pulse::after[\s\S]*?animation:\s*geili-modern-status-pulse 1\.8s ease-out infinite;/
+    )
+    assert.match(css, /@keyframes geili-modern-status-pulse/)
+    assert.match(
+      css,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.geili-modern-status-pulse::after[\s\S]*?animation:\s*none !important;/
+    )
+  })
 })
