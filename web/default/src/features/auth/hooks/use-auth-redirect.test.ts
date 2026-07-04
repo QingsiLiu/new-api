@@ -12,6 +12,7 @@ describe('getSafePostLoginRedirect', () => {
   test('sends non-admin users away from admin-only redirects', () => {
     assert.equal(getSafePostLoginRedirect('/channels', 1), '/dashboard')
     assert.equal(getSafePostLoginRedirect('/models/metadata', 1), '/dashboard')
+    assert.equal(getSafePostLoginRedirect('/dashboard/users', 1), '/dashboard')
     assert.equal(getSafePostLoginRedirect('/users?page=1', 1), '/dashboard')
     assert.equal(
       getSafePostLoginRedirect('/system-settings/site', 1),

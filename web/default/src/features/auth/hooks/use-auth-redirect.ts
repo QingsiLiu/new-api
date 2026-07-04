@@ -25,6 +25,7 @@ import { saveUserId } from '../lib/storage'
 
 const ADMIN_ONLY_REDIRECT_PREFIXES = [
   '/channels',
+  '/dashboard/users',
   '/models',
   '/users',
   '/redemption-codes',

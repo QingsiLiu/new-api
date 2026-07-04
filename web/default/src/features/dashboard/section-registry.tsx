@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 import { createSectionRegistry } from '@/features/system-settings/utils/section-registry'
+import { ROLE } from '@/lib/roles'
 
 /**
  * Dashboard page section definitions
@@ -58,6 +59,21 @@ const dashboardRegistry = createSectionRegistry<
 
 export const DASHBOARD_SECTION_IDS = dashboardRegistry.sectionIds
 export const DASHBOARD_DEFAULT_SECTION = dashboardRegistry.defaultSection
+
+export function isDashboardSectionId(
+  section: string
+): section is DashboardSectionId {
+  return (DASHBOARD_SECTION_IDS as readonly string[]).includes(section)
+}
+
+export function canAccessDashboardSection(
+  section: string,
+  role?: number | null
+): boolean {
+  if (!isDashboardSectionId(section)) return false
+  if (!ADMIN_ONLY_SECTIONS.has(section)) return true
+  return (role ?? 0) >= ROLE.ADMIN
+}
 
 export function getDashboardSectionNavItems(
   t: TFunction,
