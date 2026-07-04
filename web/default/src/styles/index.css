@@ -77,27 +77,27 @@ For commercial licensing, please contact support@quantumnous.com
 
   h1 {
     font-size: 1.875rem;
-    font-weight: 750;
+    font-weight: 700;
     letter-spacing: 0;
     font-variation-settings:
       'opsz' 32,
-      'wght' 750;
+      'wght' 700;
     line-height: 1.05;
   }
 
   h2 {
-    font-weight: 700;
+    font-weight: 650;
     font-variation-settings:
       'opsz' 28,
-      'wght' 700;
+      'wght' 650;
     line-height: 1.1;
   }
 
   h3 {
-    font-weight: 650;
+    font-weight: 600;
     font-variation-settings:
       'opsz' 24,
-      'wght' 650;
+      'wght' 600;
     line-height: 1.1;
   }
 

@@ -44,6 +44,13 @@ function geiliModernIndexCss() {
   return indexCss.slice(start, end)
 }
 
+function readIndexRule(selector: string) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = indexCss.match(new RegExp(`\\n\\s*${escaped}\\s*\\{([\\s\\S]*?)\\n\\s*\\}`, 'm'))
+  assert.ok(match, `missing index.css rule for ${selector}`)
+  return match[1]
+}
+
 describe('geili-modern borderless preset', () => {
   test('is the default modern sans preset registered for users', () => {
     assert.equal(DEFAULT_THEME_CUSTOMIZATION.preset, 'geili-modern')
@@ -118,6 +125,28 @@ describe('geili-modern borderless preset', () => {
 
   test('exposes the borderless shadow token to Tailwind theme variables', () => {
     assert.match(themeCss, /--color-shadow-card:\s*var\(--shadow-card\);/)
+  })
+
+  test('uses Inter-style sans headings outside editorial presets', () => {
+    assert.match(
+      indexCss,
+      /:is\(h1, h2, h3, h4, h5, h6\),[\s\S]*?\.editorial-stat-value\s*\{[\s\S]*?font-family:\s*var\(--font-sans\);/
+    )
+    assert.match(
+      indexCss,
+      /:where\(\s*\[data-theme-preset='geili-editorial'\],[\s\S]*?\[data-theme-preset='anthropic'\][\s\S]*?\)\s*:is\(h1, h2, h3, h4, h5, h6\),[\s\S]*?font-family:\s*var\(--font-serif\);/
+    )
+
+    const h1 = readIndexRule('h1')
+    const h2 = readIndexRule('h2')
+    const h3 = readIndexRule('h3')
+
+    assert.match(h1, /font-size:\s*1\.875rem;/)
+    assert.match(h1, /font-weight:\s*700;/)
+    assert.match(h1, /letter-spacing:\s*0;/)
+    assert.match(h2, /font-weight:\s*650;/)
+    assert.match(h3, /font-weight:\s*600;/)
+    assert.doesNotMatch(`${h1}\n${h2}\n${h3}`, /letter-spacing:\s*-/)
   })
 
   test('scopes Vercel-style borderless component rules to geili-modern', () => {
