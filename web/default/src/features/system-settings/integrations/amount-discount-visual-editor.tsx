@@ -132,7 +132,7 @@ export function AmountDiscountVisualEditor({
       </div>
 
       {discounts.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
+        <div className='bg-muted/30 text-muted-foreground rounded-lg p-6 text-center text-sm shadow-[var(--shadow-card)]'>
           {t(
             'No discount tiers configured. Click "Add discount tier" to get started.'
           )}

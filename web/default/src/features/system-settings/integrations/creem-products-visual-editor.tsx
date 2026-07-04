@@ -170,7 +170,7 @@ export function CreemProductsVisualEditor({
       </div>
 
       {filteredProducts.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm'>
+        <div className='bg-muted/30 text-muted-foreground rounded-lg p-8 text-center text-sm shadow-[var(--shadow-card)]'>
           {searchText
             ? t('No products match your search')
             : t('No products configured. Click "Add product" to get started.')}
