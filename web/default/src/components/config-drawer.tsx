@@ -64,6 +64,14 @@ import { useSidebar } from './ui/sidebar'
 
 const Item = RadioPrimitive.Root
 
+function getPresetPreviewSwatches(preset: (typeof THEME_PRESETS)[number]) {
+  if (preset.value === 'default') {
+    return ['var(--background)', 'var(--foreground)'] as const
+  }
+
+  return [preset.swatches[0], preset.swatches[1] ?? preset.swatches[0]] as const
+}
+
 export function ConfigDrawer() {
   const { t } = useTranslation()
   const { setOpen } = useSidebar()
@@ -257,48 +265,48 @@ function PresetConfig() {
         className='grid w-full grid-cols-4 gap-3'
         aria-label={t('Select color preset')}
       >
-        {THEME_PRESETS.map((preset) => (
-          <Item
-            key={preset.value}
-            value={preset.value}
-            className='group flex flex-col items-stretch outline-none'
-            aria-label={t(`preset.${preset.value}`)}
-          >
-            <div
-              className={cn(
-                'ring-border relative h-12 rounded-md ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
-                'group-focus-visible:ring-2',
-                'group-hover:ring-primary/60'
-              )}
+        {THEME_PRESETS.map((preset) => {
+          const [firstSwatch, secondSwatch] = getPresetPreviewSwatches(preset)
+
+          return (
+            <Item
+              key={preset.value}
+              value={preset.value}
+              className='group flex flex-col items-stretch outline-none'
+              aria-label={t(`preset.${preset.value}`)}
             >
               <div
-                aria-hidden='true'
-                className='absolute inset-0 rounded-md'
-                style={
-                  preset.value === 'default'
-                    ? {
-                        background:
-                          'linear-gradient(135deg, var(--background) 0%, var(--muted) 50%, var(--foreground) 100%)',
-                      }
-                    : {
-                        background: `linear-gradient(135deg, ${preset.swatches[0]} 0%, ${preset.swatches[1] ?? preset.swatches[0]} 100%)`,
-                      }
-                }
-              />
-              <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
-                  'group-data-unchecked:hidden'
+                  'ring-border relative h-12 overflow-hidden rounded-md ring-[1px] transition',
+                  'group-data-checked:ring-primary group-data-checked:shadow-md',
+                  'group-focus-visible:ring-2',
+                  'group-hover:ring-primary/60'
                 )}
-                aria-hidden='true'
-              />
-            </div>
-            <div className='mt-1.5 truncate text-center text-xs'>
-              {t(`preset.${preset.value}`)}
-            </div>
-          </Item>
-        ))}
+              >
+                <div
+                  aria-hidden='true'
+                  className='absolute inset-y-0 left-0 w-1/2'
+                  style={{ background: firstSwatch }}
+                />
+                <div
+                  aria-hidden='true'
+                  className='absolute inset-y-0 right-0 w-1/2'
+                  style={{ background: secondSwatch }}
+                />
+                <CircleCheck
+                  className={cn(
+                    'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                    'group-data-unchecked:hidden'
+                  )}
+                  aria-hidden='true'
+                />
+              </div>
+              <div className='mt-1.5 truncate text-center text-xs'>
+                {t(`preset.${preset.value}`)}
+              </div>
+            </Item>
+          )
+        })}
       </Radio>
     </div>
   )

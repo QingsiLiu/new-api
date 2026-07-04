@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import {
   DEFAULT_THEME_CUSTOMIZATION,
@@ -11,6 +11,25 @@ const themePresetsCss = readFileSync('src/styles/theme-presets.css', 'utf8')
 const indexCss = readFileSync('src/styles/index.css', 'utf8')
 const themeCss = readFileSync('src/styles/theme.css', 'utf8')
 const layoutProviderTsx = readFileSync('src/context/layout-provider.tsx', 'utf8')
+const sourceFiles = listSourceFiles('src')
+
+function listSourceFiles(dir: string): string[] {
+  const files: string[] = []
+  for (const entry of readdirSync(dir)) {
+    const path = `${dir}/${entry}`
+    const stat = statSync(path)
+    if (stat.isDirectory()) {
+      files.push(...listSourceFiles(path))
+    } else if (
+      /\.(css|ts|tsx)$/.test(path) &&
+      !/\.test\./.test(path) &&
+      !path.endsWith('.d.ts')
+    ) {
+      files.push(path)
+    }
+  }
+  return files
+}
 
 function readBlock(selector: string) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -121,6 +140,22 @@ describe('geili-modern borderless preset', () => {
     assert.equal(light.has('grad-soft'), false)
     assert.equal(dark.has('grad'), false)
     assert.equal(dark.has('grad-soft'), false)
+  })
+
+  test('keeps source styles free of CSS and Tailwind gradient utilities', () => {
+    for (const file of sourceFiles) {
+      const source = readFileSync(file, 'utf8')
+      assert.doesNotMatch(
+        source,
+        /\b(?:linear|radial|conic)-gradient\s*\(/i,
+        file
+      )
+      assert.doesNotMatch(
+        source,
+        /\b(?:bg-linear(?:-[\w-]+)?|bg-gradient(?:-[\w-]+)?|bg-radial)\b/,
+        file
+      )
+    }
   })
 
   test('exposes the borderless shadow token to Tailwind theme variables', () => {

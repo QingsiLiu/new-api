@@ -256,40 +256,25 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
-/* Vercel Geist-style skeleton shimmer */
+/* Vercel Geist-style skeleton pulse */
 .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--skeleton-base) 0%,
-    var(--skeleton-base) 33%,
-    var(--skeleton-highlight) 50%,
-    var(--skeleton-base) 67%,
-    var(--skeleton-base) 100%
-  );
-  background-size: 300% 100%;
+  background: var(--skeleton-base);
   animation: skeleton-shimmer 1.8s ease-in-out infinite;
 }
 
 @keyframes skeleton-shimmer {
-  0% {
-    background-position: 100% 50%;
-  }
+  0%,
   100% {
-    background-position: -100% 50%;
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
   }
 }
 
-/* Override auto-skeleton-react inline styles with Vercel shimmer */
+/* Override auto-skeleton-react inline styles with the same solid pulse. */
 .auto-skeleton-fade [class^='skeleton-'] {
-  background: linear-gradient(
-    90deg,
-    var(--skeleton-base) 0%,
-    var(--skeleton-base) 33%,
-    var(--skeleton-highlight) 50%,
-    var(--skeleton-base) 67%,
-    var(--skeleton-base) 100%
-  ) !important;
-  background-size: 300% 100% !important;
+  background: var(--skeleton-base) !important;
   animation: skeleton-shimmer 1.8s ease-in-out infinite !important;
 }
 
@@ -473,7 +458,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 @utility faded-bottom {
-  @apply after:pointer-events-none after:absolute after:start-0 after:bottom-0 after:hidden after:h-32 after:w-full after:rounded-b-2xl after:bg-[linear-gradient(180deg,_transparent_10%,_var(--background)_70%)] md:after:block;
+  @apply after:bg-background/95 after:pointer-events-none after:absolute after:start-0 after:bottom-0 after:hidden after:h-16 after:w-full after:rounded-b-2xl md:after:block;
 }
 
 .CollapsibleContent {
@@ -508,83 +493,66 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* Launch UI Animations and Effects - Matching Template Exactly */
 @layer utilities {
-  /* Gradient utilities */
-  .bg-radial {
-    background-image: radial-gradient(var(--tw-gradient-stops));
-  }
-
   /* Glass morphism effects - matching Launch UI template */
   .glass-1 {
-    @apply border-border from-card/80 to-card/40 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:from-card/5 dark:to-card/0 border bg-linear-to-b;
+    @apply border-border bg-card/80 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:bg-card/5 border;
   }
 
   .glass-2 {
-    @apply border-border from-card/100 to-card/80 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:from-card/10 dark:to-card/5 border bg-linear-to-b;
+    @apply border-border bg-card/90 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:bg-card/10 border;
   }
 
   .glass-3 {
-    @apply border-border from-card/30 to-card/20 dark:border-border/10 dark:border-t-border/20 dark:border-b-border/5 dark:from-primary/5 dark:to-primary/2 border bg-linear-to-b;
+    @apply border-border bg-card/30 dark:border-border/10 dark:border-t-border/20 dark:border-b-border/5 dark:bg-primary/5 border;
   }
 
   .glass-4 {
-    @apply border-border border-b-input/90 from-card/60 to-card/20 dark:border-border/10 dark:border-t-border/30 dark:from-primary/10 dark:to-primary/5 border bg-linear-to-b dark:border-b-0;
+    @apply border-border border-b-input/90 bg-card/60 dark:border-border/10 dark:border-t-border/30 dark:bg-primary/10 border dark:border-b-0;
   }
 
   .glass-5 {
-    @apply border-border border-b-input from-card/100 to-card/20 dark:border-border/10 dark:border-t-border/30 dark:from-primary/15 dark:to-primary/5 border bg-linear-to-b dark:border-b-0;
+    @apply border-border border-b-input bg-card/95 dark:border-border/10 dark:border-t-border/30 dark:bg-primary/15 border dark:border-b-0;
   }
 
   /* Fade effects - matching Launch UI template */
   .fade-x {
-    mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      black 25%,
-      black 75%,
-      transparent 100%
-    );
+    mask-image: none;
   }
 
   .fade-y {
-    mask-image: linear-gradient(
-      to top,
-      transparent 0%,
-      black 25%,
-      black 75%,
-      transparent 100%
-    );
+    mask-image: none;
   }
 
   .fade-top {
-    mask-image: linear-gradient(to bottom, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-bottom {
-    mask-image: linear-gradient(to top, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-top-lg {
-    mask-image: linear-gradient(to bottom, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   .fade-bottom-lg {
-    mask-image: linear-gradient(to top, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   .fade-left {
-    mask-image: linear-gradient(to right, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-right {
-    mask-image: linear-gradient(to left, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-left-lg {
-    mask-image: linear-gradient(to right, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   .fade-right-lg {
-    mask-image: linear-gradient(to left, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   /* Animations */
