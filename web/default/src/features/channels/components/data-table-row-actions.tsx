@@ -174,7 +174,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               className={
                 isEnabled
                   ? 'text-destructive hover:text-destructive'
-                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
+                  : 'text-success hover:text-success'
               }
             />
           }

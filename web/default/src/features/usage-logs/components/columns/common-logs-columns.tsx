@@ -349,7 +349,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {affinity && (
                       <button
                         type='button'
-                        className='absolute -top-1 -right-1 leading-none text-amber-500'
+                        className='absolute -top-1 -right-1 leading-none text-warning'
                         onClick={(e) => {
                           e.stopPropagation()
                           setAffinityTarget({
@@ -618,7 +618,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger
-                        render={<CircleAlert className='size-3 text-red-500' />}
+                        render={<CircleAlert className='size-3 text-destructive' />}
                       ></TooltipTrigger>
                       <TooltipContent>
                         <div className='space-y-0.5 text-xs'>

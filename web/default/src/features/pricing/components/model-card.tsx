@@ -116,13 +116,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </h3>
             {hasAlias && (
               <div className='mt-1 flex min-w-0 items-center gap-1.5'>
-                <code className='text-muted-foreground/70 truncate font-mono text-[11px] leading-4'>
+                <code className='text-muted-foreground truncate font-mono text-[11px] leading-4'>
                   {props.model.model_name}
                 </code>
                 <button
                   type='button'
                   onClick={handleCopy}
-                  className='text-muted-foreground/70 hover:text-foreground hover:bg-muted inline-flex size-5 shrink-0 items-center justify-center rounded-md transition-colors'
+                  className='text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-5 shrink-0 items-center justify-center rounded-md transition-colors'
                   title={t('Copy model ID')}
                   aria-label={t('Copy model ID')}
                 >
@@ -137,7 +137,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     <span className='text-warning'>
                       {t('Special billing expression')}
                     </span>
-                    <code className='text-muted-foreground/70 mt-0.5 line-clamp-1 block font-mono text-[11px] break-all'>
+                    <code className='text-muted-foreground mt-0.5 line-clamp-1 block font-mono text-[11px] break-all'>
                       {dynamicSummary.rawExpression}
                     </code>
                   </span>
@@ -192,7 +192,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     /{tokenUnitLabel}
                   </span>
                   {hasCachedPrice && (
-                    <span className='text-muted-foreground/60 whitespace-nowrap'>
+                    <span className='text-muted-foreground whitespace-nowrap'>
                       {t('Cached')}{' '}
                       <span className='font-mono'>
                         {formatPrice(
@@ -276,15 +276,15 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
         <div className='flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:gap-x-3 sm:gap-y-1'>
           {bottomTags.map((item) => (
-            <span key={item} className='text-muted-foreground/70 text-xs'>
+            <span key={item} className='text-muted-foreground text-xs'>
               {item}
             </span>
           ))}
-          <span className='text-muted-foreground/50 text-xs'>
+          <span className='text-muted-foreground text-xs'>
             {tokenUnitLabel}
           </span>
           {hiddenCount > 0 && (
-            <span className='text-muted-foreground/40 text-xs'>
+            <span className='text-muted-foreground/80 text-xs'>
               +{hiddenCount}
             </span>
           )}
