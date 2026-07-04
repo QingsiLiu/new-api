@@ -282,7 +282,11 @@ export function SummaryCards() {
               </span>
               <span className='flex items-center gap-1.5'>
                 <span
-                  className={cn('size-2 rounded-full', healthCfg.dotClass)}
+                  className={cn(
+                    'inline-block size-2 rounded-full',
+                    healthCfg.dotClass,
+                    healthLevel === 'healthy' && 'geili-modern-status-pulse'
+                  )}
                   aria-hidden='true'
                 />
                 <span className='text-muted-foreground text-[11px] font-medium'>
