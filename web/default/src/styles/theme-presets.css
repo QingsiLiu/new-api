@@ -90,54 +90,57 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .dark [data-theme-preset='geili-editorial'] {
+  /* Contrast-enhanced dark surfaces (2026-07): cards lifted off the warm
+   * near-black canvas, muted text brightened, hairlines strengthened —
+   * same warm identity, sharper hierarchy. */
   --background: #15130d;
   --foreground: #ece6d7;
-  --card: #1b1812;
+  --card: #2a251b;
   --card-foreground: #ece6d7;
-  --popover: #1e1b14;
+  --popover: #30291d;
   --popover-foreground: #ece6d7;
 
   --primary: #e1542f;
-  --primary-foreground: #fcefe3;
-  --secondary: #262219;
+  --primary-foreground: #231206;
+  --secondary: #241f16;
   --secondary-foreground: #ece6d7;
-  --muted: #221f18;
-  --muted-foreground: #928c7b;
-  --accent: #2a2519;
+  --muted: #211d15;
+  --muted-foreground: #aca392;
+  --accent: #332d20;
   --accent-foreground: #ece6d7;
 
-  --destructive: #d14a33;
-  --destructive-foreground: #fcefe3;
+  --destructive: #e86750;
+  --destructive-foreground: #231206;
   --success: #3fa76b;
   --success-foreground: #15130d;
   --warning: #d39a45;
   --warning-foreground: #15130d;
   --info: #87a7b8;
   --info-foreground: #15130d;
-  --neutral: #7c7768;
+  --neutral: #a49c8a;
   --neutral-foreground: #15130d;
 
-  --border: #312c22;
-  --input: #34301f;
+  --border: #463d2d;
+  --input: #4f452f;
   --ring: #e1542f;
 
   --chart-1: #ece6d7;
-  --chart-2: #928c7b;
+  --chart-2: #a49c8a;
   --chart-3: #e1542f;
   --chart-4: #3fa76b;
   --chart-5: #7c7768;
 
-  --sidebar: #17150f;
+  --sidebar: #211d15;
   --sidebar-foreground: #ece6d7;
   --sidebar-primary: #e1542f;
-  --sidebar-primary-foreground: #fcefe3;
-  --sidebar-accent: #262219;
+  --sidebar-primary-foreground: #231206;
+  --sidebar-accent: #332d20;
   --sidebar-accent-foreground: #ece6d7;
-  --sidebar-border: #312c22;
+  --sidebar-border: #463d2d;
   --sidebar-ring: #e1542f;
 
-  --skeleton-base: #221f18;
-  --skeleton-highlight: #2a2519;
+  --skeleton-base: #211d15;
+  --skeleton-highlight: #2a251b;
   --radius: 0.4rem;
 }
 
