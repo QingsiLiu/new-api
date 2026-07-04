@@ -26,10 +26,10 @@ For commercial licensing, please contact support@quantumnous.com
 export const THEME_PRESETS = [
   {
     value: 'geili-modern',
-    name: '现代精致 / Geili Modern',
+    name: '现代 / Modern',
     description:
-      'Neutral chrome, vivid data color, and a cinnabar-to-indigo signature glow.',
-    swatches: ['#F6F6F8', '#CF4520', '#5B5BD6'],
+      'Borderless neutral chrome with solid cinnabar accents and quiet Vercel-style surfaces.',
+    swatches: ['#FFFFFF', '#CF4520', '#FAFAFA'],
   },
   {
     value: 'geili-editorial',
