@@ -1955,7 +1955,7 @@ export function ChannelMutateDrawer({
                                 </div>
                               </FormDescription>
                               {isEditing && (
-                                <div className='border-border/60 mt-4 flex flex-col gap-3 border-y border-dashed py-4'>
+                                <div className='border-border/40 mt-4 flex flex-col gap-3 border-y py-4'>
                                   <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
                                     <div>
                                       <p className='text-sm font-medium'>
