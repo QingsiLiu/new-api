@@ -23,6 +23,42 @@ import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
 import { saveUserId } from '../lib/storage'
 
+const ADMIN_ONLY_REDIRECT_PREFIXES = [
+  '/channels',
+  '/models',
+  '/users',
+  '/redemption-codes',
+  '/subscriptions',
+  '/system-settings',
+]
+
+const NON_USER_DESTINATIONS = ['/403']
+
+export function getSafePostLoginRedirect(
+  redirectTo?: string,
+  role?: number
+): string {
+  const fallback = '/dashboard'
+  if (!redirectTo) return fallback
+
+  const pathname = redirectTo.startsWith('/')
+    ? (redirectTo.split(/[?#]/, 1)[0] ?? '')
+    : ''
+  if (!pathname) return fallback
+
+  const isAdmin = typeof role === 'number' && role >= 10
+  if (!isAdmin) {
+    const targetsAdminOnlyRoute = ADMIN_ONLY_REDIRECT_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    )
+    if (targetsAdminOnlyRoute || NON_USER_DESTINATIONS.includes(pathname)) {
+      return fallback
+    }
+  }
+
+  return redirectTo
+}
+
 function getSavedLanguage(user: User): string | undefined {
   const userData = user as Record<string, unknown>
   if (typeof userData.language === 'string') {
@@ -54,7 +90,7 @@ export function useAuthRedirect() {
    * @param redirectTo - Redirect path after login
    */
   const handleLoginSuccess = async (
-    userData?: { id?: number } | null,
+    userData?: { id?: number; role?: number } | null,
     redirectTo?: string
   ) => {
     // Save user ID if available
@@ -63,10 +99,12 @@ export function useAuthRedirect() {
     }
 
     // Fetch and set user data
+    let resolvedRole = userData?.role
     try {
       const self = await getSelf()
       if (self?.success && self.data) {
         const user = self.data as User
+        resolvedRole = user.role
         auth.setUser(user)
 
         // Update user ID if not already set
@@ -86,7 +124,7 @@ export function useAuthRedirect() {
     }
 
     // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
+    const targetPath = getSafePostLoginRedirect(redirectTo, resolvedRole)
     navigate({ to: targetPath, replace: true })
   }
 
