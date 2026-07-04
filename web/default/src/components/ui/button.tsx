@@ -22,18 +22,18 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-[calc(var(--radius)*0.75)] border border-transparent bg-clip-padding text-[0.8125rem] leading-none font-semibold tracking-normal whitespace-nowrap transition-[background-color,border-color,color,transform] outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/35 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/35 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-[calc(var(--radius)*0.75)] border border-transparent bg-clip-padding text-[0.8125rem] leading-none font-medium tracking-normal whitespace-nowrap transition-[background-color,border-color,color,transform,box-shadow] duration-150 ease-[var(--motion-standard)] outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/35 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/35 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground hover:bg-primary/90 [a]:hover:bg-primary/90',
+          'bg-primary text-primary-foreground hover:bg-primary/92 [a]:hover:bg-primary/92',
         outline:
-          'border-border bg-transparent text-foreground hover:border-foreground/20 hover:bg-accent aria-expanded:bg-accent aria-expanded:text-foreground',
+          'border-border/80 bg-transparent text-foreground hover:border-border hover:bg-muted/60 aria-expanded:bg-muted aria-expanded:text-foreground',
         secondary:
-          'border-border bg-secondary text-secondary-foreground hover:border-foreground/20 hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
+          'bg-muted/70 text-foreground hover:bg-muted aria-expanded:bg-muted aria-expanded:text-foreground',
         ghost:
-          'text-foreground/75 hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground',
+          'text-foreground/75 hover:bg-muted/70 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
         destructive:
           'border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/15 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/15 dark:hover:bg-destructive/25 dark:focus-visible:ring-destructive/35',
         link: 'h-auto rounded-none border-0 px-0 text-primary underline-offset-4 hover:underline',
