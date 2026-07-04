@@ -45,7 +45,7 @@ export { useDataTable } from './hooks/use-data-table'
 export { useDebouncedColumnFilter } from './hooks/use-debounced-column-filter'
 
 export const DISABLED_ROW_DESKTOP =
-  'bg-muted/85 hover:bg-muted [&>td:first-child]:border-l-muted-foreground/35 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1'
+  'bg-muted/85 hover:bg-muted text-muted-foreground'
 
 export const DISABLED_ROW_MOBILE =
-  'border-l-4 border-l-muted-foreground/35 bg-muted/85'
+  'bg-muted/85 text-muted-foreground'

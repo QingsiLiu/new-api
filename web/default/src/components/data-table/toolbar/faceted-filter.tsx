@@ -80,7 +80,11 @@ function DataTableFacetedFilterInner<TData, TValue>({
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant='outline' size='sm' className='h-8 border-dashed' />
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8 border-transparent bg-muted/55 hover:bg-muted'
+          />
         }
       >
         <PlusCircledIcon className='size-4' />
@@ -134,7 +138,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
                   >
                     <div
                       className={cn(
-                        'border-primary flex size-4 items-center justify-center rounded-sm border',
+                        'flex size-4 items-center justify-center rounded-[calc(var(--radius)*0.45)] bg-muted transition-colors',
                         isSelected
                           ? 'bg-primary text-primary-foreground'
                           : 'opacity-50 [&_svg]:invisible'

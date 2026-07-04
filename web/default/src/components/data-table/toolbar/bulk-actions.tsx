@@ -172,8 +172,8 @@ export function DataTableBulkActions<TData>({
       >
         <div
           className={cn(
-            'p-2 shadow-none',
-            'rounded-xl border',
+            'p-2 shadow-[var(--shadow-card)]',
+            'rounded-lg',
             'bg-popover/95 supports-[backdrop-filter]:bg-popover/85 backdrop-blur-xs',
             'flex items-center gap-x-2'
           )}
