@@ -137,18 +137,18 @@ export function getAnnouncementColorClass(type?: string): string {
  * Semantic colors for tags and badges
  */
 const TAG_COLORS = [
+  'pink',
+  'indigo',
+  'teal',
   'amber',
   'blue',
   'cyan',
   'green',
-  'indigo',
   'light-blue',
   'lime',
   'orange',
-  'pink',
   'purple',
   'red',
-  'teal',
   'violet',
   'yellow',
 ] as const
