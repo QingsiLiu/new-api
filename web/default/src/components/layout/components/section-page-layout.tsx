@@ -84,7 +84,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
           )}
           <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4'>
             <div className='min-w-0 flex-1'>
-              <h2 className='truncate font-serif text-[1.875rem] leading-none font-medium tracking-normal sm:text-[2.5rem]'>
+              <h2 className='truncate text-2xl leading-tight font-semibold sm:text-3xl'>
                 {title}
               </h2>
             </div>
@@ -108,7 +108,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
 
         <div
           ref={setFooterContainer}
-          className='bg-background shrink-0 border-t px-5 py-3 empty:hidden sm:px-7 sm:py-4'
+          className='bg-background border-border/40 shrink-0 border-t px-5 py-3 empty:hidden sm:px-7 sm:py-4'
         />
       </Main>
     </PageFooterProvider>
