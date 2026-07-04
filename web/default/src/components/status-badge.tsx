@@ -73,6 +73,30 @@ export const textColorMap = {
 
 export type StatusVariant = keyof typeof dotColorMap
 
+const badgeSurfaceMap: Record<StatusVariant, string> = {
+  success: 'border-success/25 bg-success/15',
+  warning: 'border-warning/30 bg-warning/15',
+  danger: 'border-destructive/30 bg-destructive/15',
+  info: 'border-info/25 bg-info/15',
+  neutral: 'border-border bg-muted/60',
+  purple: 'border-chart-4/25 bg-chart-4/15',
+  amber: 'border-warning/30 bg-warning/15',
+  blue: 'border-chart-1/25 bg-chart-1/15',
+  cyan: 'border-chart-2/25 bg-chart-2/15',
+  green: 'border-success/25 bg-success/15',
+  grey: 'border-border bg-muted/60',
+  indigo: 'border-chart-1/25 bg-chart-1/15',
+  'light-blue': 'border-info/25 bg-info/15',
+  'light-green': 'border-success/25 bg-success/15',
+  lime: 'border-chart-3/25 bg-chart-3/15',
+  orange: 'border-warning/30 bg-warning/15',
+  pink: 'border-chart-5/25 bg-chart-5/15',
+  red: 'border-destructive/30 bg-destructive/15',
+  teal: 'border-chart-2/25 bg-chart-2/15',
+  violet: 'border-chart-4/25 bg-chart-4/15',
+  yellow: 'border-warning/30 bg-warning/15',
+}
+
 /** Controls the visual style of the badge.
  * - `badge`    — default editorial chip with dot and mono text (default)
  * - `text`     — plain text, no background or padding, only color
@@ -167,7 +191,8 @@ export function StatusBadge({
         'font-mono tracking-[0.12em] uppercase',
         isBadge
           ? cn(
-              'border-border rounded-full border bg-transparent',
+              'rounded-full border',
+              badgeSurfaceMap[computedVariant],
               sizeMap[size ?? 'sm']
             )
           : cn(

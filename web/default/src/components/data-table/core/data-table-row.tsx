@@ -54,7 +54,7 @@ function DataTableRowInner<TData>({
   return (
     <TableRow
       data-state={isSelected ? 'selected' : undefined}
-      className={className}
+      className={cn('even:bg-muted/30', className)}
       {...rowProps}
     >
       {row.getVisibleCells().map((cell) => (

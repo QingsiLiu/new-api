@@ -27,11 +27,11 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          'border-primary/25 bg-primary/10 text-primary [a]:hover:bg-primary/15',
+          'border-primary/30 bg-primary/15 text-primary [a]:hover:bg-primary/20',
         secondary:
-          'border-border bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80',
+          'border-border/80 bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80',
         destructive:
-          'border-destructive/25 bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/15 dark:focus-visible:ring-destructive/35 [a]:hover:bg-destructive/15',
+          'border-destructive/30 bg-destructive/15 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/35 [a]:hover:bg-destructive/20',
         outline:
           'border-border bg-transparent text-foreground [a]:hover:bg-accent [a]:hover:text-foreground',
         ghost: 'text-muted-foreground hover:bg-accent hover:text-foreground',
