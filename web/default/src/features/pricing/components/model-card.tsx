@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { StatusBadge } from '@/components/status-badge'
+import { GroupBadge } from '@/components/group-badge'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
@@ -107,7 +107,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
-  const endpoints = props.model.supported_endpoint_types || []
   const modelIconKey = props.model.icon || props.model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null
   const modelAlias = props.model.alias?.trim()
@@ -128,17 +127,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         groupRatioMultiplier: getDynamicDisplayGroupRatio(props.model),
       })
     : null
-  let pricingTypeLabel = isTokenBased ? t('Token-based') : t('Per Request')
-  if (specPricingSummary) {
-    pricingTypeLabel = t(specPricingSummary.labelKey)
-  }
-
-  const primaryGroup = groups[0]
-  const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
+  const visibleGroups = groups.filter(Boolean).slice(0, 2)
+  const visibleTags = tags.slice(0, 3)
   const hiddenCount =
-    Math.max(groups.length - 1, 0) +
-    Math.max(endpoints.length - 2, 0) +
-    Math.max(tags.length - 2, 0)
+    Math.max(groups.length - visibleGroups.length, 0) +
+    Math.max(tags.length - visibleTags.length, 0)
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -313,37 +306,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
       {/* Footer: left metadata and right performance summary share row alignment */}
       <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
-        <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
-          {primaryGroup && (
-            <span className='text-muted-foreground text-xs font-medium'>
-              {primaryGroup} {t('Groups')}
-            </span>
-          )}
-          <span className='text-muted-foreground text-xs font-medium'>
-            {pricingTypeLabel}
-          </span>
-          {isDynamicPricing && (
-            <StatusBadge
-              label={t('Dynamic Pricing')}
-              variant='warning'
-              copyable={false}
-              size='sm'
-            />
-          )}
+        <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
+          {visibleGroups.map((group) => (
+            <GroupBadge key={group} group={group} size='sm' copyable={false} />
+          ))}
         </div>
         <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
 
         <div className='flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:gap-x-3 sm:gap-y-1'>
-          {bottomTags.map((item) => (
+          {visibleTags.map((item) => (
             <span key={item} className='text-muted-foreground/70 text-xs'>
               {item}
             </span>
           ))}
-          {!specPricingSummary && (
-            <span className='text-muted-foreground/50 text-xs'>
-              {tokenUnitLabel}
-            </span>
-          )}
           {hiddenCount > 0 && (
             <span className='text-muted-foreground/40 text-xs'>
               +{hiddenCount}
