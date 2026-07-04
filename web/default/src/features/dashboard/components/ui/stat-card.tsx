@@ -212,7 +212,7 @@ export function StatCard(props: StatCardProps) {
       <div className='flex items-start justify-between gap-1'>
         <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium sm:gap-2'>
           <Icon
-            className='text-muted-foreground/60 size-3.5 shrink-0'
+            className='text-muted-foreground size-3.5 shrink-0'
             aria-hidden='true'
           />
           <span className='line-clamp-2 leading-snug'>{props.title}</span>
@@ -230,7 +230,7 @@ export function StatCard(props: StatCardProps) {
           <div className='text-muted-foreground mt-0.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:text-2xl'>
             --
           </div>
-          <p className='text-muted-foreground/60 text-xs'>
+          <p className='text-muted-foreground text-xs'>
             {props.description}
           </p>
         </div>
@@ -239,7 +239,7 @@ export function StatCard(props: StatCardProps) {
           <div className='editorial-stat-value text-foreground text-2xl break-all'>
             {props.value}
           </div>
-          <p className='text-muted-foreground/60 text-xs leading-relaxed'>
+          <p className='text-muted-foreground text-xs leading-relaxed'>
             {props.description}
           </p>
         </div>

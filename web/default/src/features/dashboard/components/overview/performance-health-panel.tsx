@@ -105,7 +105,7 @@ export function PerformanceHealthPanel() {
     <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
       <div className='flex items-center gap-2 border-b px-4 py-3 sm:px-5'>
         <HeartPulse
-          className='text-muted-foreground/60 size-4 shrink-0'
+          className='text-muted-foreground size-4 shrink-0'
           aria-hidden='true'
         />
         <h3 className='text-sm font-semibold'>{t('Performance health')}</h3>
