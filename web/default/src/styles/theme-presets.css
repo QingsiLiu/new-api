@@ -34,54 +34,58 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* ── Geili Editorial ──────────────────────────────────────────────────── */
 [data-theme-preset='geili-editorial'] {
-  --background: #f4f1e8;
+  /* Contrast-enhanced surfaces (2026-07): near-white cards float on a slightly
+   * deeper warm canvas; muted text and hairlines darkened for legibility. The
+   * warm editorial identity is unchanged — only *value contrast* and surface
+   * hierarchy are lifted so the console reads crisper and less fatiguing. */
+  --background: #f1ebdf;
   --foreground: #18160f;
-  --card: #f8f5ec;
+  --card: #fffaf2;
   --card-foreground: #18160f;
-  --popover: #faf7ef;
+  --popover: #fffefb;
   --popover-foreground: #18160f;
 
-  --primary: #c8432a;
+  --primary: #ad3720;
   --primary-foreground: #fbf3e6;
-  --secondary: #e7e2d5;
+  --secondary: #e5ddcb;
   --secondary-foreground: #2a271e;
-  --muted: #ece7db;
-  --muted-foreground: #8c8676;
-  --accent: #ede8dc;
+  --muted: #e9e2d3;
+  --muted-foreground: #57513f;
+  --accent: #ded2ba;
   --accent-foreground: #18160f;
 
   --destructive: #9e2b22;
   --destructive-foreground: #fbf3e6;
   --success: #1f7a4d;
   --success-foreground: #f4f1e8;
-  --warning: #9b6a24;
+  --warning: #855716;
   --warning-foreground: #18160f;
   --info: #516f83;
   --info-foreground: #f4f1e8;
-  --neutral: #a6a096;
+  --neutral: #6f6a59;
   --neutral-foreground: #18160f;
 
-  --border: #dcd6c8;
-  --input: #d6d0c1;
-  --ring: #c8432a;
+  --border: #b3a37e;
+  --input: #b3a37e;
+  --ring: #ad3720;
 
   --chart-1: #18160f;
-  --chart-2: #8c8676;
+  --chart-2: #7a7462;
   --chart-3: #c8432a;
   --chart-4: #1f7a4d;
   --chart-5: #a6a096;
 
-  --sidebar: #f1ede3;
+  --sidebar: #e9dfcc;
   --sidebar-foreground: #2a271e;
-  --sidebar-primary: #c8432a;
+  --sidebar-primary: #ad3720;
   --sidebar-primary-foreground: #fbf3e6;
-  --sidebar-accent: #e7e2d5;
+  --sidebar-accent: #d8ccb3;
   --sidebar-accent-foreground: #18160f;
-  --sidebar-border: #dcd6c8;
-  --sidebar-ring: #c8432a;
+  --sidebar-border: #b3a37e;
+  --sidebar-ring: #ad3720;
 
-  --skeleton-base: #e7e2d5;
-  --skeleton-highlight: #faf7ef;
+  --skeleton-base: #e5ddcb;
+  --skeleton-highlight: #fffaf2;
   --radius: 0.4rem;
 }
 
