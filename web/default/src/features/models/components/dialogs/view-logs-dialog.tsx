@@ -279,7 +279,7 @@ export function ViewLogsDialog({
       </div>
       <div
         ref={scrollRef}
-        className='flex-1 overflow-auto rounded-md border bg-black p-3 sm:p-4'
+        className='bg-card flex-1 overflow-auto rounded-md border p-3 sm:p-4'
         onScroll={(e) => {
           const target = e.target as HTMLDivElement
           const isAtBottom =
@@ -289,22 +289,24 @@ export function ViewLogsDialog({
       >
         {isLoadingContainers || isLoadingLogs ? (
           <div className='flex items-center justify-center py-8'>
-            <Loader2 className='h-6 w-6 animate-spin text-gray-400' />
+            <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
           </div>
         ) : containers.length === 0 ? (
-          <div className='py-8 text-center text-gray-400'>
+          <div className='text-muted-foreground py-8 text-center'>
             {t('No containers')}
           </div>
         ) : !containerId ? (
-          <div className='py-8 text-center text-gray-400'>
+          <div className='text-muted-foreground py-8 text-center'>
             {t('Please select a container')}
           </div>
         ) : !logsText.trim() ? (
-          <div className='py-8 text-center text-gray-400'>{t('No logs')}</div>
+          <div className='text-muted-foreground py-8 text-center'>
+            {t('No logs')}
+          </div>
         ) : (
           <div className='font-mono text-sm'>
             {logLines.map((line, idx) => (
-              <div key={idx} className='whitespace-pre-wrap text-gray-200'>
+              <div key={idx} className='text-foreground whitespace-pre-wrap'>
                 {line}
               </div>
             ))}

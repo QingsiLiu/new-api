@@ -98,7 +98,7 @@ const typeOptions = [
   {
     value: 'default',
     label: 'Default',
-    color: 'bg-gray-500',
+    color: 'bg-muted-foreground',
     badgeVariant: 'neutral' as const,
   },
   {
@@ -116,7 +116,7 @@ const typeOptions = [
   {
     value: 'warning',
     label: 'Warning',
-    color: 'bg-orange-500',
+    color: 'bg-warning',
     badgeVariant: 'warning' as const,
   },
   {
