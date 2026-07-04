@@ -369,6 +369,24 @@ For commercial licensing, please contact support@quantumnous.com
     'wght' 600;
 }
 
+@utility stat-value-affix {
+  font-size: 0.62em;
+  line-height: 1;
+  font-weight: 650;
+  opacity: 0.66;
+  vertical-align: 0.16em;
+}
+
+@utility stat-value-unit {
+  margin-left: 0.12em;
+  font-size: 0.58em;
+  line-height: 1;
+  font-weight: 650;
+  opacity: 0.62;
+  vertical-align: baseline;
+  text-transform: none;
+}
+
 @utility editorial-hairline {
   border-color: var(--border);
   border-style: solid;

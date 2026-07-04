@@ -21,6 +21,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatValue } from '@/components/stat-value'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
@@ -144,7 +145,7 @@ export function LogStatCards(props: LogStatCardsProps) {
               ) : (
                 <>
                   <div className='editorial-stat-value text-foreground mt-1.5 text-2xl sm:mt-2'>
-                    {it.value}
+                    <StatValue value={it.value} />
                   </div>
                   <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
                     {it.desc}

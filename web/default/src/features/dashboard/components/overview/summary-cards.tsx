@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { EditorialLabel } from '@/components/editorial'
+import { StatValue } from '@/components/stat-value'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -291,7 +292,7 @@ export function SummaryCards() {
             </div>
 
             <div className='geili-modern-gradient-text editorial-stat-value text-foreground text-3xl'>
-              {formatQuota(remainQuota)}
+              <StatValue value={formatQuota(remainQuota)} />
             </div>
 
             <div className='grid grid-cols-2 gap-2'>

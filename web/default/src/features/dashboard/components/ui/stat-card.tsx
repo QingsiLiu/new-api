@@ -20,6 +20,7 @@ import { useId, type ReactNode } from 'react'
 import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatValue } from '@/components/stat-value'
 
 type StatCardTone =
   | 'primary'
@@ -273,7 +274,7 @@ export function StatCard(props: StatCardProps) {
       ) : (
         <div className='flex flex-col gap-1'>
           <div className='editorial-stat-value text-foreground text-2xl break-all'>
-            {props.value}
+            <StatValue value={props.value} />
           </div>
           <p className='text-muted-foreground text-xs leading-relaxed'>
             {props.description}
