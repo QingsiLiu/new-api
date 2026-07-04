@@ -69,7 +69,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot='dialog-content'
         className={cn(
-          'bg-popover text-popover-foreground border-border data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-xl border p-5 text-sm shadow-none duration-150 outline-none sm:max-w-sm',
+          'bg-popover text-popover-foreground data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg p-4 text-sm shadow-[var(--shadow-card)] duration-150 outline-none sm:max-w-sm',
           className
         )}
         {...props}
@@ -81,7 +81,7 @@ function DialogContent({
             render={
               <Button
                 variant='ghost'
-                className='absolute top-2 right-2'
+                className='absolute top-2 right-2 text-muted-foreground hover:text-foreground'
                 size='icon-sm'
               />
             }
@@ -117,7 +117,7 @@ function DialogFooter({
     <div
       data-slot='dialog-footer'
       className={cn(
-        '-mx-5 -mb-5 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-transparent p-5 sm:flex-row sm:justify-end',
+        'border-border/60 -mx-4 -mb-4 flex flex-col-reverse gap-2 border-t bg-transparent p-4 sm:flex-row sm:justify-end',
         className
       )}
       {...props}
@@ -136,7 +136,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot='dialog-title'
-      className={cn('text-[1.375rem] leading-none font-medium', className)}
+      className={cn('text-lg leading-tight font-semibold', className)}
       {...props}
     />
   )
