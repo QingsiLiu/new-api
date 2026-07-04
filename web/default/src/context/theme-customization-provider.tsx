@@ -26,6 +26,12 @@ import {
 } from 'react'
 import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
 import {
+  resolveVersionedPreferenceDefault,
+  shouldMigratePreferenceDefaults,
+  THEME_DEFAULTS_VERSION,
+  THEME_DEFAULTS_VERSION_COOKIE_NAME,
+} from '@/lib/preference-defaults'
+import {
   CONTENT_LAYOUT_VALUES,
   type ContentLayout,
   DEFAULT_THEME_CUSTOMIZATION,
@@ -47,10 +53,27 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
 function readCookie<T extends string>(
   name: string,
   allowed: ReadonlySet<T>,
-  fallback: T
+  fallback: T,
+  migration?: {
+    legacyDefault: T
+    shouldMigrateLegacyDefault: boolean
+  }
 ): T {
-  const value = getCookie(name)
-  return value && allowed.has(value as T) ? (value as T) : fallback
+  return resolveVersionedPreferenceDefault({
+    savedValue: getCookie(name),
+    allowedValues: allowed,
+    fallback,
+    legacyDefault: migration?.legacyDefault,
+    shouldMigrateLegacyDefault:
+      migration?.shouldMigrateLegacyDefault ?? false,
+  })
+}
+
+function shouldMigrateThemeDefaults() {
+  return shouldMigratePreferenceDefaults(
+    getCookie(THEME_DEFAULTS_VERSION_COOKIE_NAME),
+    THEME_DEFAULTS_VERSION
+  )
 }
 
 function applyAttribute(name: string, value: string | null) {
@@ -100,7 +123,11 @@ export function ThemeCustomizationProvider(props: {
     readCookie<ThemePreset>(
       THEME_COOKIE_KEYS.preset,
       THEME_PRESET_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.preset
+      DEFAULT_THEME_CUSTOMIZATION.preset,
+      {
+        legacyDefault: 'geili-editorial',
+        shouldMigrateLegacyDefault: shouldMigrateThemeDefaults(),
+      }
     )
   )
   const [font, _setFont] = useState<ThemeFont>(() =>
@@ -121,7 +148,11 @@ export function ThemeCustomizationProvider(props: {
     readCookie<ThemeScale>(
       THEME_COOKIE_KEYS.scale,
       THEME_SCALE_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.scale
+      DEFAULT_THEME_CUSTOMIZATION.scale,
+      {
+        legacyDefault: 'default',
+        shouldMigrateLegacyDefault: shouldMigrateThemeDefaults(),
+      }
     )
   )
   const [contentLayout, _setContentLayout] = useState<ContentLayout>(() =>
@@ -134,6 +165,22 @@ export function ThemeCustomizationProvider(props: {
 
   // Mirror state to the <body> via data-* attributes so theme-presets.css can
   // override CSS variables at the right cascade layer.
+  useEffect(() => {
+    if (shouldMigrateThemeDefaults()) {
+      if (getCookie(THEME_COOKIE_KEYS.preset) === 'geili-editorial') {
+        removeCookie(THEME_COOKIE_KEYS.preset)
+      }
+      if (getCookie(THEME_COOKIE_KEYS.scale) === 'default') {
+        removeCookie(THEME_COOKIE_KEYS.scale)
+      }
+    }
+    setCookie(
+      THEME_DEFAULTS_VERSION_COOKIE_NAME,
+      THEME_DEFAULTS_VERSION,
+      COOKIE_MAX_AGE
+    )
+  }, [])
+
   useEffect(() => {
     applyAttribute('data-theme-preset', preset === 'default' ? null : preset)
   }, [preset])

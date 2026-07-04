@@ -20,8 +20,16 @@ import { useId, type ReactNode } from 'react'
 import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatValue } from '@/components/stat-value'
 
-type StatCardTone = 'primary' | 'success' | 'accent' | 'neutral'
+type StatCardTone =
+  | 'primary'
+  | 'success'
+  | 'accent'
+  | 'neutral'
+  | 'chart-1'
+  | 'chart-2'
+  | 'chart-3'
 type StatCardSparklineVariant = 'bars' | 'line'
 type StatCardDetailTone =
   | 'default'
@@ -55,6 +63,9 @@ const TONE_CLASSES: Record<StatCardTone, string> = {
   success: 'bg-success',
   accent: 'bg-primary',
   neutral: 'bg-muted-foreground',
+  'chart-1': 'bg-chart-1',
+  'chart-2': 'bg-chart-2',
+  'chart-3': 'bg-chart-3',
 }
 
 const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
@@ -62,6 +73,9 @@ const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
   success: 'text-success',
   accent: 'text-primary',
   neutral: 'text-muted-foreground',
+  'chart-1': 'text-chart-1',
+  'chart-2': 'text-chart-2',
+  'chart-3': 'text-chart-3',
 }
 
 const DETAIL_TONE_CLASSES: Record<StatCardDetailTone, string> = {
@@ -104,9 +118,13 @@ function buildLineSparkline(values?: number[]) {
     return { x, y }
   })
 
-  const linePath = points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-    .join(' ')
+  const linePath = points.reduce((path, point, index) => {
+    if (index === 0) return `M ${point.x} ${point.y}`
+
+    const previous = points[index - 1]
+    const controlX = previous.x + (point.x - previous.x) / 2
+    return `${path} C ${controlX} ${previous.y} ${controlX} ${point.y} ${point.x} ${point.y}`
+  }, '')
   const firstPoint = points[0]
   const lastPoint = points[points.length - 1]
   const areaPath = `${linePath} L ${lastPoint.x} ${height} L ${firstPoint.x} ${height} Z`
@@ -114,6 +132,7 @@ function buildLineSparkline(values?: number[]) {
   return {
     areaPath,
     linePath,
+    lastPoint,
   }
 }
 
@@ -151,6 +170,22 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
           strokeLinecap='round'
           strokeLinejoin='round'
           strokeWidth='2.25'
+          vectorEffect='non-scaling-stroke'
+        />
+        <circle
+          cx={paths.lastPoint.x}
+          cy={paths.lastPoint.y}
+          r='6'
+          fill='currentColor'
+          opacity='0.16'
+        />
+        <circle
+          cx={paths.lastPoint.x}
+          cy={paths.lastPoint.y}
+          r='2.8'
+          fill='currentColor'
+          stroke='var(--card)'
+          strokeWidth='1.3'
           vectorEffect='non-scaling-stroke'
         />
       </svg>
@@ -239,7 +274,7 @@ export function StatCard(props: StatCardProps) {
       ) : (
         <div className='flex flex-col gap-1'>
           <div className='editorial-stat-value text-foreground text-2xl break-all'>
-            {props.value}
+            <StatValue value={props.value} />
           </div>
           <p className='text-muted-foreground text-xs leading-relaxed'>
             {props.description}

@@ -69,15 +69,111 @@ For commercial licensing, please contact support@quantumnous.com
   .editorial-display,
   .editorial-section-title,
   .editorial-stat-value {
-    font-family: var(--font-serif);
-    font-weight: 500;
+    font-family: var(--font-sans);
+    font-weight: 600;
     letter-spacing: 0;
     text-wrap: balance;
   }
 
-  :is(h1, h2),
+  h1 {
+    font-size: 1.875rem;
+    font-weight: 750;
+    letter-spacing: 0;
+    font-variation-settings:
+      'opsz' 32,
+      'wght' 750;
+    line-height: 1.05;
+  }
+
+  h2 {
+    font-weight: 700;
+    font-variation-settings:
+      'opsz' 28,
+      'wght' 700;
+    line-height: 1.1;
+  }
+
+  h3 {
+    font-weight: 650;
+    font-variation-settings:
+      'opsz' 24,
+      'wght' 650;
+    line-height: 1.1;
+  }
+
   .editorial-display,
   .editorial-stat-value {
+    font-weight: 750;
+    font-variation-settings:
+      'opsz' 32,
+      'wght' 750;
+    line-height: 1;
+  }
+
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    :is(h1, h2, h3, h4, h5, h6),
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    [data-slot='card-title'],
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    [data-slot='dialog-title'],
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    [data-slot='sheet-title'],
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    [data-slot='alert-dialog-title'],
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    [data-slot='drawer-title'],
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    .editorial-display,
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    .editorial-section-title,
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    .editorial-stat-value {
+    font-family: var(--font-serif);
+    font-weight: 500;
+  }
+
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    :is(h1, h2),
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    .editorial-display,
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    .editorial-stat-value {
     font-weight: 600;
     font-variation-settings:
       'SOFT' 50,
@@ -87,7 +183,12 @@ For commercial licensing, please contact support@quantumnous.com
     line-height: 1;
   }
 
-  h3 {
+  :where(
+      [data-theme-preset='geili-editorial'],
+      [data-theme-preset='anthropic']
+    )
+    h3 {
+    font-weight: 500;
     font-variation-settings:
       'SOFT' 50,
       'WONK' 0,
@@ -266,6 +367,24 @@ For commercial licensing, please contact support@quantumnous.com
     'WONK' 0,
     'opsz' 72,
     'wght' 600;
+}
+
+@utility stat-value-affix {
+  font-size: 0.62em;
+  line-height: 1;
+  font-weight: 650;
+  opacity: 0.66;
+  vertical-align: 0.16em;
+}
+
+@utility stat-value-unit {
+  margin-left: 0.12em;
+  font-size: 0.58em;
+  line-height: 1;
+  font-weight: 650;
+  opacity: 0.62;
+  vertical-align: baseline;
+  text-transform: none;
 }
 
 @utility editorial-hairline {
@@ -651,6 +770,314 @@ For commercial licensing, please contact support@quantumnous.com
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.4),
     0 10px 26px rgba(0, 0, 0, 0.32);
+}
+
+/* Geili Modern — scoped refinement layer.
+ * The preset carries the extra polish; all selectors stay gated so legacy
+ * presets retain their existing flat/editorial character. */
+body[data-theme-preset='geili-modern']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  mix-blend-mode: multiply;
+}
+
+.dark body[data-theme-preset='geili-modern']::after {
+  mix-blend-mode: screen;
+}
+
+[data-theme-preset='geili-modern'] [data-slot='sidebar-inset'] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+[data-theme-preset='geili-modern'] [data-slot='sidebar-inset']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 1px 1px, color-mix(in oklch, var(--foreground) 8%, transparent) 1px, transparent 0),
+    linear-gradient(180deg, color-mix(in oklch, var(--primary) 5%, transparent), transparent 18rem);
+  background-size:
+    20px 20px,
+    100% 100%;
+  mask-image: linear-gradient(180deg, #000 0%, #000 38%, transparent 92%);
+}
+
+[data-theme-preset='geili-modern'] [data-slot='sidebar-inset'] > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme-preset='geili-modern'] [data-geili-modern-logo] {
+  position: relative;
+  isolation: isolate;
+  padding: 2px;
+  border-color: color-mix(in oklch, var(--primary) 36%, transparent);
+  background: var(--grad);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, var(--surface-highlight) 70%, transparent),
+    0 10px 26px color-mix(in oklch, var(--primary) 22%, transparent);
+}
+
+[data-theme-preset='geili-modern'] [data-geili-modern-logo] > img {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(var(--radius) * 0.7);
+  background: var(--card);
+}
+
+[data-theme-preset='geili-modern']
+  [data-slot='sidebar-menu-button'][data-active='true'] {
+  background: var(--grad-soft);
+  border-color: color-mix(in oklch, var(--primary) 30%, var(--sidebar-border));
+  color: var(--sidebar-accent-foreground);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--surface-highlight) 46%, transparent),
+    0 10px 24px color-mix(in oklch, var(--primary) 14%, transparent);
+}
+
+[data-theme-preset='geili-modern']
+  [data-slot='sidebar-menu-button'][data-active='true']::before {
+  display: block;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  left: 0;
+  width: 3px;
+  height: auto;
+  border-radius: 999px;
+  background: var(--grad);
+  box-shadow: 0 0 16px color-mix(in oklch, var(--primary) 38%, transparent);
+  transform: none;
+}
+
+[data-theme-preset='geili-modern']
+  [data-slot='sidebar-menu-button'][data-active='true']
+  svg {
+  color: var(--primary);
+}
+
+[data-theme-preset='geili-modern'] [data-slot='card'] {
+  position: relative;
+  border-color: color-mix(in oklch, var(--border) 82%, var(--foreground));
+  box-shadow:
+    0 1px 1px rgba(24, 24, 27, 0.04),
+    0 10px 30px rgba(24, 24, 27, 0.08),
+    0 28px 70px rgba(91, 91, 214, 0.06);
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dark [data-theme-preset='geili-modern'] [data-slot='card'] {
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.5),
+    0 16px 38px rgba(0, 0, 0, 0.42),
+    0 30px 80px rgba(139, 139, 240, 0.08);
+}
+
+[data-theme-preset='geili-modern'] [data-slot='card']::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--surface-highlight), transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-theme-preset='geili-modern']
+    [data-slot='card']:not([data-card-hover='false']):hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklch, var(--primary) 24%, var(--border));
+    box-shadow:
+      0 2px 4px rgba(24, 24, 27, 0.05),
+      0 18px 44px rgba(24, 24, 27, 0.12),
+      0 34px 90px rgba(91, 91, 214, 0.12);
+  }
+
+  .dark
+    [data-theme-preset='geili-modern']
+    [data-slot='card']:not([data-card-hover='false']):hover {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.55),
+      0 22px 54px rgba(0, 0, 0, 0.5),
+      0 38px 96px rgba(139, 139, 240, 0.16);
+  }
+}
+
+[data-theme-preset='geili-modern'] [data-slot='button'] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[data-theme-preset='geili-modern'] [data-slot='button']::before {
+  content: '';
+  position: absolute;
+  inset: -40% auto -40% -75%;
+  z-index: 0;
+  width: 55%;
+  pointer-events: none;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  transform: translateX(0) skewX(-18deg);
+  opacity: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-theme-preset='geili-modern'] [data-slot='button']:hover::before {
+    animation: geili-modern-button-shine 720ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
+.geili-modern-gradient-text {
+  color: var(--foreground);
+}
+
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  [data-theme-preset='geili-modern'] .geili-modern-gradient-text {
+    background: var(--grad);
+    background-clip: text;
+    color: transparent;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+[data-theme-preset='geili-modern'] [data-modern-hero='balance'] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--grad-soft);
+  border-color: color-mix(in oklch, var(--primary) 24%, var(--border));
+}
+
+[data-theme-preset='geili-modern'] [data-modern-hero='balance']::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: 2px;
+  pointer-events: none;
+  background: var(--grad);
+}
+
+[data-theme-preset='geili-modern'] [data-modern-hero='balance']::after {
+  content: '';
+  position: absolute;
+  inset: -22% -26% auto auto;
+  z-index: 0;
+  width: 15rem;
+  aspect-ratio: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 62%),
+    radial-gradient(circle at 70% 28%, color-mix(in oklch, var(--accent-2) 16%, transparent) 0%, transparent 56%);
+  filter: blur(2px);
+}
+
+[data-theme-preset='geili-modern'] [data-modern-hero='balance'] > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme-preset='geili-modern'] .geili-modern-primary-cta {
+  border-color: transparent;
+  background: var(--grad);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 14px 34px color-mix(in oklch, var(--primary) 24%, transparent);
+}
+
+[data-theme-preset='geili-modern'] .geili-modern-primary-cta > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme-preset='geili-modern'] .geili-modern-status-pulse {
+  position: relative;
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--success) 24%, transparent);
+}
+
+[data-theme-preset='geili-modern'] .geili-modern-status-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: color-mix(in oklch, var(--success) 24%, transparent);
+  animation: geili-modern-status-pulse 1.8s ease-out infinite;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-theme-preset='geili-modern'] .geili-modern-primary-cta:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      0 18px 44px color-mix(in oklch, var(--primary) 30%, transparent);
+  }
+}
+
+@keyframes geili-modern-status-pulse {
+  0% {
+    opacity: 0.52;
+    transform: scale(0.72);
+  }
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(2.15);
+  }
+}
+
+[data-theme-preset='geili-modern'] :is(hr, [data-slot='separator']) {
+  border-image: linear-gradient(90deg, var(--border), transparent) 1;
+}
+
+@keyframes geili-modern-button-shine {
+  0% {
+    opacity: 0;
+    transform: translateX(0) skewX(-18deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(360%) skewX(-18deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme-preset='geili-modern'] [data-slot='card'],
+  [data-theme-preset='geili-modern'] [data-slot='button'],
+  [data-theme-preset='geili-modern'] [data-slot='button']::before,
+  [data-theme-preset='geili-modern'] .geili-modern-status-pulse::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+
+  [data-theme-preset='geili-modern'] .geili-modern-status-pulse::after {
+    opacity: 0.22;
+  }
 }
 
 /* Micro-interactions — Vercel-style subtle hover/active feedback */

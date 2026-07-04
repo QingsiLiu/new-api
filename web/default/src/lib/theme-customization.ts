@@ -25,6 +25,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 export const THEME_PRESETS = [
   {
+    value: 'geili-modern',
+    name: '现代精致 / Geili Modern',
+    description:
+      'Neutral chrome, vivid data color, and a cinnabar-to-indigo signature glow.',
+    swatches: ['#F6F6F8', '#CF4520', '#5B5BD6'],
+  },
+  {
     value: 'geili-editorial',
     name: 'Geili Editorial',
     swatches: ['#F4F1E8', '#C8432A', '#15130D'],
@@ -121,7 +128,7 @@ export type ThemeCustomization = {
 }
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  preset: 'geili-editorial',
+  preset: 'geili-modern',
   font: 'default',
   radius: 'default',
   scale: 'sm',
@@ -181,6 +188,7 @@ export const PRESET_DEFAULT_FONT: Partial<
   Record<ThemePreset, ResolvedThemeFont>
 > = {
   default: 'sans',
+  'geili-modern': 'sans',
   'geili-editorial': 'sans',
   anthropic: 'serif',
 }

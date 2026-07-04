@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { EditorialLabel } from '@/components/editorial'
+import { StatValue } from '@/components/stat-value'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -217,7 +218,7 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['primary', 'success', 'accent'] as const
+    const tones = ['chart-1', 'chart-2', 'chart-3'] as const
 
     return {
       key: config.key,
@@ -270,7 +271,10 @@ export function SummaryCards() {
           </StaggerContainer>
         </div>
 
-        <div className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div
+          data-modern-hero='balance'
+          className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'
+        >
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>
@@ -278,7 +282,11 @@ export function SummaryCards() {
               </span>
               <span className='flex items-center gap-1.5'>
                 <span
-                  className={cn('size-2 rounded-full', healthCfg.dotClass)}
+                  className={cn(
+                    'inline-block size-2 rounded-full',
+                    healthCfg.dotClass,
+                    healthLevel === 'healthy' && 'geili-modern-status-pulse'
+                  )}
                   aria-hidden='true'
                 />
                 <span className='text-muted-foreground text-[11px] font-medium'>
@@ -287,8 +295,8 @@ export function SummaryCards() {
               </span>
             </div>
 
-            <div className='editorial-stat-value text-foreground text-3xl'>
-              {formatQuota(remainQuota)}
+            <div className='geili-modern-gradient-text editorial-stat-value text-foreground text-3xl'>
+              <StatValue value={formatQuota(remainQuota)} />
             </div>
 
             <div className='grid grid-cols-2 gap-2'>
@@ -337,7 +345,10 @@ export function SummaryCards() {
             </div>
           </div>
 
-          <Button className='justify-between' render={<Link to='/wallet' />}>
+          <Button
+            className='geili-modern-primary-cta justify-between'
+            render={<Link to='/wallet' />}
+          >
             <span>{t('Wallet')}</span>
             <ArrowRight data-icon='inline-end' />
           </Button>

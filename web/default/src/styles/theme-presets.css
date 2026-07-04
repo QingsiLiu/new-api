@@ -144,6 +144,123 @@ For commercial licensing, please contact support@quantumnous.com
   --radius: 0.4rem;
 }
 
+/* ── Geili Modern ─────────────────────────────────────────────────────── */
+[data-theme-preset='geili-modern'] {
+  --background: #f6f6f8;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+
+  --primary: #cf4520;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1f4;
+  --secondary-foreground: #18181b;
+  --muted: #f1f1f4;
+  --muted-foreground: #5b5b63;
+  --accent: #f1f1f4;
+  --accent-foreground: #18181b;
+  --accent-2: #5b5bd6;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #15935a;
+  --success-foreground: #03130c;
+  --warning: #d97706;
+  --warning-foreground: #18181b;
+  --info: #3b82f6;
+  --info-foreground: #071526;
+  --neutral: #5b5b63;
+  --neutral-foreground: #ffffff;
+
+  --border: #e6e6e9;
+  --input: #e0e0e4;
+  --ring: #cf4520;
+
+  --chart-1: #cf4520;
+  --chart-2: #5b5bd6;
+  --chart-3: #0d9488;
+  --chart-4: #d97706;
+  --chart-5: #3b82f6;
+
+  --sidebar: #fbfbfc;
+  --sidebar-foreground: #18181b;
+  --sidebar-primary: #cf4520;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f1f4;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #e6e6e9;
+  --sidebar-ring: #cf4520;
+
+  --skeleton-base: #ededf1;
+  --skeleton-highlight: #ffffff;
+  --radius: 0.625rem;
+
+  --grad: linear-gradient(135deg,#e0532a 0%,#d9457e 48%,#5b5bd6 100%);
+  --grad-soft: linear-gradient(135deg,rgba(207,69,32,.08),rgba(217,69,126,.05) 50%,rgba(91,91,214,.09));
+  --surface-highlight: rgba(255,255,255,.9);
+  --grain-opacity: .03;
+}
+
+.dark [data-theme-preset='geili-modern'] {
+  --background: #0b0b0d;
+  --foreground: #fafafa;
+  --card: #151517;
+  --card-foreground: #fafafa;
+  --popover: #1a1a1d;
+  --popover-foreground: #fafafa;
+
+  --primary: #f0603a;
+  --primary-foreground: #1a0d08;
+  --secondary: #1e1e22;
+  --secondary-foreground: #fafafa;
+  --muted: #1b1b1e;
+  --muted-foreground: #a1a1aa;
+  --accent: #1e1e22;
+  --accent-foreground: #fafafa;
+  --accent-2: #8b8bf0;
+
+  --destructive: #f26a52;
+  --destructive-foreground: #1a0d08;
+  --success: #37c98a;
+  --success-foreground: #03130c;
+  --warning: #fbbf24;
+  --warning-foreground: #1a1203;
+  --info: #60a5fa;
+  --info-foreground: #041225;
+  --neutral: #a1a1aa;
+  --neutral-foreground: #0b0b0d;
+
+  --border: #26262a;
+  --input: #2c2c31;
+  --ring: #f0603a;
+
+  --chart-1: #f0603a;
+  --chart-2: #8b8bf0;
+  --chart-3: #2dd4bf;
+  --chart-4: #fbbf24;
+  --chart-5: #60a5fa;
+
+  --sidebar: #090909;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #f0603a;
+  --sidebar-primary-foreground: #1a0d08;
+  --sidebar-accent: #1e1e22;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #26262a;
+  --sidebar-ring: #f0603a;
+
+  --skeleton-base: #1e1e22;
+  --skeleton-highlight: #2c2c31;
+  --radius: 0.625rem;
+
+  --grad: linear-gradient(135deg,#f0603a,#ee5a8f 48%,#8b8bf0);
+  --grad-soft: linear-gradient(135deg,rgba(240,96,58,.16),rgba(238,90,143,.1) 50%,rgba(139,139,240,.18));
+  --surface-highlight: rgba(255,255,255,.07);
+  --grain-opacity: .05;
+}
+
 /* ── Underground ──────────────────────────────────────────────────────── */
 [data-theme-preset='underground'] {
   --primary: oklch(0.5315 0.0694 156.19);
@@ -528,13 +645,17 @@ For commercial licensing, please contact support@quantumnous.com
  *   - `default`: keeps neutral surfaces from :root.
  *   - `geili-editorial`: warm paper / ink paper surfaces are deliberately
  *     specified token-by-token instead of derived from the cinnabar accent.
+ *   - `geili-modern`: neutral modern surfaces are explicitly stepped; vivid
+ *     color belongs to data identity and signature accents.
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
  *     cards/borders rather than tinting them with the clay accent).
  *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='geili-editorial']
-  ):not([data-theme-preset='anthropic']):not(
+  ):not([data-theme-preset='geili-modern']):not(
+    [data-theme-preset='anthropic']
+  ):not(
     [data-theme-preset='simple-large']
   ) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
@@ -561,7 +682,9 @@ For commercial licensing, please contact support@quantumnous.com
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='geili-editorial']
-  ):not([data-theme-preset='anthropic']):not(
+  ):not([data-theme-preset='geili-modern']):not(
+    [data-theme-preset='anthropic']
+  ):not(
     [data-theme-preset='simple-large']
   ) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));

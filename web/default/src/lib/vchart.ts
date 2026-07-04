@@ -16,6 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+const VCHART_DATA_SCHEME = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+] as const
+
 export const VCHART_OPTION = {
   // 与老前端保持一致（浏览器环境渲染优化）
   mode: 'desktop-browser',
@@ -24,6 +32,7 @@ export const VCHART_OPTION = {
     fontFamily: 'var(--font-body)',
     colorScheme: {
       default: {
+        dataScheme: VCHART_DATA_SCHEME,
         palette: {
           borderColor: 'var(--border)',
           axisLabelFontColor: 'var(--muted-foreground)',
