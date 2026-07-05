@@ -211,6 +211,10 @@ For commercial licensing, please contact support@quantumnous.com
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --radius-pill: 9999px;
+  --radius-card: 1.5rem;
+  --radius-surface: 0.38rem;
+  --radius-control: 0.25rem;
   --radius-sm: calc(var(--radius) * 0.75);
   --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
@@ -350,7 +354,5 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-ring: oklch(0.68 0 0);
   --skeleton-base: oklch(0.285 0 0);
   --skeleton-highlight: oklch(0.39 0 0);
-  --shadow-card:
-    0 1px 3px rgba(0, 0, 0, 0.24),
-    0 12px 32px rgba(0, 0, 0, 0.28);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.24), 0 12px 32px rgba(0, 0, 0, 0.28);
 }

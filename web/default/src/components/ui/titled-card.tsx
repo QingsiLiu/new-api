@@ -68,7 +68,7 @@ export function TitledCard({
             {icon != null && (
               <div
                 className={cn(
-                  'bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9',
+                  'bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)] sm:h-9 sm:w-9',
                   iconClassName
                 )}
               >

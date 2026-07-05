@@ -76,15 +76,15 @@ function SheetContent({
         data-slot='sheet-content'
         data-side={side}
         className={cn(
-          'bg-popover text-popover-foreground fixed z-50 flex flex-col gap-4 overflow-hidden bg-clip-padding text-sm shadow-[var(--shadow-card)] transition duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0',
+          'bg-popover text-popover-foreground fixed z-50 flex flex-col gap-4 overflow-hidden bg-clip-padding text-sm shadow-none transition duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0',
           side === 'right' &&
-            'inset-y-0 right-0 h-full w-3/4 data-ending-style:translate-x-[2.5rem] data-starting-style:translate-x-[2.5rem] sm:max-w-sm',
+            'inset-y-0 right-0 h-full w-3/4 rounded-l-[var(--radius-surface)] data-ending-style:translate-x-[2.5rem] data-starting-style:translate-x-[2.5rem] sm:max-w-sm',
           side === 'left' &&
-            'inset-y-0 left-0 h-full w-3/4 data-ending-style:translate-x-[-2.5rem] data-starting-style:translate-x-[-2.5rem] sm:max-w-sm',
+            'inset-y-0 left-0 h-full w-3/4 rounded-r-[var(--radius-surface)] data-ending-style:translate-x-[-2.5rem] data-starting-style:translate-x-[-2.5rem] sm:max-w-sm',
           side === 'top' &&
-            'inset-x-0 top-0 h-auto data-ending-style:translate-y-[-2.5rem] data-starting-style:translate-y-[-2.5rem]',
+            'inset-x-0 top-0 h-auto rounded-b-[var(--radius-surface)] data-ending-style:translate-y-[-2.5rem] data-starting-style:translate-y-[-2.5rem]',
           side === 'bottom' &&
-            'inset-x-0 bottom-0 h-auto data-ending-style:translate-y-[2.5rem] data-starting-style:translate-y-[2.5rem]',
+            'inset-x-0 bottom-0 h-auto rounded-t-[var(--radius-surface)] data-ending-style:translate-y-[2.5rem] data-starting-style:translate-y-[2.5rem]',
           className
         )}
         {...props}
@@ -114,7 +114,10 @@ function SheetHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot='sheet-header'
-      className={cn('border-border/60 flex flex-col gap-1 border-b p-4', className)}
+      className={cn(
+        'border-border/60 flex flex-col gap-1 border-b p-4',
+        className
+      )}
       {...props}
     />
   )
@@ -124,7 +127,10 @@ function SheetFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot='sheet-footer'
-      className={cn('border-border/60 mt-auto flex flex-col gap-2 border-t p-4', className)}
+      className={cn(
+        'border-border/60 mt-auto flex flex-col gap-2 border-t p-4',
+        className
+      )}
       {...props}
     />
   )

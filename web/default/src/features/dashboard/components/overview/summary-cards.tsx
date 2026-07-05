@@ -29,8 +29,8 @@ import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { EditorialLabel } from '@/components/editorial'
-import { StatValue } from '@/components/stat-value'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
+import { StatValue } from '@/components/stat-value'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
@@ -254,7 +254,7 @@ export function SummaryCards() {
             {items.map((it) => (
               <StaggerItem
                 key={it.key}
-                className='bg-card rounded-xl border p-3'
+                className='border-border bg-card rounded-[var(--radius-card)] border p-3'
               >
                 <StatCard
                   title={it.title}
@@ -300,7 +300,7 @@ export function SummaryCards() {
             </div>
 
             <div className='grid grid-cols-2 gap-2'>
-              <div className='bg-card rounded-lg border px-2.5 py-2'>
+              <div className='bg-muted/40 rounded-[var(--radius-surface)] px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
                   <Flame className='size-3 shrink-0' aria-hidden='true' />
                   <span className='truncate'>{t('Last 24h usage')}</span>
@@ -309,7 +309,7 @@ export function SummaryCards() {
                   {formatQuota(recentUsage)}
                 </div>
               </div>
-              <div className='bg-card rounded-lg border px-2.5 py-2'>
+              <div className='bg-muted/40 rounded-[var(--radius-surface)] px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
                   {runwayDays !== null && runwayDays < 3 ? (
                     <TrendingDown

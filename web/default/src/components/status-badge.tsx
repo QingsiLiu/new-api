@@ -110,9 +110,9 @@ export const StatusBadgeTypeContext =
   React.createContext<StatusBadgeType>('badge')
 
 const sizeMap = {
-  sm: 'h-5 gap-1.5 px-1.5 text-[0.6875rem] leading-none',
-  md: 'h-5 gap-1.5 px-1.5 text-[0.6875rem] leading-none',
-  lg: 'h-6 gap-1.5 px-2 text-xs leading-none',
+  sm: 'h-5 gap-1.5 px-2.5 text-[0.6875rem] leading-none',
+  md: 'h-5 gap-1.5 px-2.5 text-[0.6875rem] leading-none',
+  lg: 'h-6 gap-1.5 px-3 text-xs leading-none',
 } as const
 
 const textSizeMap = {
@@ -190,7 +190,7 @@ export function StatusBadge({
         'inline-flex w-fit max-w-full min-w-0 shrink items-center font-medium tracking-normal whitespace-nowrap transition-colors',
         isBadge
           ? cn(
-              'rounded-md',
+              'rounded-[var(--radius-pill)]',
               badgeSurfaceMap[computedVariant],
               sizeMap[size ?? 'sm']
             )
@@ -211,7 +211,7 @@ export function StatusBadge({
       {showDot && (
         <span
           className={cn(
-            'inline-block size-1.5 shrink-0 rounded-sm',
+            'inline-block size-1.5 shrink-0 rounded-full',
             dotColorMap[computedVariant]
           )}
           aria-hidden='true'

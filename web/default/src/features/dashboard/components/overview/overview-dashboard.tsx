@@ -181,15 +181,19 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
     <>
       <div
         className={cn(
-          'pointer-events-none absolute inset-0 border border-border',
-          props.compact ? 'bg-background/35 opacity-80' : 'bg-card/35 opacity-100'
+          'border-border pointer-events-none absolute inset-0 border',
+          props.compact
+            ? 'bg-background/35 opacity-80'
+            : 'bg-card/35 opacity-100'
         )}
         aria-hidden='true'
       />
       <pre
         className={cn(
           'text-muted-foreground/20 pointer-events-none absolute right-3 hidden overflow-hidden font-mono whitespace-pre sm:block',
-          props.compact ? '-top-6 w-1/2 text-[9px] leading-4' : 'top-1 w-[58%] text-[11px] leading-5'
+          props.compact
+            ? '-top-6 w-1/2 text-[9px] leading-4'
+            : 'top-1 w-[58%] text-[11px] leading-5'
         )}
         aria-hidden='true'
       >
@@ -217,7 +221,7 @@ function StartStepItem(props: {
       )}
       <span
         className={cn(
-          'border-border bg-background relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg border',
+          'border-border bg-muted relative z-10 flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)] border',
           props.step.completed && 'border-success/30 bg-success/10'
         )}
       >
@@ -229,10 +233,10 @@ function StartStepItem(props: {
 
       <Link
         to={props.step.to}
-        className='bg-background/70 hover:bg-accent/60 focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2'
+        className='hover:bg-muted focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-[var(--radius-surface)] px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2'
       >
         <span className='flex min-w-0 items-start gap-2.5'>
-          <span className='bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg'>
+          <span className='bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-surface)]'>
             <Icon className='size-3.5' aria-hidden='true' />
           </span>
           <span className='flex min-w-0 flex-col gap-0.5'>
@@ -303,7 +307,7 @@ function RequestPreview(props: {
       initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
       animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
       transition={MOTION_TRANSITION.slow}
-      className='editorial-panel relative overflow-hidden p-3'
+      className='editorial-panel relative overflow-hidden rounded-[var(--radius-surface)] p-3'
     >
       {!shouldReduceMotion && (
         <motion.div
@@ -316,7 +320,7 @@ function RequestPreview(props: {
 
       <div className='flex items-center justify-between gap-3 border-b pb-3'>
         <div className='flex min-w-0 items-center gap-2'>
-          <span className='bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg'>
+          <span className='bg-muted flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)]'>
             <TerminalSquare className='size-4' aria-hidden='true' />
           </span>
           <div className='min-w-0'>
@@ -349,11 +353,11 @@ function RequestPreview(props: {
         )}
       </div>
 
-      <div className='bg-foreground/[0.035] my-3 rounded-xl p-3 font-mono text-xs'>
+      <div className='bg-foreground/[0.035] my-3 rounded-[var(--radius-surface)] p-3 font-mono text-xs'>
         <div className='mb-2 flex items-center gap-1.5'>
-          <span className='bg-destructive h-2 w-1 rounded-sm' />
-          <span className='bg-warning h-2 w-1 rounded-sm' />
-          <span className='bg-success h-2 w-1 rounded-sm' />
+          <span className='bg-destructive size-2 rounded-full' />
+          <span className='bg-warning size-2 rounded-full' />
+          <span className='bg-success size-2 rounded-full' />
         </div>
         <div className='flex flex-col gap-1 overflow-hidden'>
           {previewLines.map((line, index) => (
@@ -375,7 +379,7 @@ function RequestPreview(props: {
           return (
             <div
               key={signal.label}
-              className='bg-muted/40 flex items-center justify-between gap-3 rounded-xl px-3 py-2'
+              className='bg-muted/40 flex items-center justify-between gap-3 rounded-[var(--radius-surface)] px-3 py-2'
             >
               <span className='flex min-w-0 items-center gap-2'>
                 <Icon
@@ -402,11 +406,11 @@ function QuickActionItem(props: { action: QuickAction }) {
 
   return (
     <Button
-      variant='outline'
-      className='h-auto justify-start rounded-xl px-3 py-3 text-left'
+      variant='ghost'
+      className='bg-muted/40 hover:bg-muted h-auto justify-start rounded-[var(--radius-surface)] px-3 py-3 text-left'
       render={<Link to={props.action.to} />}
     >
-      <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg'>
+      <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-surface)]'>
         <Icon className='size-4' aria-hidden='true' />
       </span>
       <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
@@ -598,7 +602,7 @@ export function OverviewDashboard() {
     <div className='flex flex-col gap-4'>
       {setupGuideExpanded ? (
         <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
-          <CardStaggerItem className='editorial-panel h-full overflow-hidden'>
+          <CardStaggerItem className='editorial-panel h-full overflow-hidden rounded-[var(--radius-card)]'>
             <div className='relative h-full overflow-hidden p-4 sm:p-5'>
               <SetupGuideBackdrop />
               <div className='relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]'>
@@ -634,7 +638,7 @@ export function OverviewDashboard() {
                     </div>
                   </div>
 
-                  <ol className='border-border bg-background/45 rounded-2xl border p-2'>
+                  <ol className='border-border rounded-[var(--radius-card)] border bg-transparent p-2'>
                     {startSteps.map((step, index) => (
                       <StartStepItem
                         key={step.title}
@@ -654,7 +658,7 @@ export function OverviewDashboard() {
             </div>
           </CardStaggerItem>
 
-          <CardStaggerItem className='editorial-panel h-full rounded-2xl p-4 sm:p-5'>
+          <CardStaggerItem className='editorial-panel h-full rounded-[var(--radius-card)] p-4 sm:p-5'>
             <div className='flex h-full flex-col gap-4'>
               <div className='flex flex-col gap-1'>
                 <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
@@ -674,12 +678,12 @@ export function OverviewDashboard() {
         </CardStaggerContainer>
       ) : (
         <CardStaggerContainer>
-          <CardStaggerItem className='editorial-panel overflow-hidden'>
+          <CardStaggerItem className='editorial-panel overflow-hidden rounded-[var(--radius-card)]'>
             <div className='relative overflow-hidden px-4 py-3 sm:px-5'>
               <SetupGuideBackdrop compact />
               <div className='relative flex flex-wrap items-center justify-between gap-3'>
                 <div className='flex min-w-0 items-center gap-3'>
-                  <span className='border-border bg-background/70 flex size-9 shrink-0 items-center justify-center rounded-xl border'>
+                  <span className='border-border bg-muted flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-surface)] border'>
                     <Check className='text-success size-4' aria-hidden='true' />
                   </span>
                   <div className='min-w-0'>
@@ -689,7 +693,7 @@ export function OverviewDashboard() {
                           ? t('Setup guide complete')
                           : t('Setup guide')}
                       </h3>
-                      <span className='text-muted-foreground bg-background/60 rounded-md border px-2 py-0.5 text-xs'>
+                      <span className='text-muted-foreground bg-muted rounded-[var(--radius-surface)] px-2 py-0.5 text-xs'>
                         {t('Setup progress: {{completed}}/{{total}}', {
                           completed: completedStepCount,
                           total: startSteps.length,

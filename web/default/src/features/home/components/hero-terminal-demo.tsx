@@ -203,7 +203,11 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
 
   return (
     <div className={cn('mx-auto w-full max-w-2xl', props.className)}>
-      <div className={cn('editorial-panel overflow-hidden rounded-xl')}>
+      <div
+        className={cn(
+          'editorial-panel overflow-hidden rounded-[var(--radius-surface)]'
+        )}
+      >
         {/* Tab strip */}
         <div
           className={cn(
@@ -246,7 +250,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         >
           <span
             className={cn(
-              'rounded-md px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider',
+              'rounded-[var(--radius-pill)] px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider',
               accent.badge
             )}
           >

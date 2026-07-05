@@ -64,7 +64,7 @@ function isDisabledApiKeyRow(apiKey: ApiKey) {
 
 function ApiKeysMobileSkeleton() {
   return (
-    <div className='divide-border overflow-hidden rounded-lg border'>
+    <div className='divide-border border-border overflow-hidden rounded-[var(--radius-surface)] border'>
       {Array.from({ length: 5 }).map((_, index) => (
         <div
           key={index}
@@ -72,7 +72,7 @@ function ApiKeysMobileSkeleton() {
         >
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
-            <Skeleton className='h-5 w-16 rounded-md' />
+            <Skeleton className='h-5 w-16 rounded-[var(--radius-pill)]' />
           </div>
           <div className='flex items-center justify-between gap-3'>
             <Skeleton className='h-7 w-44' />
@@ -99,7 +99,7 @@ function ApiKeysMobileList({
 
   if (!rows.length) {
     return (
-      <div className='rounded-lg border p-8'>
+      <div className='border-border rounded-[var(--radius-surface)] border p-8'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -118,7 +118,7 @@ function ApiKeysMobileList({
   }
 
   return (
-    <div className='divide-border overflow-hidden rounded-lg border'>
+    <div className='divide-border border-border overflow-hidden rounded-[var(--radius-surface)] border'>
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
@@ -134,7 +134,7 @@ function ApiKeysMobileList({
           >
             <div className='flex items-start justify-between gap-3'>
               <div className='min-w-0'>
-                <div className='truncate text-sm font-medium text-foreground'>
+                <div className='text-foreground truncate text-sm font-medium'>
                   {apiKey.name}
                 </div>
                 <div className='text-muted-foreground text-[11px]'>

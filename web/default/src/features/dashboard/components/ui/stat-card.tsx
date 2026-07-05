@@ -144,7 +144,7 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
   return (
     <div
       className={cn(
-        'relative h-8 overflow-hidden rounded-lg',
+        'relative h-8 overflow-hidden rounded-[var(--radius-surface)]',
         LINE_TONE_CLASSES[props.tone]
       )}
       aria-hidden='true'
@@ -211,7 +211,7 @@ function StatCardDetails(props: { details: StatCardDetail[] }) {
       {props.details.map((detail) => (
         <div
           key={detail.label}
-          className='bg-muted/40 rounded-lg border border-transparent px-2.5 py-2'
+          className='bg-muted/40 rounded-[var(--radius-surface)] px-2.5 py-2'
         >
           <div className='text-muted-foreground truncate text-[11px] leading-none font-medium'>
             {detail.label}
@@ -259,9 +259,7 @@ export function StatCard(props: StatCardProps) {
           <div className='text-muted-foreground mt-0.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:text-2xl'>
             --
           </div>
-          <p className='text-muted-foreground text-xs'>
-            {props.description}
-          </p>
+          <p className='text-muted-foreground text-xs'>{props.description}</p>
         </div>
       ) : (
         <div className='flex flex-col gap-1'>

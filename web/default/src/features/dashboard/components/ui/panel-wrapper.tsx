@@ -67,7 +67,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
   const resolvedEmptyMessage = props.emptyMessage ?? t('No data available')
   const height = props.height ?? 'h-64'
   const frameClassName = cn(
-    'overflow-hidden rounded-2xl border bg-card shadow-xs',
+    'border-border overflow-hidden rounded-[var(--radius-card)] border bg-card shadow-none',
     props.className
   )
 

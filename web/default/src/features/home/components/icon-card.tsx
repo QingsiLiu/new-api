@@ -33,7 +33,7 @@ export function IconCard({ iconName, size = 32, className }: IconCardProps) {
     <div
       className={cn(
         'bg-card border-border group/card',
-        'relative overflow-hidden rounded-2xl border p-5',
+        'relative overflow-hidden rounded-[var(--radius-surface)] border p-5',
         'hover:bg-accent/40 transition-colors duration-200',
         className
       )}

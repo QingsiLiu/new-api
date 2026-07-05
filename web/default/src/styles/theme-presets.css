@@ -91,8 +91,8 @@ For commercial licensing, please contact support@quantumnous.com
   --skeleton-base: #f5f5f5;
   --skeleton-highlight: #ffffff;
 
-  /* 24px card radius (9999px pill overrides applied via component CSS) */
-  --radius: 1.5rem;
+  /* 6.08px surface radius; cards/pills use explicit semantic tokens */
+  --radius: 0.38rem;
 
   /* Zero shadow — all elevation comes from border hairlines and surface contrast */
   --shadow-card: none;
@@ -148,6 +148,7 @@ For commercial licensing, please contact support@quantumnous.com
 
   --skeleton-base: #141414;
   --skeleton-highlight: #1f1f1f;
+  --radius: 0.38rem;
   --shadow-card: none;
 }
 
@@ -312,8 +313,8 @@ For commercial licensing, please contact support@quantumnous.com
 
   --skeleton-base: #ededf1;
   --skeleton-highlight: #ffffff;
-  --surface-highlight: rgba(255,255,255,.9);
-  --grain-opacity: .03;
+  --surface-highlight: rgba(255, 255, 255, 0.9);
+  --grain-opacity: 0.03;
   --radius: 0.75rem;
 }
 
@@ -367,8 +368,8 @@ For commercial licensing, please contact support@quantumnous.com
 
   --skeleton-base: #1e1e22;
   --skeleton-highlight: #2c2c31;
-  --surface-highlight: rgba(255,255,255,.07);
-  --grain-opacity: .05;
+  --surface-highlight: rgba(255, 255, 255, 0.07);
+  --grain-opacity: 0.05;
 }
 
 /* ── Underground ──────────────────────────────────────────────────────── */
@@ -756,9 +757,7 @@ For commercial licensing, please contact support@quantumnous.com
     [data-theme-preset='geili-editorial']
   ):not([data-theme-preset='geili-modern']):not(
     [data-theme-preset='anthropic']
-  ):not(
-    [data-theme-preset='simple-large']
-  ) {
+  ):not([data-theme-preset='simple-large']) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -785,9 +784,7 @@ For commercial licensing, please contact support@quantumnous.com
     [data-theme-preset='geili-editorial']
   ):not([data-theme-preset='geili-modern']):not(
     [data-theme-preset='anthropic']
-  ):not(
-    [data-theme-preset='simple-large']
-  ) {
+  ):not([data-theme-preset='simple-large']) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 12%, var(--background));
