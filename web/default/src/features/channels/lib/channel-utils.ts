@@ -24,7 +24,6 @@ import {
   CHANNEL_TYPES,
   MULTI_KEY_STATUS_CONFIG,
   RESPONSE_TIME_CONFIG,
-  RESPONSE_TIME_THRESHOLDS,
   TYPE_TO_KEY_PROMPT,
 } from '../constants'
 import type { Channel, ChannelSettings, ChannelOtherSettings } from '../types'
@@ -317,11 +316,9 @@ export function formatBalance(balance: number | null | undefined): string {
  */
 export function getBalanceVariant(
   balance: number
-): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (balance === 0) return 'neutral'
-  if (balance < 1) return 'danger'
-  if (balance < 10) return 'warning'
-  return 'success'
+): 'neutral' {
+  void balance
+  return 'neutral'
 }
 
 // ============================================================================
@@ -349,12 +346,8 @@ export function formatResponseTime(timeMs: number, t?: TFunction): string {
  */
 export function getResponseTimeConfig(timeMs: number) {
   if (timeMs === 0) return RESPONSE_TIME_CONFIG.UNKNOWN
-  if (timeMs <= RESPONSE_TIME_THRESHOLDS.EXCELLENT)
-    return RESPONSE_TIME_CONFIG.EXCELLENT
-  if (timeMs <= RESPONSE_TIME_THRESHOLDS.GOOD) return RESPONSE_TIME_CONFIG.GOOD
-  if (timeMs <= RESPONSE_TIME_THRESHOLDS.FAIR) return RESPONSE_TIME_CONFIG.FAIR
-  if (timeMs <= RESPONSE_TIME_THRESHOLDS.POOR) return RESPONSE_TIME_CONFIG.POOR
-  return RESPONSE_TIME_CONFIG.POOR
+  if (timeMs > 10_000) return RESPONSE_TIME_CONFIG.POOR
+  return RESPONSE_TIME_CONFIG.GOOD
 }
 
 // ============================================================================

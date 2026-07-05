@@ -41,10 +41,8 @@ import {
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
-function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-destructive'
-  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-warning'
-  return '[&_[data-slot=progress-indicator]]:bg-success'
+function getQuotaProgressColor(): string {
+  return '[&_[data-slot=progress-indicator]]:bg-calm-gray-fg'
 }
 
 export function useUsersColumns(): ColumnDef<User>[] {
@@ -199,7 +197,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
               </div>
               <Progress
                 value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor(percentage))}
+                className={cn('h-1.5', getQuotaProgressColor())}
               />
             </TooltipTrigger>
             <TooltipContent>

@@ -35,7 +35,7 @@ import {
   formatTimestampToDate,
   formatQuota as formatQuotaValue,
 } from '@/lib/format'
-import { truncateText } from '@/lib/utils'
+import { cn, truncateText } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -57,7 +57,6 @@ import {
   formatBalance,
   formatRelativeTime,
   formatResponseTime,
-  getBalanceVariant,
   getChannelTypeIcon,
   getChannelTypeLabel,
   getResponseTimeConfig,
@@ -266,6 +265,13 @@ function WeightCell({ channel }: { channel: Channel }) {
   )
 }
 
+function getNumericTextClassName(value: number): string {
+  return cn(
+    'inline-flex h-5 items-center px-1.5 text-[0.6875rem] leading-none font-medium tabular-nums',
+    value === 0 ? 'text-muted-foreground' : 'text-foreground'
+  )
+}
+
 /**
  * Balance cell component with click to update
  */
@@ -292,19 +298,11 @@ function BalanceCell({ channel }: { channel: Channel }) {
   // Tag row: only show cumulative used quota
   if (isTagRow) {
     return (
-      <StatusBadge
-        label={usedLabel}
-        variant='neutral'
-        size='sm'
-        copyable={false}
-        showDot={false}
-        className='-ml-1.5'
-      />
+      <span className={cn('-ml-1.5', getNumericTextClassName(usedQuota))}>
+        {usedLabel}
+      </span>
     )
   }
-
-  // Regular channel row: show used and remaining with click to update
-  const variant = getBalanceVariant(balance)
 
   const handleClickUpdate = async () => {
     if (isUpdating) return
@@ -338,46 +336,51 @@ function BalanceCell({ channel }: { channel: Channel }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              <StatusBadge
-                label={usedDisplay}
-                variant='neutral'
-                size='sm'
-                copyable={false}
-                showDot={false}
-                className='cursor-help'
+              <span
+                className={cn(
+                  getNumericTextClassName(usedQuota),
+                  'cursor-help'
+                )}
               />
             }
-          />
+          >
+            {usedDisplay}
+          </TooltipTrigger>
           <TooltipContent>
             <p>{usedLabel}</p>
           </TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger
-            render={
-              <StatusBadge
-                label={
-                  isUpdating
-                    ? t('Updating...')
-                    : channel.type === 57
-                      ? t('Account Info')
-                      : remainingDisplay
-                }
-                variant={
-                  channel.type === 57
-                    ? 'info'
-                    : isUpdating
-                      ? 'neutral'
-                      : variant
-                }
-                size='sm'
-                copyable={false}
-                showDot={false}
-                className='cursor-pointer'
-                onClick={handleClickUpdate}
-              />
-            }
-          />
+          {isUpdating || channel.type === 57 ? (
+            <TooltipTrigger
+              render={
+                <StatusBadge
+                  label={isUpdating ? t('Updating...') : t('Account Info')}
+                  variant={channel.type === 57 ? 'info' : 'neutral'}
+                  size='sm'
+                  copyable={false}
+                  showDot={false}
+                  className='cursor-pointer'
+                  onClick={handleClickUpdate}
+                />
+              }
+            />
+          ) : (
+            <TooltipTrigger
+              render={
+                <button
+                  type='button'
+                  className={cn(
+                    getNumericTextClassName(balance),
+                    'cursor-pointer hover:text-foreground'
+                  )}
+                  onClick={handleClickUpdate}
+                />
+              }
+            >
+              {remainingDisplay}
+            </TooltipTrigger>
+          )}
           <TooltipContent>
             <p>
               {channel.type === 57
@@ -943,15 +946,19 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       cell: ({ row }) => {
         const responseTime = row.getValue('response_time') as number
         const config = getResponseTimeConfig(responseTime)
+        const responseClassName = cn(
+          '-ml-1.5 inline-flex h-5 items-center px-1.5 text-[0.6875rem] leading-none font-medium tabular-nums',
+          responseTime === 0
+            ? 'text-muted-foreground'
+            : config.variant === 'danger'
+              ? 'text-calm-rose-fg'
+              : 'text-foreground'
+        )
 
         return (
-          <StatusBadge
-            label={formatResponseTime(responseTime, t)}
-            variant={config.variant}
-            size='sm'
-            copyable={false}
-            className='-ml-1.5'
-          />
+          <span className={responseClassName}>
+            {formatResponseTime(responseTime, t)}
+          </span>
         )
       },
       size: 110,
