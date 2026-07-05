@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { resolveVersionedPreferenceDefault } from './preference-defaults'
+import {
+  resolveVersionedPreferenceDefault,
+  THEME_DEFAULTS_VERSION,
+} from './preference-defaults'
 
 const densityValues = new Set(['default', 'sm', 'lg', 'xl'])
 
 describe('resolveVersionedPreferenceDefault', () => {
+  test('uses a fresh theme defaults version for geili-modern migration', () => {
+    assert.equal(THEME_DEFAULTS_VERSION, 'geili-modern-v2')
+  })
+
   test('moves a stale legacy default cookie to the new default', () => {
     assert.equal(
       resolveVersionedPreferenceDefault({
