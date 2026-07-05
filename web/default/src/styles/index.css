@@ -928,9 +928,9 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 [data-theme-preset='geili-minimal'] [data-slot='badge'] {
-  background-color: var(--muted);
-  border-color: var(--border);
-  color: var(--foreground);
+  background-color: #f5f5f5;
+  border-color: #e5e7eb;
+  color: #000000;
   box-shadow: none;
 }
 
