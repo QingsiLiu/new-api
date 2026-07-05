@@ -142,7 +142,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* ── Geili Modern ─────────────────────────────────────────────────────── */
 [data-theme-preset='geili-modern'] {
-  --background: #f6f6f8;
+  --background: #eeeff2;
   --foreground: #18181b;
   --card: #ffffff;
   --card-foreground: #18181b;
@@ -180,7 +180,7 @@ For commercial licensing, please contact support@quantumnous.com
   --chart-4: #d97706;
   --chart-5: #3b82f6;
 
-  --sidebar: #fbfbfc;
+  --sidebar: #e8e9ec;
   --sidebar-foreground: #18181b;
   --sidebar-primary: #cf4520;
   --sidebar-primary-foreground: #ffffff;
