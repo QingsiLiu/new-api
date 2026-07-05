@@ -540,7 +540,7 @@ export function AnnouncementsSection({
                         label: (
                           <div className='flex items-center gap-2'>
                             <div
-                              className={`h-3 w-3 rounded-full ${option.color}`}
+                              className={`h-3 w-0.5 rounded-sm ${option.color}`}
                             />
                             {option.label}
                           </div>
@@ -563,7 +563,7 @@ export function AnnouncementsSection({
                           <SelectItem key={option.value} value={option.value}>
                             <div className='flex items-center gap-2'>
                               <div
-                                className={`h-3 w-3 rounded-full ${option.color}`}
+                                className={`h-3 w-0.5 rounded-sm ${option.color}`}
                               />
                               {option.label}
                             </div>

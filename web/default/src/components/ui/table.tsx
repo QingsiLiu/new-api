@@ -43,7 +43,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   return (
     <thead
       data-slot='table-header'
-      className={cn('bg-muted/30 [&_tr]:border-border [&_tr]:border-b', className)}
+      className={cn('bg-transparent [&_tr]:border-b [&_tr]:border-border/60', className)}
       {...props}
     />
   )
@@ -64,7 +64,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
     <tfoot
       data-slot='table-footer'
       className={cn(
-        'border-t bg-transparent font-medium [&>tr]:last:border-b-0',
+        'border-border/60 border-t bg-transparent font-medium [&>tr]:last:border-b-0',
         className
       )}
       {...props}
@@ -77,7 +77,7 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
     <tr
       data-slot='table-row'
       className={cn(
-        'group data-[state=selected]:bg-accent border-border even:bg-muted/30 hover:bg-accent/55 has-aria-expanded:bg-accent/55 border-b transition-colors',
+        'group border-border/60 data-[state=selected]:bg-muted hover:bg-muted/50 has-aria-expanded:bg-muted/50 border-b transition-colors',
         className
       )}
       {...props}
@@ -90,7 +90,7 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot='table-head'
       className={cn(
-        'text-foreground border-border h-11 border-b px-3 text-left align-middle font-semibold whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+        'text-muted-foreground border-border/60 h-8 border-b px-3 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0',
         className
       )}
       {...props}
@@ -103,7 +103,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
     <td
       data-slot='table-cell'
       className={cn(
-        'px-3 py-2.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+        'px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
         className
       )}
       {...props}

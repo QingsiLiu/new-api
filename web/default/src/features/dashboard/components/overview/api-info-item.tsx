@@ -45,7 +45,7 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
       <div className='flex min-w-0 flex-1 items-center gap-2 sm:gap-3'>
         <span
           className={cn(
-            'inline-block size-2 shrink-0 rounded-full',
+            'inline-block h-4 w-1 shrink-0 rounded-sm',
             getBgColorClass(item.color)
           )}
         />

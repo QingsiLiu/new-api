@@ -107,7 +107,9 @@ export function ResetPasswordConfirm({
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-3'>
-          <p className='editorial-label'>{t('Credential Reset')}</p>
+          <p className='text-muted-foreground text-xs font-medium'>
+            {t('Credential Reset')}
+          </p>
           <h2 className='editorial-section-title text-left'>
             {t('Reset password')}
           </h2>

@@ -175,7 +175,7 @@ function RadioGroupItem(props: {
       <div
         className={cn(
           'ring-border relative rounded-md ring-[1px]',
-          'group-data-checked:ring-primary group-data-checked:shadow-2xl',
+          'group-data-checked:ring-primary group-data-checked:shadow-[var(--shadow-card)]',
           'group-focus-visible:ring-2'
         )}
         role='img'
@@ -274,18 +274,19 @@ function PresetConfig() {
             >
               <div
                 aria-hidden='true'
-                className='absolute inset-0 rounded-md'
-                style={
-                  preset.value === 'default'
-                    ? {
-                        background:
-                          'linear-gradient(135deg, var(--background) 0%, var(--muted) 50%, var(--foreground) 100%)',
-                      }
-                    : {
-                        background: `linear-gradient(135deg, ${preset.swatches[0]} 0%, ${preset.swatches[1] ?? preset.swatches[0]} 100%)`,
-                      }
-                }
-              />
+                className='absolute inset-1 flex overflow-hidden rounded-[calc(var(--radius)*0.75)]'
+              >
+                {(preset.value === 'default'
+                  ? ['var(--background)', 'var(--muted)', 'var(--foreground)']
+                  : preset.swatches
+                ).map((swatch, index) => (
+                  <span
+                    key={`${preset.value}-${index}`}
+                    className='min-w-0 flex-1'
+                    style={{ backgroundColor: swatch }}
+                  />
+                ))}
+              </div>
               <CircleCheck
                 className={cn(
                   'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
@@ -310,8 +311,7 @@ function PresetConfig() {
  * Each option renders a live "Aa" preview in the font it represents.
  * `Auto` deliberately leaves `fontFamily` undefined so the preview inherits
  * the currently active body font — that way the user sees what `Auto` will
- * actually look like for the active preset (Anthropic → serif glyphs,
- * everything else → sans glyphs) without us having to duplicate the
+ * actually look like for the active preset without us having to duplicate the
  * preset-default mapping in the UI.
  */
 const FONT_OPTIONS: {
@@ -323,7 +323,7 @@ const FONT_OPTIONS: {
 }[] = [
   { value: 'default', label: 'Auto', preview: undefined },
   { value: 'sans', label: 'Sans', preview: 'var(--font-sans)' },
-  { value: 'serif', label: 'Serif', preview: 'var(--font-serif)' },
+  { value: 'serif', label: 'Inter', preview: 'var(--font-sans)' },
 ]
 
 function FontConfig() {
@@ -470,7 +470,7 @@ function ScalePreview(props: { rows: number; rowGap: string }) {
       {Array.from({ length: props.rows }).map((_, i) => (
         <span
           key={i}
-          className='bg-foreground/60 block h-[2px] rounded-full'
+          className='bg-foreground/60 block h-[2px] rounded-sm'
           style={{ width: `${85 - i * 10}%` }}
         />
       ))}
@@ -694,8 +694,8 @@ function ContentLayoutPreview(props: { centered: boolean }) {
           props.centered ? 'mx-auto w-1/2' : 'w-full'
         )}
       >
-        <span className='bg-foreground/60 block h-[2px] w-full rounded-full' />
-        <span className='bg-foreground/60 block h-[2px] w-3/4 rounded-full' />
+        <span className='bg-foreground/60 block h-[2px] w-full rounded-sm' />
+        <span className='bg-foreground/60 block h-[2px] w-3/4 rounded-sm' />
       </div>
     </div>
   )

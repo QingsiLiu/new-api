@@ -164,7 +164,7 @@ function MobileLogTimeStatus({
         )}
       >
         <span
-          className={cn('size-1.5 shrink-0 rounded-full', dotColorMap[variant])}
+          className={cn('h-3 w-0.5 shrink-0 rounded-sm', dotColorMap[variant])}
           aria-hidden='true'
         />
         <span>{t(config.label)}</span>

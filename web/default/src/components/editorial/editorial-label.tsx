@@ -22,5 +22,10 @@ import { cn } from '@/lib/utils'
 type EditorialLabelProps = React.HTMLAttributes<HTMLSpanElement>
 
 export function EditorialLabel({ className, ...props }: EditorialLabelProps) {
-  return <span className={cn('editorial-label', className)} {...props} />
+  return (
+    <span
+      className={cn('text-muted-foreground text-xs font-medium', className)}
+      {...props}
+    />
+  )
 }

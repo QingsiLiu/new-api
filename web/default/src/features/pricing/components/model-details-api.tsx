@@ -600,7 +600,7 @@ function SupportedParametersSection(props: { model: PricingModel }) {
             cell: (p) => (
               <Badge
                 variant='secondary'
-                className='h-7 rounded-full px-2.5 font-mono text-sm font-normal'
+                className='h-7 rounded-md px-2.5 font-mono text-sm font-normal'
               >
                 {p.type}
               </Badge>

@@ -64,10 +64,7 @@ export function SystemBrand(props: SystemBrandProps) {
           'hover:bg-accent focus-visible:ring-ring/35 focus-visible:ring-2'
         )}
       >
-        <div
-          data-geili-modern-logo='inline'
-          className='border-border bg-card flex size-6 items-center justify-center overflow-hidden rounded-md border'
-        >
+        <div className='bg-muted/60 flex size-6 items-center justify-center overflow-hidden rounded-md'>
           <img
             src={logo}
             alt={t('Logo')}
@@ -87,10 +84,7 @@ export function SystemBrand(props: SystemBrandProps) {
           className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
           render={<div />}
         >
-          <div
-            data-geili-modern-logo='sidebar'
-            className='border-sidebar-border bg-sidebar-accent flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md border'
-          >
+          <div className='bg-sidebar-accent flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md'>
             <img
               src={logo}
               alt={t('Logo')}
@@ -99,7 +93,7 @@ export function SystemBrand(props: SystemBrandProps) {
           </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
             <span className='truncate font-semibold'>{name}</span>
-            <span className='text-muted-foreground truncate font-mono text-[0.6875rem] tracking-[0.08em] uppercase'>
+            <span className='text-muted-foreground truncate text-xs font-medium'>
               {version}
             </span>
           </div>

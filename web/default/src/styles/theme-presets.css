@@ -17,14 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /*
- * Theme presets — color palettes, border radius, and density scaling.
+ * Theme presets — color palettes only.
  *
  * Usage: applied via data attributes on <body>:
  *   <body data-theme-preset="rose-garden" data-theme-radius="lg" data-theme-scale="sm" />
  *
- * - `data-theme-preset` overrides the color palette defined in ./theme.css and
- *   ships a curated default `--radius` value to match the preset's mood
- *   (e.g. rose-garden uses 1rem, ocean-breeze uses 0.3rem).
+ * - `data-theme-preset` overrides the color palette defined in ./theme.css.
  * - Each preset declares both light and dark color values; dark values use
  *   the `.dark` ancestor selector so they apply when html has the `.dark` class.
  * - `data-theme-radius` and `data-theme-scale` adjust visual density
@@ -65,8 +63,8 @@ For commercial licensing, please contact support@quantumnous.com
   --neutral: #6f6a59;
   --neutral-foreground: #18160f;
 
-  --border: #b3a37e;
-  --input: #b3a37e;
+  --border: rgba(24, 22, 15, 0.1);
+  --input: rgba(24, 22, 15, 0.12);
   --ring: #ad3720;
 
   --chart-1: #18160f;
@@ -81,12 +79,11 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-primary-foreground: #fbf3e6;
   --sidebar-accent: #d8ccb3;
   --sidebar-accent-foreground: #18160f;
-  --sidebar-border: #b3a37e;
+  --sidebar-border: rgba(24, 22, 15, 0.1);
   --sidebar-ring: #ad3720;
 
   --skeleton-base: #e5ddcb;
   --skeleton-highlight: #fffaf2;
-  --radius: 0.4rem;
 }
 
 .dark [data-theme-preset='geili-editorial'] {
@@ -120,8 +117,8 @@ For commercial licensing, please contact support@quantumnous.com
   --neutral: #a49c8a;
   --neutral-foreground: #15130d;
 
-  --border: #463d2d;
-  --input: #4f452f;
+  --border: rgba(236, 230, 215, 0.12);
+  --input: rgba(236, 230, 215, 0.14);
   --ring: #e1542f;
 
   --chart-1: #ece6d7;
@@ -136,12 +133,11 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-primary-foreground: #231206;
   --sidebar-accent: #332d20;
   --sidebar-accent-foreground: #ece6d7;
-  --sidebar-border: #463d2d;
+  --sidebar-border: rgba(236, 230, 215, 0.12);
   --sidebar-ring: #e1542f;
 
   --skeleton-base: #211d15;
   --skeleton-highlight: #2a251b;
-  --radius: 0.4rem;
 }
 
 /* ── Geili Modern ─────────────────────────────────────────────────────── */
@@ -174,8 +170,8 @@ For commercial licensing, please contact support@quantumnous.com
   --neutral: #5b5b63;
   --neutral-foreground: #ffffff;
 
-  --border: #e6e6e9;
-  --input: #e0e0e4;
+  --border: rgba(0, 0, 0, 0.07);
+  --input: rgba(0, 0, 0, 0.08);
   --ring: #cf4520;
 
   --chart-1: #cf4520;
@@ -190,15 +186,11 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f1f1f4;
   --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e6e6e9;
+  --sidebar-border: rgba(0, 0, 0, 0.07);
   --sidebar-ring: #cf4520;
 
   --skeleton-base: #ededf1;
   --skeleton-highlight: #ffffff;
-  --radius: 0.625rem;
-
-  --grad: linear-gradient(135deg,#e0532a 0%,#d9457e 48%,#5b5bd6 100%);
-  --grad-soft: linear-gradient(135deg,rgba(207,69,32,.08),rgba(217,69,126,.05) 50%,rgba(91,91,214,.09));
   --surface-highlight: rgba(255,255,255,.9);
   --grain-opacity: .03;
 }
@@ -232,8 +224,8 @@ For commercial licensing, please contact support@quantumnous.com
   --neutral: #a1a1aa;
   --neutral-foreground: #0b0b0d;
 
-  --border: #26262a;
-  --input: #2c2c31;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
   --ring: #f0603a;
 
   --chart-1: #f0603a;
@@ -248,15 +240,11 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-primary-foreground: #1a0d08;
   --sidebar-accent: #1e1e22;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #26262a;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #f0603a;
 
   --skeleton-base: #1e1e22;
   --skeleton-highlight: #2c2c31;
-  --radius: 0.625rem;
-
-  --grad: linear-gradient(135deg,#f0603a,#ee5a8f 48%,#8b8bf0);
-  --grad-soft: linear-gradient(135deg,rgba(240,96,58,.16),rgba(238,90,143,.1) 50%,rgba(139,139,240,.18));
   --surface-highlight: rgba(255,255,255,.07);
   --grain-opacity: .05;
 }
@@ -278,7 +266,6 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.9687 0.0051 247.88);
   --sidebar-accent-foreground: oklch(0.279 0.0299 260.05);
   --sidebar-ring: oklch(0.5315 0.0694 156.19);
-  --radius: 0.5rem;
 }
 .dark [data-theme-preset='underground'] {
   --primary: oklch(0.6147 0.0867 154.73);
@@ -315,7 +302,6 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.5827 0.2418 12.23);
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-ring: oklch(0.5827 0.2418 12.23);
-  --radius: 1rem;
 }
 .dark [data-theme-preset='rose-garden'] {
   --primary: oklch(0.6476 0.2348 10.36);
@@ -352,7 +338,6 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.765 0.177 163.22);
   --sidebar-accent-foreground: oklch(0.2742 0.0208 165.96);
   --sidebar-ring: oklch(0.765 0.177 163.22);
-  --radius: 0.75rem;
 }
 .dark [data-theme-preset='lake-view'] {
   --primary: oklch(0.765 0.177 163.22);
@@ -389,7 +374,6 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.5591 0.1882 25.33);
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-ring: oklch(0.5591 0.1882 25.33);
-  --radius: 1rem;
 }
 .dark [data-theme-preset='sunset-glow'] {
   --primary: oklch(0.6387 0.1822 23.51);
@@ -426,7 +410,6 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.5276 0.1072 182.22);
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-ring: oklch(0.5276 0.1072 182.22);
-  --radius: 0.5rem;
 }
 .dark [data-theme-preset='forest-whisper'] {
   --primary: oklch(0.5991 0.1318 180.39);
@@ -463,7 +446,6 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.5461 0.2152 262.88);
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-ring: oklch(0.5461 0.2152 262.88);
-  --radius: 0.3rem;
 }
 .dark [data-theme-preset='ocean-breeze'] {
   --primary: oklch(0.623 0.188 259.81);
@@ -500,7 +482,6 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-accent: oklch(0.5709 0.1808 306.89);
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-ring: oklch(0.5709 0.1808 306.89);
-  --radius: 1rem;
 }
 .dark [data-theme-preset='lavender-dream'] {
   --primary: oklch(0.6359 0.1699 307.95);
@@ -570,8 +551,6 @@ For commercial licensing, please contact support@quantumnous.com
 
   --skeleton-base: oklch(0.9 0 0);
   --skeleton-highlight: oklch(0.97 0 0);
-
-  --radius: 0.5rem;
   --text-xs: 0.9rem;
   --text-sm: 1rem;
   --text-base: 1.125rem;
@@ -783,12 +762,8 @@ For commercial licensing, please contact support@quantumnous.com
   --skeleton-base: oklch(0.93 0.008 92);
   --skeleton-highlight: oklch(0.96 0.006 92);
 
-  --radius: 0.625rem;
-
-  /* Default typography for the Anthropic preset is the editorial serif.
-   * Users can override this with the Font axis (`data-theme-font='sans'`).
-   * The `--font-serif` token itself is declared once in theme.css. */
-  --font-body: var(--font-serif);
+  /* Presets no longer carry structural typography. */
+  --font-body: var(--font-sans);
 }
 .dark [data-theme-preset='anthropic'] {
   /* Warm near-black product surfaces, not pure black — keeps the editorial
@@ -845,69 +820,13 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 /* ── Font axis ────────────────────────────────────────────────────────────
- * Mirrors how `data-theme-radius` overrides a preset's default radius:
- * presets may set `--font-body` (Anthropic → serif), and the user's
- * explicit Font choice wins because these blocks sit AFTER preset blocks.
- *
- * The provider resolves `font: 'default'` → `'sans' | 'serif'` against the
- * active preset before writing the attribute, so the DOM always carries a
- * concrete value and CSS only needs the simple `[data-theme-font='serif']`
- * selector below (no `:not()`, no per-preset branches). */
+ * `serif` remains a compatibility value for stored preferences, but the
+ * consolidated language resolves every UI preset to Inter. */
 [data-theme-font='sans'] {
   --font-body: var(--font-sans);
 }
 [data-theme-font='serif'] {
-  --font-body: var(--font-serif);
-}
-
-/* ── Serif typography refinements ────────────────────────────────────────
- * When the body runs in serif, three things happen:
- *   1. Editorial OpenType features (kern/liga + tabular numerals so numeric
- *      columns stay grid-aligned even with proportional serif glyphs).
- *   2. Every UI surface inherits the editorial voice — buttons, inputs,
- *      tabs, sidebar, table headers, badges, pagination, popovers — all
- *      through Tailwind preflight's `button, input, ... { font: inherit }`
- *      rule plus natural HTML inheritance. We intentionally do NOT carry
- *      a per-slot opt-out list: it adds maintenance cost and only blunts
- *      the Anthropic editorial intent. Monospace contexts are excluded
- *      automatically because:
- *        - `<code>`, `<kbd>`, `<pre>`, `<samp>` are typed monospace by
- *          Tailwind preflight (specificity wins over body inheritance).
- *        - `.font-mono` and `.tabular-nums` utilities declare their own
- *          font-family / font-variant-numeric on the element itself.
- *   3. Headings adopt the Anthropic display setting (medium weight, slight
- *      negative tracking).
- *
- * All keyed off `[data-theme-font='serif']` so they apply to any preset
- * paired with the serif font — not just Anthropic. */
-[data-theme-font='serif'] {
-  font-feature-settings:
-    'kern' 1,
-    'liga' 1,
-    'calt' 1,
-    'tnum' 1;
-}
-
-/* Heading tuning — applies to <h*> tags and the shadcn title slots so
- * card/sheet/dialog titles read with the same authoritative voice as
- * page headers. */
-[data-theme-font='serif'] :is(h1, h2, h3, h4, h5, h6),
-[data-theme-font='serif'] [data-slot='sheet-title'],
-[data-theme-font='serif'] [data-slot='dialog-title'],
-[data-theme-font='serif'] [data-slot='alert-dialog-title'],
-[data-theme-font='serif'] [data-slot='drawer-title'],
-[data-theme-font='serif'] [data-slot='card-title'] {
-  font-weight: 500;
-  letter-spacing: -0.012em;
-}
-
-/* Larger displays earn tighter tracking, matching Copernicus/Tiempos
- * editorial display setting (~ -0.02em at 30px+). */
-[data-theme-font='serif'] h1,
-[data-theme-font='serif'] .text-3xl,
-[data-theme-font='serif'] .text-4xl,
-[data-theme-font='serif'] .text-5xl {
-  letter-spacing: -0.02em;
+  --font-body: var(--font-sans);
 }
 
 /* ── Border radius ────────────────────────────────────────────────────── */

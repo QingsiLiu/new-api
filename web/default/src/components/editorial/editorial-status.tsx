@@ -20,12 +20,12 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const statusToneClassName = {
-  success: 'bg-success text-success',
-  progress: 'bg-primary text-primary',
-  danger: 'bg-destructive text-destructive',
-  neutral: 'bg-neutral text-muted-foreground',
-  warning: 'bg-warning text-warning',
-  info: 'bg-info text-info',
+  success: 'bg-success/15 text-success',
+  progress: 'bg-primary/15 text-primary',
+  danger: 'bg-destructive/15 text-destructive',
+  neutral: 'bg-muted text-muted-foreground',
+  warning: 'bg-warning/15 text-warning',
+  info: 'bg-info/15 text-info',
 } as const
 
 type EditorialStatusTone = keyof typeof statusToneClassName
@@ -47,19 +47,12 @@ export function EditorialStatus({
   return (
     <span
       className={cn(
-        'inline-flex min-w-0 items-center gap-1.5 font-mono text-[0.6875rem] font-medium tracking-[0.12em] uppercase',
-        statusToneClassName[tone].replace('bg-', 'text-'),
+        'inline-flex min-w-0 items-center rounded-md px-1.5 text-xs font-medium',
+        statusToneClassName[tone],
         className
       )}
       {...props}
     >
-      <span
-        className={cn(
-          'size-1.5 shrink-0 rounded-full',
-          statusToneClassName[tone].split(' ')[0]
-        )}
-        aria-hidden='true'
-      />
       <span className='min-w-0 truncate'>{children}</span>
     </span>
   )

@@ -32,8 +32,8 @@ describe('semantic data colors', () => {
 
     assert.equal(dotColorMap.blue, 'bg-chart-5')
     assert.equal(textColorMap.violet, 'text-chart-2')
-    assert.equal(badgeSurfaceMap.teal, 'border-chart-3/25 bg-chart-3/15')
-    assert.equal(badgeSurfaceMap.pink, 'border-chart-1/25 bg-chart-1/15')
+    assert.equal(badgeSurfaceMap.teal, 'bg-chart-3/15')
+    assert.equal(badgeSurfaceMap.pink, 'bg-chart-1/15')
   })
 
   test('keeps stable string-to-color assignment inside the semantic palette', () => {

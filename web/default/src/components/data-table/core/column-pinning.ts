@@ -56,10 +56,9 @@ function getPinnedColumnClassName(
   return cn(
     'sticky whitespace-nowrap',
     pinnedColumn.side === 'left' ? 'left-0' : 'right-0',
-    pinnedColumn.side === 'left' ? 'border-r' : 'border-l',
     kind === 'header'
       ? 'z-30 [background-color:var(--table-header-bg,var(--card))] group-hover:bg-card'
-      : 'z-10 bg-card group-hover:bg-accent group-data-[state=selected]:bg-accent',
+      : 'z-10 bg-card group-hover:bg-muted/50 group-data-[state=selected]:bg-muted',
     pinnedColumn.className,
     kind === 'header'
       ? pinnedColumn.headerClassName

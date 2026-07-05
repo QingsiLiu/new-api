@@ -82,7 +82,7 @@ export function LegalDocument({
     return (
       <PublicLayout>
         <div className='mx-auto max-w-2xl py-12'>
-          <Card className='border-dashed'>
+          <Card>
             <CardHeader className='flex flex-row items-center gap-4'>
               <div className='bg-muted rounded-lg p-2'>
                 <FileWarning className='text-muted-foreground h-5 w-5' />

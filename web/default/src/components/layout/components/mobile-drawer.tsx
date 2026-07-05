@@ -58,7 +58,7 @@ function BrandLogo({
     >
       <div className='relative h-6 w-6'>
         {loading || !logoLoaded ? (
-          <Skeleton className='absolute inset-0 rounded-full' />
+          <Skeleton className='absolute inset-0 rounded-md' />
         ) : null}
         {displayLogo}
       </div>
@@ -87,7 +87,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
       {/* User info section - compact style matching navigation */}
       <div className='flex flex-col text-sm'>
         {/* User header - simplified */}
-        <div className='border-border flex items-center gap-2.5 border-b p-2.5'>
+        <div className='border-border/40 flex items-center gap-2.5 border-b p-2.5'>
           <Avatar className='size-9'>
             <AvatarImage src='/avatars/01.png' alt={`@${displayName}`} />
             <AvatarFallback className='text-xs'>{initials}</AvatarFallback>
@@ -114,7 +114,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
         <Link
           to='/profile'
           onClick={onNavigate}
-          className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
+          className='text-muted-foreground hover:text-foreground border-border/40 flex items-center gap-2.5 border-b p-2.5 transition-colors'
         >
           <User className='size-4' />
           {t('Profile')}
@@ -123,7 +123,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
         <Link
           to='/wallet'
           onClick={onNavigate}
-          className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
+          className='text-muted-foreground hover:text-foreground border-border/40 flex items-center gap-2.5 border-b p-2.5 transition-colors'
         >
           <Wallet className='size-4' />
           {t('Wallet')}
@@ -248,7 +248,7 @@ export function MobileDrawer({
 
               {/* Navigation links */}
               <motion.div
-                className='border-border mb-4 flex flex-col rounded-md border text-sm'
+                className='bg-muted/30 mb-4 flex flex-col rounded-lg text-sm shadow-[var(--shadow-card)]'
                 variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
               >
                 {loading ? (
@@ -262,12 +262,12 @@ export function MobileDrawer({
                     {mobileLinksList.map((link, index) => (
                       <motion.div
                         key={`${link.href}-${index}`}
-                        className='border-border border-b p-2.5 last:border-b-0'
+                        className='border-border/40 border-b p-2.5 last:border-b-0'
                         variants={MOBILE_DRAWER_ANIMATION.menuItem as Variants}
                       >
                         <Link
                           to={link.href}
-                          className='text-primary/60 hover:text-primary/80 transition-colors'
+                          className='text-muted-foreground hover:text-foreground transition-colors'
                           onClick={onClose}
                         >
                           {link.title}

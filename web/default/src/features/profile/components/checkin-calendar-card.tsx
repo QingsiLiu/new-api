@@ -431,7 +431,7 @@ export function CheckinCalendarCard({
                       >
                         <span className='tabular-nums'>{dayNum}</span>
                         {isCheckedIn && !isToday && (
-                          <span className='absolute bottom-0.5 h-1 w-1 rounded-full bg-success sm:bottom-1' />
+                          <span className='absolute bottom-0.5 h-1 w-1 rounded-sm bg-success sm:bottom-1' />
                         )}
                       </Button>
                     )

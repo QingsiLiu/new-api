@@ -656,7 +656,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           />
 
           {!hasRows ? (
-            <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
+            <div className='bg-muted/30 text-muted-foreground rounded-lg p-8 text-center shadow-[var(--shadow-card)]'>
               {table.getState().globalFilter
                 ? t('No models match your search')
                 : t('No models configured. Use Add model to get started.')}
@@ -725,7 +725,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
               className='h-full min-h-0'
             />
           ) : (
-            <div className='bg-card text-muted-foreground flex h-full min-h-0 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center'>
+            <div className='bg-card text-muted-foreground flex h-full min-h-0 flex-col items-center justify-center gap-3 rounded-lg p-6 text-center shadow-[var(--shadow-card)]'>
               <div className='text-foreground text-base font-medium'>
                 {t('Select a model to edit pricing')}
               </div>

@@ -351,9 +351,9 @@ function RequestPreview(props: {
 
       <div className='bg-foreground/[0.035] my-3 rounded-xl p-3 font-mono text-xs'>
         <div className='mb-2 flex items-center gap-1.5'>
-          <span className='bg-destructive size-2 rounded-full' />
-          <span className='bg-warning size-2 rounded-full' />
-          <span className='bg-success size-2 rounded-full' />
+          <span className='bg-destructive h-2 w-1 rounded-sm' />
+          <span className='bg-warning h-2 w-1 rounded-sm' />
+          <span className='bg-success h-2 w-1 rounded-sm' />
         </div>
         <div className='flex flex-col gap-1 overflow-hidden'>
           {previewLines.map((line, index) => (

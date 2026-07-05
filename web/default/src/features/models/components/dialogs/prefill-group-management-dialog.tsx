@@ -230,7 +230,7 @@ export function PrefillGroupManagementDialog({
               </p>
             </div>
           ) : normalizedGroups.length === 0 ? (
-            <Empty className='border border-dashed py-10'>
+            <Empty className='py-10'>
               <EmptyMedia variant='icon'>
                 <Layers3 className='h-6 w-6' />
               </EmptyMedia>

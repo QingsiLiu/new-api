@@ -32,7 +32,9 @@ export function SignIn() {
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-3'>
-          <p className='editorial-label'>{t('Secure Entry')}</p>
+          <p className='text-muted-foreground text-xs font-medium'>
+            {t('Secure Entry')}
+          </p>
           <h2 className='editorial-section-title text-left'>{t('Sign in')}</h2>
           {!status?.self_use_mode_enabled &&
             status?.register_enabled !== false && (

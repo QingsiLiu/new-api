@@ -28,7 +28,7 @@ export const THEME_PRESETS = [
     value: 'geili-modern',
     name: '现代精致 / Geili Modern',
     description:
-      'Neutral chrome, vivid data color, and a cinnabar-to-indigo signature glow.',
+      'Neutral chrome, vivid data color, and a crisp cinnabar accent.',
     swatches: ['#F6F6F8', '#CF4520', '#5B5BD6'],
   },
   {
@@ -44,7 +44,7 @@ export const THEME_PRESETS = [
   {
     // Inspired by Anthropic's official brand language: warm cream canvas
     // (#faf9f5) paired with clay/coral (#d97757) as the single accent.
-    // Swatches preview the canvas → accent gradient that defines the system.
+    // Swatches preview the canvas and accent pair that define the system.
     value: 'anthropic',
     name: 'Anthropic',
     swatches: ['oklch(0.984 0.005 95)', 'oklch(0.685 0.142 38)'],
@@ -101,13 +101,13 @@ export type ContentLayout = 'full' | 'centered'
  *
  * - `default` — resolve at runtime from the active preset
  *   (see `PRESET_DEFAULT_FONT`). Geili Editorial resolves to sans for
- *   UI text while global heading rules use Fraunces; Anthropic resolves
- *   to serif. Other named color presets fall back to sans. Mirrors how
+ *   UI text; Anthropic resolves to the legacy serif option for saved
+ *   preferences, which is rendered with Inter in the consolidated system.
+ *   Other named color presets fall back to sans. Mirrors how
  *   `radius: 'default'` defers to a per-preset hint.
  * - `sans` — Inter, the project's Geili Editorial UI face.
- * - `serif` — Fraunces + CJK fallbacks, the project's
- *   "soul" typography. Inherits across the whole UI; monospace contexts
- *   keep their own family via Tailwind preflight and `.font-mono`.
+ * - `serif` — legacy saved value retained for compatibility; renders with
+ *   Inter in the consolidated system.
  */
 export type ThemeFont = 'default' | 'sans' | 'serif'
 
@@ -180,9 +180,8 @@ export const THEME_COOKIE_KEYS = {
  *
  * Co-located with the preset registry so a preset's signature typography
  * is declared in one place. Presets not listed here fall back to the
- * `resolveThemeFont` default of `sans`. Geili Editorial keeps body/UI on
- * Inter and applies Fraunces through heading/display utilities; Anthropic
- * opts into serif as a full-body editorial preset.
+ * `resolveThemeFont` default of `sans`. All resolved options render with
+ * Inter after design-system consolidation.
  */
 export const PRESET_DEFAULT_FONT: Partial<
   Record<ThemePreset, ResolvedThemeFont>

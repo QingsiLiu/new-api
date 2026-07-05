@@ -283,7 +283,7 @@ export function SummaryCards() {
               <span className='flex items-center gap-1.5'>
                 <span
                   className={cn(
-                    'inline-block size-2 rounded-full',
+                    'inline-block h-3 w-0.5 rounded-sm',
                     healthCfg.dotClass,
                     healthLevel === 'healthy' && 'geili-modern-status-pulse'
                   )}
@@ -295,7 +295,7 @@ export function SummaryCards() {
               </span>
             </div>
 
-            <div className='geili-modern-gradient-text editorial-stat-value text-foreground text-3xl'>
+            <div className='text-foreground text-3xl font-semibold tabular-nums'>
               <StatValue value={formatQuota(remainQuota)} />
             </div>
 

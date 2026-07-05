@@ -310,7 +310,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
               ))}
             </div>
           ) : (
-            <div className='text-muted-foreground flex h-24 items-center justify-center rounded-md border border-dashed text-sm'>
+            <div className='bg-muted/30 text-muted-foreground flex h-24 items-center justify-center rounded-md text-sm shadow-[var(--shadow-card)]'>
               {t(
                 'No model mappings configured. Click "Add Mapping" to get started.'
               )}
