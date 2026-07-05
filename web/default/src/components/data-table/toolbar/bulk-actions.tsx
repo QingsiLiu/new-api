@@ -165,15 +165,15 @@ export function DataTableBulkActions<TData>({
         tabIndex={-1}
         onKeyDown={handleKeyDown}
         className={cn(
-          'fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl',
+          'fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[var(--radius-pill)]',
           'transition-all delay-100 duration-200 ease-out',
           'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none'
         )}
       >
         <div
           className={cn(
-            'p-2 shadow-[var(--shadow-card)]',
-            'rounded-lg',
+            'p-2 shadow-none',
+            'rounded-[var(--radius-pill)]',
             'bg-popover/95 supports-[backdrop-filter]:bg-popover/85 backdrop-blur-xs',
             'flex items-center gap-x-2'
           )}
@@ -211,7 +211,7 @@ export function DataTableBulkActions<TData>({
           >
             <Badge
               variant='default'
-              className='min-w-8 rounded-lg'
+              className='min-w-8 rounded-[var(--radius-pill)]'
               aria-label={`${selectedCount} selected`}
             >
               {selectedCount}

@@ -59,7 +59,7 @@ export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   return (
     <div
       className={cn(
-        'bg-card overflow-hidden rounded-xl shadow-[var(--shadow-card)]',
+        'bg-card overflow-hidden rounded-[var(--radius-surface)] shadow-none',
         props.containerClassName
       )}
       {...props.containerProps}

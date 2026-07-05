@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const staticDataTableClassNames = {
-  container: 'overflow-hidden rounded-lg shadow-[var(--shadow-card)]',
-  sectionContainer: 'rounded-lg shadow-[var(--shadow-card)]',
+  container: 'overflow-hidden rounded-[var(--radius-surface)] shadow-none',
+  sectionContainer: 'rounded-[var(--radius-surface)] shadow-none',
   embeddedContainer: 'rounded-none border-0',
   compactTable: 'text-sm',
   compactHeaderRow: 'hover:bg-transparent',
