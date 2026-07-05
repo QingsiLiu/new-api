@@ -225,8 +225,8 @@ For commercial licensing, please contact support@quantumnous.com
   --app-header-height: 3rem;
   --motion-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --shadow-card:
-    0 1px 3px color-mix(in oklch, var(--foreground) 6%, transparent),
-    0 8px 24px color-mix(in oklch, var(--foreground) 8%, transparent);
+    0 1px 4px color-mix(in oklch, var(--foreground) 8%, transparent),
+    0 10px 32px color-mix(in oklch, var(--foreground) 11%, transparent);
   /* Static build-channel fallback consumed when JS hasn't booted yet. */
   --app-rev: '2k6e8r7p';
   /* Currently active body font. The legacy font axis now resolves to Inter so
