@@ -134,8 +134,9 @@ function SplitHeaderTableView<TData>({
       )}
     >
       <div
+        data-slot='table-container'
         className={cn(
-          'min-h-0 flex-1 overflow-auto',
+          'border-border min-h-0 flex-1 overflow-auto rounded-[var(--radius-surface)] border',
           '**:data-[slot=table-header]:[--table-header-bg:var(--card)]',
           '**:data-[slot=table-header]:bg-(--table-header-bg)',
           props.splitHeaderScrollClassName,
@@ -145,7 +146,7 @@ function SplitHeaderTableView<TData>({
         <table
           data-slot='table'
           className={cn(
-            'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-sm [&_th_*]:text-sm',
+            'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-xs [&_th_*]:text-xs',
             props.tableClassName
           )}
           style={tableSizing.style}
