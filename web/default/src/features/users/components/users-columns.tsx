@@ -93,15 +93,17 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return (
           <div className='flex min-w-[160px] flex-col gap-1'>
             <div className='flex items-center gap-2'>
-              <LongText className='max-w-[140px] font-medium'>
+              <LongText className='text-foreground max-w-[140px] font-medium'>
                 {username}
               </LongText>
               {remark && (
                 <Tooltip>
                   <TooltipTrigger
-                    render={<StatusBadge variant='success' copyable={false} />}
+                    render={
+                      <span className='text-muted-foreground max-w-[80px] truncate text-xs' />
+                    }
                   >
-                    <LongText className='max-w-[80px]'>{remark}</LongText>
+                    {remark}
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className='text-xs'>{remark}</p>

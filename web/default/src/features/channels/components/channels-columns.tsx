@@ -503,7 +503,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 )}
               </Button>
               <div className='flex items-center gap-1.5'>
-                <span className='font-semibold'>Tag：{tag}</span>
+                <span className='text-foreground font-medium'>Tag：{tag}</span>
                 <StatusBadge
                   label={`${childrenCount} channels`}
                   variant='blue'
@@ -526,7 +526,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               <div className='flex items-center gap-1.5'>
                 <TruncatedText
                   text={name}
-                  className='font-medium'
+                  className='text-foreground font-medium'
                   maxWidth='max-w-[180px]'
                 />
                 {isPassThrough && (

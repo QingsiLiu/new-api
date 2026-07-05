@@ -134,7 +134,7 @@ function ApiKeysMobileList({
           >
             <div className='flex items-start justify-between gap-3'>
               <div className='min-w-0'>
-                <div className='truncate text-sm font-semibold'>
+                <div className='truncate text-sm font-medium text-foreground'>
                   {apiKey.name}
                 </div>
                 <div className='text-muted-foreground text-[11px]'>
