@@ -130,6 +130,35 @@ For commercial licensing, please contact support@quantumnous.com
 
   [data-slot='table'] {
     border-collapse: collapse;
+    border: none;
+    box-shadow: none;
+  }
+
+  [data-slot='table-row'] {
+    border-bottom: none;
+  }
+
+  [data-slot='table-cell'] {
+    border-bottom: 1px solid var(--border);
+  }
+
+  [data-slot='table-row']:last-child [data-slot='table-cell'] {
+    border-bottom: none;
+  }
+
+  [data-slot='table-head'] {
+    border-bottom: 1px solid var(--border);
+  }
+
+  [data-slot='sidebar-inset'] [data-slot='card'],
+  .data-table-card,
+  [data-table-card] {
+    border: none;
+    box-shadow: var(
+      --shadow-card,
+      0 1px 3px rgba(0, 0, 0, 0.06),
+      0 4px 16px rgba(0, 0, 0, 0.05)
+    );
   }
 
   /* Keep sticky headers stable while primitives lock body scrolling. */
