@@ -83,7 +83,7 @@ export function DataTableRowActions<TData>({
           render={
             <Button
               variant='ghost'
-              className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+              className='data-popup-open:bg-muted flex h-8 w-8 border-0 p-0'
             />
           }
         >

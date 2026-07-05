@@ -147,6 +147,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             <Button
               variant='ghost'
               size='icon-sm'
+              className='border-0'
               onClick={handleDirectTest}
               disabled={isTesting}
               aria-label={t('Test Connection')}
@@ -173,8 +174,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               aria-label={isEnabled ? t('Disable') : t('Enable')}
               className={
                 isEnabled
-                  ? 'text-destructive hover:text-destructive'
-                  : 'text-success hover:text-success'
+                  ? 'border-0 text-destructive hover:text-destructive'
+                  : 'border-0 text-success hover:text-success'
               }
             />
           }
@@ -197,7 +198,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           render={
             <Button
               variant='ghost'
-              className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+              className='data-popup-open:bg-muted flex h-8 w-8 border-0 p-0'
             />
           }
         >
