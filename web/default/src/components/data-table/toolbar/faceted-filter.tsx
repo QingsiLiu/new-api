@@ -81,9 +81,9 @@ function DataTableFacetedFilterInner<TData, TValue>({
       <PopoverTrigger
         render={
           <Button
-            variant='ghost'
+            variant='secondary'
             size='sm'
-            className='h-8 border-0 bg-muted/60 hover:bg-muted'
+            className='h-8 border-0 border-transparent bg-muted/60 shadow-none hover:bg-muted'
           />
         }
       >
