@@ -1,6 +1,8 @@
 package model
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -164,6 +166,11 @@ func InitOptionMap() {
 	common.OptionMap["CheckSensitiveEnabled"] = strconv.FormatBool(setting.CheckSensitiveEnabled)
 	common.OptionMap["DemoSiteEnabled"] = strconv.FormatBool(operation_setting.DemoSiteEnabled)
 	common.OptionMap["SelfUseModeEnabled"] = strconv.FormatBool(operation_setting.SelfUseModeEnabled)
+	common.OptionMap["AsyncTaskSpecPricingEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskSpecPricingEnabled)
+	common.OptionMap["AsyncTaskProductRoutesEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskProductRoutesEnabled)
+	common.OptionMap["AsyncTaskServiceUserProxyEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskServiceUserProxyEnabled)
+	common.OptionMap["AsyncSpecPricing"] = operation_setting.AsyncSpecPricing2JSONString()
+	common.OptionMap["QuotaPerCNY"] = strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(setting.ModelRequestRateLimitEnabled)
 	common.OptionMap["CheckSensitiveOnPromptEnabled"] = strconv.FormatBool(setting.CheckSensitiveOnPromptEnabled)
 	common.OptionMap["StopOnSensitiveEnabled"] = strconv.FormatBool(setting.StopOnSensitiveEnabled)
@@ -185,11 +192,43 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
+	ensureAsyncSpecPricingOptionSeeded()
 	options, _ := AllOption()
 	for _, option := range options {
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
+		}
+	}
+	if DB != nil && DB.Migrator().HasTable(&GroupRegistry{}) {
+		if err := ReconcileGroupRegistry(); err != nil {
+			common.SysLog("failed to reconcile group registry: " + err.Error())
+		}
+	}
+	AutoMigrateModelPricingConfigsFromOptions()
+	if err := SeedInitialModelAliases(); err != nil {
+		common.SysLog("failed to seed initial model aliases: " + err.Error())
+	}
+}
+
+func ensureAsyncSpecPricingOptionSeeded() {
+	if DB == nil || !DB.Migrator().HasTable(&Option{}) {
+		return
+	}
+	seedValue := operation_setting.AsyncSpecPricingSeedJSONString()
+	var option Option
+	err := DB.First(&option, "key = ?", "AsyncSpecPricing").Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		if err := DB.Create(&Option{Key: "AsyncSpecPricing", Value: seedValue}).Error; err != nil {
+			common.SysLog("failed to seed AsyncSpecPricing option: " + err.Error())
+		}
+	case err != nil:
+		common.SysLog("failed to load AsyncSpecPricing option: " + err.Error())
+	case strings.TrimSpace(option.Value) == "":
+		option.Value = seedValue
+		if err := DB.Save(&option).Error; err != nil {
+			common.SysLog("failed to seed empty AsyncSpecPricing option: " + err.Error())
 		}
 	}
 }
@@ -203,6 +242,10 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if err := validateOptionBeforePersist(key, value); err != nil {
+		return err
+	}
+	value = normalizeOptionValueBeforePersist(key, value)
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -218,6 +261,26 @@ func UpdateOption(key string, value string) error {
 	return updateOptionMap(key, value)
 }
 
+func validateOptionBeforePersist(key string, value string) error {
+	switch key {
+	case "QuotaPerCNY":
+		quotaPerCNY, parseErr := strconv.ParseFloat(value, 64)
+		if parseErr != nil || quotaPerCNY <= 0 {
+			return fmt.Errorf("CNY billing unit must be greater than 0")
+		}
+	case "AsyncSpecPricing":
+		return operation_setting.ValidateAsyncSpecPricingJSONString(value)
+	}
+	return nil
+}
+
+func normalizeOptionValueBeforePersist(key string, value string) string {
+	if key == "QuotaPerCNY" || key == "QuotaPerUnit" {
+		return strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
+	}
+	return value
+}
+
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
 // transaction, then dispatches them through updateOptionMap in one pass. If
 // any DB write fails the whole transaction rolls back and no in-memory state
@@ -229,6 +292,11 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
+			if err := validateOptionBeforePersist(k, v); err != nil {
+				return err
+			}
+			v = normalizeOptionValueBeforePersist(k, v)
+			values[k] = v
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
@@ -342,6 +410,12 @@ func updateOptionMap(key string, value string) (err error) {
 			operation_setting.DemoSiteEnabled = boolValue
 		case "SelfUseModeEnabled":
 			operation_setting.SelfUseModeEnabled = boolValue
+		case "AsyncTaskSpecPricingEnabled":
+			operation_setting.AsyncTaskSpecPricingEnabled = boolValue
+		case "AsyncTaskProductRoutesEnabled":
+			operation_setting.AsyncTaskProductRoutesEnabled = boolValue
+		case "AsyncTaskServiceUserProxyEnabled":
+			operation_setting.AsyncTaskServiceUserProxyEnabled = boolValue
 		case "CheckSensitiveOnPromptEnabled":
 			setting.CheckSensitiveOnPromptEnabled = boolValue
 		case "ModelRequestRateLimitEnabled":
@@ -549,7 +623,17 @@ func updateOptionMap(key string, value string) (err error) {
 	case "ChannelDisableThreshold":
 		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
 	case "QuotaPerUnit":
-		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
+		common.QuotaPerUnit = common.CNYQuotaUnit
+		common.OptionMap[key] = strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
+	case "QuotaPerCNY":
+		quotaPerCNY, parseErr := strconv.ParseFloat(value, 64)
+		if parseErr != nil || quotaPerCNY <= 0 {
+			return fmt.Errorf("CNY billing unit must be greater than 0")
+		}
+		operation_setting.QuotaPerCNY = common.CNYQuotaUnit
+		common.OptionMap[key] = strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
+	case "AsyncSpecPricing":
+		err = operation_setting.UpdateAsyncSpecPricingByJSONString(value)
 	case "SensitiveWords":
 		setting.SensitiveWordsFromString(value)
 	case "AutomaticDisableKeywords":

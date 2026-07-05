@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,7 +13,10 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+const studioOnlineTokenName = "Geili Studio Online"
 
 func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	if token == nil {
@@ -20,6 +24,7 @@ func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	}
 	maskedToken := *token
 	maskedToken.Key = token.GetMaskedKey()
+	maskedToken.GroupDisplay = model.ResolveGroupDisplay(token.Group)
 	return &maskedToken
 }
 
@@ -231,6 +236,62 @@ func AddToken(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
+}
+
+func AdminMintOrReuseUserToken(c *gin.Context) {
+	if c.GetInt("role") < common.RoleAdminUser {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return
+	}
+	targetUserID, err := strconv.Atoi(c.Param("id"))
+	if err != nil || targetUserID <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	token, created, err := mintOrReuseStudioOnlineToken(targetUserID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"key":      token.GetFullKey(),
+		"token_id": token.Id,
+		"user_id":  token.UserId,
+		"created":  created,
+	})
+}
+
+func mintOrReuseStudioOnlineToken(userID int) (*model.Token, bool, error) {
+	var token model.Token
+	err := model.DB.Where("user_id = ? AND name = ? AND status = ?", userID, studioOnlineTokenName, common.TokenStatusEnabled).
+		Order("id asc").
+		First(&token).Error
+	if err == nil {
+		return &token, false, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, err
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		return nil, false, err
+	}
+	token = model.Token{
+		UserId:         userID,
+		Name:           studioOnlineTokenName,
+		Key:            key,
+		Status:         common.TokenStatusEnabled,
+		CreatedTime:    common.GetTimestamp(),
+		AccessedTime:   common.GetTimestamp(),
+		ExpiredTime:    -1,
+		RemainQuota:    0,
+		UnlimitedQuota: true,
+		Group:          "default",
+	}
+	if err := token.Insert(); err != nil {
+		return nil, false, err
+	}
+	return &token, true, nil
 }
 
 func DeleteToken(c *gin.Context) {

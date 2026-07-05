@@ -54,6 +54,17 @@ web/             — Frontend themes container
 
 ## Rules
 
+### Rule 0: GeiliAPI Private Fork Workflow
+
+This checkout is used for GeiliAPI private changes. Treat the local branch plus the private remote as the source of truth for GeiliAPI production builds.
+
+- Push GeiliAPI private changes only to `https://github.com/QingsiLiu/new-api.git`.
+- Do not push private async-gateway changes to the upstream open-source remote `https://github.com/Calcium-Ion/new-api.git`.
+- The upstream `Calcium-Ion/new-api` remote is read-only reference material unless the user explicitly asks for an upstream contribution.
+- Production release order is: local change -> local verification -> commit -> push private remote -> sync source snapshot to `ctbuk` -> build fixed-tag Docker image -> update compose image -> `docker compose config --quiet` -> recreate `relay-new-api` -> verify production behavior.
+- Do not claim production is deployed based only on container health. Verify image tag, container creation time, relevant route or binary behavior, and the public `https://all.geiliapi.com` entrypoint.
+- Never print `.env`, service tokens, database passwords, API keys, or New API tokens while inspecting deployment state.
+
 ### Rule 1: JSON Package — Use `common/json.go`
 
 All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:

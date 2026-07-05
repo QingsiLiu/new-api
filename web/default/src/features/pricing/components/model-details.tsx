@@ -181,8 +181,8 @@ function OverviewMetric(props: {
         <div
           className={cn(
             'text-foreground truncate font-mono text-sm font-semibold tabular-nums',
-            intent === 'warning' && 'text-amber-600 dark:text-amber-400',
-            intent === 'success' && 'text-emerald-600 dark:text-emerald-400'
+            intent === 'warning' && 'text-warning',
+            intent === 'success' && 'text-success'
           )}
         >
           {props.value}
@@ -263,6 +263,9 @@ function ModelHeader(props: { model: PricingModel }) {
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
+  const modelAlias = model.alias?.trim()
+  const hasAlias = Boolean(modelAlias)
+  const displayName = modelAlias || model.model_name
   const description = model.description || model.vendor_description || null
   const tags = parseTags(model.tags)
   const isSpecialExpression =
@@ -272,19 +275,45 @@ function ModelHeader(props: { model: PricingModel }) {
 
   return (
     <header className='pb-4'>
-      <div className='flex items-center gap-2.5'>
+      <div className='flex items-start gap-2.5'>
         {modelIcon}
-        <h1 className='font-mono text-xl font-bold tracking-tight sm:text-2xl'>
-          {model.model_name}
-        </h1>
-        <CopyButton
-          value={model.model_name || ''}
-          className='size-6'
-          iconClassName='size-3'
-          tooltip={t('Copy model name')}
-          successTooltip={t('Copied!')}
-          aria-label={t('Copy model name')}
-        />
+        <div className='min-w-0'>
+          <div className='flex min-w-0 items-center gap-2'>
+            <h1
+              className={cn(
+                'truncate text-xl font-bold tracking-tight sm:text-2xl',
+                hasAlias ? 'font-semibold' : 'font-mono'
+              )}
+            >
+              {displayName}
+            </h1>
+            {!hasAlias && (
+              <CopyButton
+                value={model.model_name || ''}
+                className='size-6'
+                iconClassName='size-3'
+                tooltip={t('Copy model ID')}
+                successTooltip={t('Copied!')}
+                aria-label={t('Copy model ID')}
+              />
+            )}
+          </div>
+          {hasAlias && (
+            <div className='mt-1 flex min-w-0 items-center gap-1.5'>
+              <code className='text-muted-foreground/70 truncate font-mono text-xs'>
+                {model.model_name}
+              </code>
+              <CopyButton
+                value={model.model_name || ''}
+                className='size-6'
+                iconClassName='size-3'
+                tooltip={t('Copy model ID')}
+                successTooltip={t('Copied!')}
+                aria-label={t('Copy model ID')}
+              />
+            </div>
+          )}
+        </div>
       </div>
       <div className='mt-1 flex flex-wrap items-center gap-1.5 text-xs'>
         {model.vendor_name && (
@@ -299,7 +328,7 @@ function ModelHeader(props: { model: PricingModel }) {
         {model.billing_mode === 'tiered_expr' && model.billing_expr && (
           <>
             <span className='text-muted-foreground/30'>·</span>
-            <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
+            <span className='bg-warning/10 text-warning border-warning/20 rounded border px-1.5 py-0.5 text-[10px] font-medium'>
               {isSpecialExpression
                 ? t('Special billing expression')
                 : t('Dynamic Pricing')}
@@ -395,8 +424,8 @@ function PriceSection(props: {
       return (
         <section>
           <SectionTitle>{t('Base Price')}</SectionTitle>
-          <div className='rounded-lg border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10'>
-            <div className='text-sm font-medium text-amber-800 dark:text-amber-200'>
+          <div className='bg-warning/10 border-warning/20 rounded-lg border p-3'>
+            <div className='text-warning text-sm font-medium'>
               {t('Special billing expression')}
             </div>
             <p className='text-muted-foreground mt-1 text-xs'>
@@ -679,8 +708,8 @@ function GroupPricingSection(props: {
         <section>
           <SectionTitle>{t('Pricing by Group')}</SectionTitle>
           <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
-          <div className='rounded-lg border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10'>
-            <div className='text-sm font-medium text-amber-800 dark:text-amber-200'>
+          <div className='bg-warning/10 border-warning/20 rounded-lg border p-3'>
+            <div className='text-warning text-sm font-medium'>
               {t('Special billing expression')}
             </div>
             <p className='text-muted-foreground mt-1 text-xs'>
@@ -931,7 +960,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
         <TabsContent value='overview' className='space-y-6 outline-none'>
           <OverviewSummaryGrid model={props.model} />
 
-          <section className='bg-card/60 space-y-5 rounded-xl border p-4 shadow-sm'>
+          <section className='bg-card/60 space-y-5 rounded-xl border p-4'>
             <SectionTitle>{t('Pricing')}</SectionTitle>
             <PriceSection
               model={props.model}
@@ -1003,7 +1032,9 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
         )}
       >
         <SheetHeader className='sr-only'>
-          <SheetTitle>{props.model.model_name}</SheetTitle>
+          <SheetTitle>
+            {props.model.alias?.trim() || props.model.model_name}
+          </SheetTitle>
           <SheetDescription>{t('Model details')}</SheetDescription>
         </SheetHeader>
         <div className='flex-1 overflow-y-auto px-4 pt-11 pb-5 sm:px-6 sm:pt-12 sm:pb-6'>

@@ -6,6 +6,11 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 
+const rawTailwindPaletteClassPattern = String.raw`(?:^|\s)(?:!?(?:(?:[\w-]+|\[[^\s]+\]):)*)-?(?:text|bg|border|ring|from|to|via|fill|stroke)-(?:gray|zinc|slate|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]{2,3}(?:\/[0-9]+)?(?:$|\s)`
+
+const rawTailwindPaletteClassMessage =
+  'Use semantic theme tokens (for example text-success, bg-warning/10, border-info/25, text-primary) instead of raw Tailwind palette classes in className.'
+
 export default defineConfig(
   { ignores: ['dist', 'src/components/ui'] },
   {
@@ -53,6 +58,27 @@ export default defineConfig(
         },
       ],
       'no-duplicate-imports': 'error',
+    },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/assets/**',
+      'src/components/json-code-editor.tsx',
+      'src/components/layout/components/glow.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: `JSXAttribute[name.name='className'] Literal[value=/${rawTailwindPaletteClassPattern}/]`,
+          message: rawTailwindPaletteClassMessage,
+        },
+        {
+          selector: `JSXAttribute[name.name='className'] TemplateElement[value.raw=/${rawTailwindPaletteClassPattern}/]`,
+          message: rawTailwindPaletteClassMessage,
+        },
+      ],
     },
   },
   {

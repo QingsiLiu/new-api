@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,23 +100,27 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   })
 
   useEffect(() => {
-    try {
-      const parsed = JSON.parse(data || '[]')
-      if (Array.isArray(parsed)) {
-        setFaqList(
-          parsed.map((item, idx) => ({
-            ...item,
-            id: item.id || idx + 1,
-          }))
-        )
+    return deferEffect(() => {
+      try {
+        const parsed = JSON.parse(data || '[]')
+        if (Array.isArray(parsed)) {
+          setFaqList(
+            parsed.map((item, idx) => ({
+              ...item,
+              id: item.id || idx + 1,
+            }))
+          )
+        }
+      } catch {
+        setFaqList([])
       }
-    } catch {
-      setFaqList([])
-    }
+    })
   }, [data])
 
   useEffect(() => {
-    setIsEnabled(enabled)
+    return deferEffect(() => {
+      setIsEnabled(enabled)
+    })
   }, [enabled])
 
   const handleToggleEnabled = async (checked: boolean) => {
@@ -363,7 +368,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                   <FormLabel>{t('Question')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('How to reset my quota?')}
+                      placeholder={t('How to reset my balance?')}
                       {...field}
                     />
                   </FormControl>
@@ -383,7 +388,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                   <FormControl>
                     <Textarea
                       placeholder={t(
-                        'Visit Settings → General and adjust quota options...'
+                        'Visit Settings → General and adjust balance options...'
                       )}
                       rows={8}
                       {...field}

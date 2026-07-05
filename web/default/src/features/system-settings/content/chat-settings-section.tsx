@@ -125,13 +125,16 @@ export function ChatSettingsSection({
     })
   }
 
+  const submitForm = (event?: React.BaseSyntheticEvent) => {
+    void form.handleSubmit(onSubmit)(event)
+  }
+
   return (
     <SettingsSection title={t('Chat Presets')}>
       <Form {...form}>
-        {/* eslint-disable-next-line react-hooks/refs */}
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+        <SettingsForm onSubmit={submitForm}>
           <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
+            onSave={submitForm}
             isSaving={updateOption.isPending}
             saveLabel='Save chat settings'
           />

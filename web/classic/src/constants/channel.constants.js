@@ -160,6 +160,11 @@ export const CHANNEL_OPTIONS = [
     label: '即梦',
   },
   {
+    value: 59,
+    color: 'blue',
+    label: '即梦视频（OpenAI Video）',
+  },
+  {
     value: 52,
     color: 'purple',
     label: 'Vidu',
@@ -188,6 +193,11 @@ export const CHANNEL_OPTIONS = [
     value: 57,
     color: 'blue',
     label: 'ChatGPT Subscription (Codex)',
+  },
+  {
+    value: 58,
+    color: 'blue',
+    label: 'KIE',
   },
 ];
 

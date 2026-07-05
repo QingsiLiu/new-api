@@ -37,7 +37,13 @@ import {
   getNameRuleConfig,
   getQuotaTypeConfig,
 } from '../constants'
-import { parseModelTags, formatEndpointsDisplay } from '../lib'
+import {
+  formatEndpointsDisplay,
+  getModelModalLabel,
+  getPricingModeLabel,
+  parseModelTags,
+  summarizeModelPricing,
+} from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
@@ -144,6 +150,31 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       minSize: 200,
     },
 
+    // Modality column
+    {
+      accessorKey: 'modal',
+      header: t('Modality'),
+      meta: { mobileBadge: true },
+      cell: ({ row }) => {
+        const modal = row.getValue('modal') as string | undefined
+        return (
+          <StatusBadge
+            label={getModelModalLabel(t, modal)}
+            variant='info'
+            size='sm'
+            copyable={false}
+            className='-ml-1.5'
+          />
+        )
+      },
+      filterFn: (row, id, value) => {
+        if (!value || value.length === 0 || value.includes('all')) return true
+        return value.includes(String(row.getValue(id)))
+      },
+      size: 120,
+      enableSorting: false,
+    },
+
     // Name Rule column
     {
       accessorKey: 'name_rule',
@@ -235,6 +266,40 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return false
       },
       size: 120,
+      enableSorting: false,
+    },
+
+    // Pricing Mode column
+    {
+      accessorKey: 'pricing_mode',
+      header: t('Pricing'),
+      meta: { mobileBadge: true },
+      cell: ({ row }) => {
+        const model = row.original
+        const pricingMode = model.pricing_mode || 'inherit'
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger render={<div className='-ml-1.5' />}>
+                <StatusBadge
+                  label={summarizeModelPricing(model, t)}
+                  variant={pricingMode === 'inherit' ? 'warning' : 'success'}
+                  size='sm'
+                  copyable={false}
+                />
+              </TooltipTrigger>
+              <TooltipContent side='top'>
+                {getPricingModeLabel(t, pricingMode)}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      filterFn: (row, id, value) => {
+        if (!value || value.length === 0 || value.includes('all')) return true
+        return value.includes(String(row.getValue(id)))
+      },
+      size: 150,
       enableSorting: false,
     },
 
@@ -369,10 +434,10 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       enableSorting: false,
     },
 
-    // Quota Types column
+    // Billing Types column
     {
       accessorKey: 'quota_types',
-      header: t('Quota Types'),
+      header: t('Billing Types'),
       meta: { mobileHidden: true },
       cell: ({ row }) => {
         const quotaTypes = row.getValue('quota_types') as number[]

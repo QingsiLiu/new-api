@@ -23,6 +23,8 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type LoginRequest struct {
@@ -146,12 +148,13 @@ func setupLogin(user *model.User, c *gin.Context) {
 		"message": "",
 		"success": true,
 		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
+			"id":            user.Id,
+			"username":      user.Username,
+			"display_name":  user.DisplayName,
+			"role":          user.Role,
+			"status":        user.Status,
+			"group":         user.Group,
+			"group_display": model.ResolveGroupDisplay(user.Group),
 		},
 	})
 }
@@ -278,6 +281,7 @@ func GetAllUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	attachUserGroupDisplays(users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -307,11 +311,25 @@ func SearchUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	attachUserGroupDisplays(users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func attachUserGroupDisplay(user *model.User) {
+	if user == nil {
+		return
+	}
+	user.GroupDisplay = model.ResolveGroupDisplay(user.Group)
+}
+
+func attachUserGroupDisplays(users []*model.User) {
+	for _, user := range users {
+		attachUserGroupDisplay(user)
+	}
 }
 
 func canManageTargetRole(myRole int, targetRole int) bool {
@@ -334,6 +352,7 @@ func GetUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
 		return
 	}
+	attachUserGroupDisplay(user)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -449,31 +468,33 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                user.Id,
-		"username":          user.Username,
-		"display_name":      user.DisplayName,
-		"role":              user.Role,
-		"status":            user.Status,
-		"email":             user.Email,
-		"github_id":         user.GitHubId,
-		"discord_id":        user.DiscordId,
-		"oidc_id":           user.OidcId,
-		"wechat_id":         user.WeChatId,
-		"telegram_id":       user.TelegramId,
-		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
-		"request_count":     user.RequestCount,
-		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
-		"aff_history_quota": user.AffHistoryQuota,
-		"inviter_id":        user.InviterId,
-		"linux_do_id":       user.LinuxDOId,
-		"setting":           user.Setting,
-		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
+		"id":              user.Id,
+		"username":        user.Username,
+		"display_name":    user.DisplayName,
+		"role":            user.Role,
+		"status":          user.Status,
+		"email":           user.Email,
+		"github_id":       user.GitHubId,
+		"discord_id":      user.DiscordId,
+		"oidc_id":         user.OidcId,
+		"wechat_id":       user.WeChatId,
+		"telegram_id":     user.TelegramId,
+		"group":           user.Group,
+		"group_display":   model.ResolveGroupDisplay(user.Group),
+		"balance_cny":     common.QuotaToPublicCNY(user.Quota),
+		"used_cny":        common.QuotaToPublicCNY(user.UsedQuota),
+		"currency":        "CNY",
+		"request_count":   user.RequestCount,
+		"aff_code":        user.AffCode,
+		"aff_count":       user.AffCount,
+		"aff_balance_cny": common.QuotaToPublicCNY(user.AffQuota),
+		"aff_history_cny": common.QuotaToPublicCNY(user.AffHistoryQuota),
+		"inviter_id":      user.InviterId,
+		"linux_do_id":     user.LinuxDOId,
+		"setting":         user.Setting,
+		"stripe_customer": user.StripeCustomer,
+		"sidebar_modules": userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":     permissions,                // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -918,10 +939,11 @@ func CreateUser(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
-	Action string `json:"action"`
-	Value  int    `json:"value"`
-	Mode   string `json:"mode"`
+	Id        int    `json:"id"`
+	Action    string `json:"action"`
+	Value     int    `json:"value"`
+	Mode      string `json:"mode"`
+	RequestId string `json:"request_id"`
 }
 
 // ManageUser Only admin user can do this
@@ -994,6 +1016,18 @@ func ManageUser(c *gin.Context) {
 		}
 		user.Role = common.RoleCommonUser
 	case "add_quota":
+		if strings.TrimSpace(req.RequestId) != "" {
+			if applied, err := applyQuotaChangeRequestID(c, req, user); err != nil {
+				common.ApiError(c, err)
+				return
+			} else if applied {
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"message": "",
+				})
+				return
+			}
+		}
 		switch req.Mode {
 		case "add":
 			if req.Value <= 0 {
@@ -1071,6 +1105,75 @@ func ManageUser(c *gin.Context) {
 		"data":    clearUser,
 	})
 	return
+}
+
+func applyQuotaChangeRequestID(c *gin.Context, req ManageRequest, user model.User) (bool, error) {
+	requestID := strings.TrimSpace(req.RequestId)
+	if requestID == "" {
+		return false, nil
+	}
+	switch req.Mode {
+	case "add", "subtract":
+	default:
+		return false, nil
+	}
+	if req.Value <= 0 {
+		return false, nil
+	}
+	applyDelta := req.Value
+	if req.Mode == "subtract" {
+		applyDelta = -req.Value
+	}
+	applied := false
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var lockedUser model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.Id).First(&lockedUser).Error; err != nil {
+			return err
+		}
+		var record model.UserQuotaChangeRecord
+		if err := tx.Where("request_id = ?", requestID).First(&record).Error; err == nil {
+			if record.UserId != user.Id || record.Mode != req.Mode || record.Delta != req.Value {
+				return fmt.Errorf("重复 request_id 与请求参数不一致")
+			}
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		beforeQuota := lockedUser.Quota
+		afterQuota := beforeQuota + applyDelta
+		if afterQuota < 0 {
+			return fmt.Errorf("用户余额不足")
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", afterQuota).Error; err != nil {
+			return err
+		}
+		record = model.UserQuotaChangeRecord{
+			RequestId:   requestID,
+			UserId:      user.Id,
+			Mode:        req.Mode,
+			Delta:       req.Value,
+			BeforeQuota: beforeQuota,
+			AfterQuota:  afterQuota,
+		}
+		if err := tx.Create(&record).Error; err != nil {
+			return err
+		}
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if !applied {
+		return true, nil
+	}
+	if err := model.InvalidateUserCache(user.Id); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d after quota request %s: %s", user.Id, requestID, err.Error()))
+	}
+	recordManageAuditFor(c, user.Id, "user.quota_"+req.Mode, map[string]interface{}{
+		"quota": logger.LogQuota(req.Value),
+	})
+	return true, nil
 }
 
 type emailBindRequest struct {

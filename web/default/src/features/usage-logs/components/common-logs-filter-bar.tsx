@@ -22,6 +22,7 @@ import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
 import {
@@ -81,29 +82,31 @@ export function CommonLogsFilterBar<TData>(
   const [logType, setLogType] = useState<LogTypeValue>(LOG_TYPE_ALL_VALUE)
 
   useEffect(() => {
-    const { start, end } = getDefaultTimeRange()
-    setFilters({
-      startTime: searchParams.startTime
-        ? new Date(searchParams.startTime)
-        : start,
-      endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
-      channel: searchParams.channel || undefined,
-      model: searchParams.model || undefined,
-      token: searchParams.token || undefined,
-      group: searchParams.group || undefined,
-      username: searchParams.username || undefined,
-      requestId: searchParams.requestId || undefined,
-      upstreamRequestId: searchParams.upstreamRequestId || undefined,
-    })
+    return deferEffect(() => {
+      const { start, end } = getDefaultTimeRange()
+      setFilters({
+        startTime: searchParams.startTime
+          ? new Date(searchParams.startTime)
+          : start,
+        endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
+        channel: searchParams.channel || undefined,
+        model: searchParams.model || undefined,
+        token: searchParams.token || undefined,
+        group: searchParams.group || undefined,
+        username: searchParams.username || undefined,
+        requestId: searchParams.requestId || undefined,
+        upstreamRequestId: searchParams.upstreamRequestId || undefined,
+      })
 
-    const typeArr = searchParams.type
-    const nextLogType =
-      Array.isArray(typeArr) &&
-      typeArr.length === 1 &&
-      isLogTypeValue(typeArr[0])
-        ? typeArr[0]
-        : LOG_TYPE_ALL_VALUE
-    setLogType(nextLogType)
+      const typeArr = searchParams.type
+      const nextLogType =
+        Array.isArray(typeArr) &&
+        typeArr.length === 1 &&
+        isLogTypeValue(typeArr[0])
+          ? typeArr[0]
+          : LOG_TYPE_ALL_VALUE
+      setLogType(nextLogType)
+    })
   }, [
     searchParams.startTime,
     searchParams.endTime,

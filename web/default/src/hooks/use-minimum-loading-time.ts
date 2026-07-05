@@ -31,19 +31,20 @@ export function useMinimumLoadingTime(
   const loadingStartRef = useRef(Date.now())
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+
     if (loading) {
       loadingStartRef.current = Date.now()
-      setShowSkeleton(true)
+      timer = setTimeout(() => setShowSkeleton(true), 0)
     } else {
       const elapsed = Date.now() - loadingStartRef.current
       const remaining = Math.max(0, minimumTime - elapsed)
 
-      if (remaining === 0) {
-        setShowSkeleton(false)
-      } else {
-        const timer = setTimeout(() => setShowSkeleton(false), remaining)
-        return () => clearTimeout(timer)
-      }
+      timer = setTimeout(() => setShowSkeleton(false), remaining)
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer)
     }
   }, [loading, minimumTime])
 

@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -72,7 +73,12 @@ export function ModelCharts(props: ModelChartsProps) {
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
 
   useEffect(() => {
-    if (props.defaultChartTab) setActiveTab(props.defaultChartTab)
+    const defaultChartTab = props.defaultChartTab
+    if (defaultChartTab) {
+      return deferEffect(() => {
+        setActiveTab(defaultChartTab)
+      })
+    }
   }, [props.defaultChartTab])
 
   useEffect(() => {
@@ -128,7 +134,7 @@ export function ModelCharts(props: ModelChartsProps) {
     <div className='overflow-hidden rounded-lg border'>
       <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
-          <PieChartIcon className='text-muted-foreground/60 size-4' />
+          <PieChartIcon className='text-muted-foreground size-4' />
           <div className='text-sm font-semibold'>
             {t('Model Call Analytics')}
           </div>

@@ -17,23 +17,38 @@ const (
 )
 
 type BoundChannel struct {
+	Id   int    `json:"id"`
 	Name string `json:"name"`
 	Type int    `json:"type"`
 }
 
+type ModelListFilters struct {
+	Keyword      string
+	Vendor       string
+	Status       string
+	SyncOfficial string
+	Modal        string
+	PricingMode  string
+}
+
 type Model struct {
-	Id           int            `json:"id"`
-	ModelName    string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
-	Description  string         `json:"description,omitempty" gorm:"type:text"`
-	Icon         string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
-	Tags         string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
-	VendorID     int            `json:"vendor_id,omitempty" gorm:"index"`
-	Endpoints    string         `json:"endpoints,omitempty" gorm:"type:text"`
-	Status       int            `json:"status" gorm:"default:1"`
-	SyncOfficial int            `json:"sync_official" gorm:"default:1"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
+	Id                 int            `json:"id"`
+	ModelName          string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
+	Description        string         `json:"description,omitempty" gorm:"type:text"`
+	Alias              string         `json:"alias,omitempty" gorm:"type:varchar(128);default:''"`
+	Icon               string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
+	Tags               string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
+	VendorID           int            `json:"vendor_id,omitempty" gorm:"index"`
+	Endpoints          string         `json:"endpoints,omitempty" gorm:"type:text"`
+	Status             int            `json:"status" gorm:"default:1"`
+	SyncOfficial       int            `json:"sync_official" gorm:"default:1"`
+	Modal              string         `json:"modal,omitempty" gorm:"type:varchar(20);default:''"`
+	PricingMode        string         `json:"pricing_mode,omitempty" gorm:"type:varchar(20);default:''"`
+	PricingConfig      string         `json:"pricing_config,omitempty" gorm:"type:text"`
+	PricingUpdatedTime int64          `json:"pricing_updated_time,omitempty" gorm:"bigint;default:0"`
+	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime        int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
@@ -76,10 +91,33 @@ func IsModelNameDuplicated(id int, name string) (bool, error) {
 
 func (mi *Model) Update() error {
 	mi.UpdatedTime = common.GetTimestamp()
+	var existing Model
+	if err := DB.Select("model_name").Where("id = ?", mi.Id).First(&existing).Error; err != nil {
+		return err
+	}
+
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// 使用 Select 强制更新所有字段，包括零值
-	return DB.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
-		Updates(mi).Error
+	if err := tx.Model(&Model{}).Where("id = ?", mi.Id).
+		Select("model_name", "description", "alias", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "modal", "pricing_mode", "pricing_config", "pricing_updated_time", "updated_time").
+		Updates(mi).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if _, err := renameModelChannelAccessTx(tx, existing.ModelName, mi.ModelName); err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
 }
 
 func (mi *Model) Delete() error {
@@ -110,6 +148,19 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
+func GetModelsByFilters(filters ModelListFilters, offset int, limit int) ([]*Model, int64, error) {
+	var models []*Model
+	db := applyModelListFilters(DB.Model(&Model{}), filters)
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := db.Order("models.id DESC").Offset(offset).Limit(limit).Find(&models).Error; err != nil {
+		return nil, 0, err
+	}
+	return models, total, nil
+}
+
 func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
 	result := make(map[string][]BoundChannel)
 	if len(modelNames) == 0 {
@@ -117,12 +168,13 @@ func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel
 	}
 	type row struct {
 		Model string
+		Id    int
 		Name  string
 		Type  int
 	}
 	var rows []row
 	err := DB.Table("channels").
-		Select("abilities.model as model, channels.name as name, channels.type as type").
+		Select("abilities.model as model, channels.id as id, channels.name as name, channels.type as type").
 		Joins("JOIN abilities ON abilities.channel_id = channels.id").
 		Where("abilities.model IN ? AND abilities.enabled = ?", modelNames, true).
 		Distinct().
@@ -131,7 +183,7 @@ func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel
 		return nil, err
 	}
 	for _, r := range rows {
-		result[r.Model] = append(result[r.Model], BoundChannel{Name: r.Name, Type: r.Type})
+		result[r.Model] = append(result[r.Model], BoundChannel{Id: r.Id, Name: r.Name, Type: r.Type})
 	}
 	return result, nil
 }
@@ -193,12 +245,16 @@ func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (m
 }
 
 func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Model, int64, error) {
-	var models []*Model
-	db := DB.Model(&Model{})
+	return GetModelsByFilters(ModelListFilters{Keyword: keyword, Vendor: vendor}, offset, limit)
+}
+
+func applyModelListFilters(db *gorm.DB, filters ModelListFilters) *gorm.DB {
+	keyword := strings.TrimSpace(filters.Keyword)
 	if keyword != "" {
 		like := "%" + keyword + "%"
-		db = db.Where("model_name LIKE ? OR description LIKE ? OR tags LIKE ?", like, like, like)
+		db = db.Where("model_name LIKE ? OR alias LIKE ? OR description LIKE ? OR tags LIKE ?", like, like, like, like)
 	}
+	vendor := strings.TrimSpace(filters.Vendor)
 	if vendor != "" {
 		if vid, err := strconv.Atoi(vendor); err == nil {
 			db = db.Where("models.vendor_id = ?", vid)
@@ -206,12 +262,43 @@ func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Mode
 			db = db.Joins("JOIN vendors ON vendors.id = models.vendor_id").Where("vendors.name LIKE ?", "%"+vendor+"%")
 		}
 	}
-	var total int64
-	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, err
+	switch strings.ToLower(strings.TrimSpace(filters.Status)) {
+	case "enabled", "1", "true":
+		db = db.Where("models.status = ?", 1)
+	case "disabled", "0", "false":
+		db = db.Where("models.status <> ?", 1)
 	}
-	if err := db.Order("models.id DESC").Offset(offset).Limit(limit).Find(&models).Error; err != nil {
-		return nil, 0, err
+	switch strings.ToLower(strings.TrimSpace(filters.SyncOfficial)) {
+	case "yes", "official", "1", "true":
+		db = db.Where("models.sync_official = ?", 1)
+	case "no", "0", "false":
+		db = db.Where("models.sync_official <> ?", 1)
 	}
-	return models, total, nil
+	if modal := strings.TrimSpace(filters.Modal); modal != "" && !strings.EqualFold(modal, "all") {
+		db = db.Where("models.modal = ?", modal)
+	}
+	if pricingMode := strings.TrimSpace(filters.PricingMode); pricingMode != "" && !strings.EqualFold(pricingMode, "all") {
+		db = db.Where("models.pricing_mode = ?", pricingMode)
+	}
+	return db
+}
+
+var initialModelAliases = map[string]string{
+	"gemini-2.5-flash-image":         "Nano Banana",
+	"gemini-3.1-flash-image-preview": "Nano Banana 2",
+	"gemini-3-pro-image-preview":     "Nano Banana Pro",
+}
+
+func SeedInitialModelAliases() error {
+	if DB == nil || !DB.Migrator().HasTable(&Model{}) {
+		return nil
+	}
+	for modelName, alias := range initialModelAliases {
+		if err := DB.Model(&Model{}).
+			Where("model_name = ? AND (alias = '' OR alias IS NULL)", modelName).
+			Update("alias", alias).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

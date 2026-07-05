@@ -22,6 +22,7 @@ import { Loader2, RefreshCw, Trash2, Download, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCommonHeaders } from '@/lib/api'
+import { deferEffect } from '@/lib/defer-effect'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,25 +97,6 @@ export function OllamaModelsDialog({
     [currentRow?.models]
   )
 
-  useEffect(() => {
-    if (!open) {
-      setModels([])
-      setSelected([])
-      setSearch('')
-      setPullName('')
-      setIsPulling(false)
-      setPullProgress(null)
-      pullAbortRef.current?.abort()
-      pullAbortRef.current = null
-      return
-    }
-
-    if (open && isOllamaChannel && channelId) {
-      void fetchOllamaModels()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isOllamaChannel, channelId])
-
   const fetchOllamaModels = useCallback(async () => {
     if (!channelId) return
     setIsFetching(true)
@@ -174,6 +156,27 @@ export function OllamaModelsDialog({
       setIsFetching(false)
     }
   }, [channelId, currentRow, isOllamaChannel, t])
+
+  useEffect(() => {
+    if (!open) {
+      return deferEffect(() => {
+        setModels([])
+        setSelected([])
+        setSearch('')
+        setPullName('')
+        setIsPulling(false)
+        setPullProgress(null)
+        pullAbortRef.current?.abort()
+        pullAbortRef.current = null
+      })
+    }
+
+    if (open && isOllamaChannel && channelId) {
+      return deferEffect(() => {
+        void fetchOllamaModels()
+      })
+    }
+  }, [open, isOllamaChannel, channelId, fetchOllamaModels])
 
   const toggleSelected = (modelId: string, checked: boolean) => {
     setSelected((prev) => {

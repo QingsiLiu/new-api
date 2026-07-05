@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,6 +27,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		if len(info.PriceData.OtherRatios) > 0 {
 			var contents []string
 			for key, ra := range info.PriceData.OtherRatios {
+				if !isPublicTaskBillingRatioKey(key) {
+					continue
+				}
 				if 1.0 != ra {
 					contents = append(contents, fmt.Sprintf("%s: %.2f", key, ra))
 				}
@@ -46,6 +50,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	injectSpecPricingOther(other, info.PriceData.SpecPricing)
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
@@ -127,9 +132,13 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["group_ratio"] = bc.GroupRatio
 		if len(bc.OtherRatios) > 0 {
 			for k, v := range bc.OtherRatios {
+				if !isPublicTaskBillingRatioKey(k) {
+					continue
+				}
 				other[k] = v
 			}
 		}
+		injectTaskSpecPricingOther(other, bc.SpecPricing)
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
@@ -137,6 +146,41 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
 	return other
+}
+
+func injectSpecPricingOther(other map[string]interface{}, info *types.SpecPricingInfo) {
+	if info == nil || !info.Priced {
+		return
+	}
+	other["spec_priced"] = true
+	other["spec_kind"] = info.Kind
+	other["spec_model"] = info.Model
+	other["spec_key"] = info.SpecKey
+	other["spec_unit_cny"] = info.UnitCNY
+	other["spec_total_cny"] = info.TotalCNY
+}
+
+func injectTaskSpecPricingOther(other map[string]interface{}, info *model.TaskSpecPricing) {
+	if info == nil || !info.Priced {
+		return
+	}
+	other["spec_priced"] = true
+	other["spec_kind"] = info.Kind
+	other["spec_model"] = info.Model
+	other["spec_key"] = info.SpecKey
+	other["spec_unit_cny"] = info.UnitCNY
+	other["spec_total_cny"] = info.TotalCNY
+}
+
+func isPublicTaskBillingRatioKey(key string) bool {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if key == "" {
+		return false
+	}
+	if strings.Contains(key, "quota") {
+		return false
+	}
+	return !strings.HasPrefix(key, "spec_")
 }
 
 // taskModelName 从 BillingContext 或 Properties 中获取模型名称。
@@ -229,8 +273,8 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	}
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
-	other["pre_consumed_quota"] = preConsumedQuota
-	other["actual_quota"] = actualQuota
+	other["pre_consumed_cny"] = common.QuotaToPublicCNY(preConsumedQuota)
+	other["actual_cny"] = common.QuotaToPublicCNY(actualQuota)
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,

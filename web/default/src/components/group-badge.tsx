@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 
 type GroupBadgeProps = Omit<
@@ -31,10 +32,10 @@ type GroupBadgeProps = Omit<
 
 function getGroupRatioClassName(ratio: number): string {
   if (ratio > 1) {
-    return 'bg-warning/10 text-warning'
+    return 'bg-warning/15 text-warning'
   }
   if (ratio < 1) {
-    return 'bg-info/10 text-info'
+    return 'bg-info/15 text-info'
   }
   return 'bg-muted text-muted-foreground'
 }
@@ -54,6 +55,7 @@ function getGroupLabel(params: {
 
 export function GroupBadge(props: GroupBadgeProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const {
     group,
     label: labelOverride,
@@ -69,7 +71,7 @@ export function GroupBadge(props: GroupBadgeProps) {
   const isSpecialGroup = isAutoGroup || isEmptyGroup
   const label = getGroupLabel({
     labelOverride,
-    groupName,
+    groupName: getDisplayName(groupName),
     isAutoGroup,
     isEmptyGroup,
     t,
@@ -96,7 +98,7 @@ export function GroupBadge(props: GroupBadgeProps) {
       <span className='max-w-full min-w-0 overflow-hidden'>{badge}</span>
       <span
         className={cn(
-          'inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-mono text-xs leading-none font-medium tabular-nums',
+          'inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-xs leading-none font-medium tabular-nums',
           getGroupRatioClassName(ratio)
         )}
       >

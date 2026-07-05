@@ -17,17 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const staticDataTableClassNames = {
-  container: 'overflow-hidden rounded-md border',
-  sectionContainer: 'border-border/60 rounded-lg',
+  container: 'overflow-hidden rounded-lg shadow-[var(--shadow-card)]',
+  sectionContainer: 'rounded-lg shadow-[var(--shadow-card)]',
   embeddedContainer: 'rounded-none border-0',
   compactTable: 'text-sm',
   compactHeaderRow: 'hover:bg-transparent',
   mutedHeaderRow:
     '[background-color:color-mix(in_oklch,var(--muted)_30%,var(--background))] hover:[background-color:color-mix(in_oklch,var(--muted)_30%,var(--background))]',
   compactHeaderCell:
-    'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase',
+    'text-muted-foreground py-2 text-[10px] font-medium tracking-normal',
   compactHeaderCellRight:
-    'text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase',
+    'text-muted-foreground py-2 text-right text-[10px] font-medium tracking-normal',
   compactCell: 'py-2.5',
   compactTopCell: 'py-2.5 align-top',
   compactTopNumericCell: 'py-2.5 text-right align-top font-mono',

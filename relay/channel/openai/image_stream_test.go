@@ -98,6 +98,26 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 }
 
+func TestOpenaiImageStreamHandlerWrapsAlternateJSONImageResponse(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := `{"output":[{"type":"image_generation_call","result":"https://example.com/image.png"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`
+
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.Equal(t, 3, usage.PromptTokens)
+	require.Equal(t, 4, usage.CompletionTokens)
+	require.Equal(t, 7, usage.TotalTokens)
+	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	require.Contains(t, recorder.Body.String(), `event: image_generation.completed`)
+	require.Contains(t, recorder.Body.String(), `"url":"https://example.com/image.png"`)
+	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
+}
+
 // TestOpenaiImageHandlersReturnJSONError covers JSON error responses for both
 // entry points: the non-streaming handler and the stream handler's non-SSE
 // fallback. Neither must leak the error body to the client.
@@ -132,6 +152,39 @@ func TestOpenaiImageHandlersReturnJSONError(t *testing.T) {
 		require.Equal(t, "content moderation failed", err.ToOpenAIError().Message)
 		require.Empty(t, recorder.Body.String())
 	})
+}
+
+func TestOpenaiImageHandlersRejectSuccessfulJSONWithoutImageData(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	for name, body := range map[string]string{
+		"data item without image": `{"created":1710000000,"data":[{"revised_prompt":"draw a cat"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`,
+		"status result string":    `{"result":"success","usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`,
+	} {
+		t.Run(name+" non-streaming handler", func(t *testing.T) {
+			c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+
+			usage, err := OpenaiImageHandler(c, info, resp)
+			require.Nil(t, usage)
+			require.NotNil(t, err)
+			require.Equal(t, http.StatusBadGateway, err.StatusCode)
+			require.Contains(t, err.Error(), "does not contain url or b64_json")
+			require.Empty(t, recorder.Body.String())
+		})
+
+		t.Run(name+" stream handler JSON fallback", func(t *testing.T) {
+			c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+
+			usage, err := OpenaiImageStreamHandler(c, info, resp)
+			require.Nil(t, usage)
+			require.NotNil(t, err)
+			require.Equal(t, http.StatusBadGateway, err.StatusCode)
+			require.Contains(t, err.Error(), "does not contain url or b64_json")
+			require.Empty(t, recorder.Body.String())
+		})
+	}
 }
 
 // TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent verifies that an error

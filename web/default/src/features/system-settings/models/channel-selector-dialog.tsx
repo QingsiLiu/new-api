@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { type ColumnDef, type RowSelectionState } from '@tanstack/react-table'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -81,21 +82,23 @@ export function ChannelSelectorDialog({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   useEffect(() => {
-    if (!selectedChannelIds.length) {
-      setRowSelection({})
-      return
-    }
-
-    const availableChannelIds = new Set(channels.map((channel) => channel.id))
-    const newSelection: RowSelectionState = {}
-
-    selectedChannelIds.forEach((id) => {
-      if (availableChannelIds.has(id)) {
-        newSelection[id.toString()] = true
+    return deferEffect(() => {
+      if (!selectedChannelIds.length) {
+        setRowSelection({})
+        return
       }
-    })
 
-    setRowSelection(newSelection)
+      const availableChannelIds = new Set(channels.map((channel) => channel.id))
+      const newSelection: RowSelectionState = {}
+
+      selectedChannelIds.forEach((id) => {
+        if (availableChannelIds.has(id)) {
+          newSelection[id.toString()] = true
+        }
+      })
+
+      setRowSelection(newSelection)
+    })
   }, [selectedChannelIds, channels])
 
   const updateEndpoint = useCallback(

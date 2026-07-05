@@ -324,6 +324,9 @@ func TestRecalculate_PositiveDelta(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeConsume, log.Type)
 	assert.Equal(t, actualQuota-preConsumed, log.Quota)
+	assert.Contains(t, log.Other, `"pre_consumed_cny":0.02`)
+	assert.Contains(t, log.Other, `"actual_cny":0.03`)
+	assert.NotContains(t, log.Other, "quota")
 }
 
 func TestRecalculate_NegativeDelta(t *testing.T) {

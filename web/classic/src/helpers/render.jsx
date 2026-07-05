@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import i18next from 'i18next';
+import { useId } from 'react';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
@@ -99,13 +100,79 @@ import {
   SiOkta,
   SiOpenid,
   SiReddit,
-  SiSlack,
   SiTelegram,
   SiTwitch,
   SiWechat,
   SiX,
 } from 'react-icons/si';
-import { FaLinkedin } from 'react-icons/fa';
+import { FaLinkedin, FaSlack } from 'react-icons/fa';
+
+function KieIcon({ size = 14 }) {
+  const gradientId = `kie-icon-gradient-${useId().replace(/:/g, '')}`;
+
+  return (
+    <svg
+      aria-hidden='true'
+      fill='none'
+      height={size}
+      viewBox='0 0 64 64'
+      width={size}
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <defs>
+        <linearGradient
+          id={gradientId}
+          x1='32'
+          x2='32'
+          y1='4'
+          y2='60'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#10a5f5' />
+          <stop offset='1' stopColor='#234bc4' />
+        </linearGradient>
+      </defs>
+      <path
+        d='M7.5 49.5 25 18.8c2.8-4.9 5.2-6.4 10.8-6.4h4.8c5.4 0 7.5 1.5 10.2 6.2l15.7 30.9'
+        stroke={`url(#${gradientId})`}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='7'
+      />
+      <path
+        d='M22.2 48.5 37 22.6M27.2 42h18.4L35.2 24.2M42 23.5l8.2 15.6M52.5 47.7l6 11.5M13 55.5h13.5M48.8 55.5h8.7'
+        stroke={`url(#${gradientId})`}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='7'
+      />
+      <circle
+        cx='29.7'
+        cy='18.4'
+        fill='white'
+        r='4.6'
+        stroke={`url(#${gradientId})`}
+        strokeWidth='5'
+      />
+      <circle
+        cx='7.5'
+        cy='55.5'
+        fill='white'
+        r='5.8'
+        stroke={`url(#${gradientId})`}
+        strokeWidth='5'
+      />
+      <circle
+        cx='58'
+        cy='55.5'
+        fill='white'
+        r='5.8'
+        stroke={`url(#${gradientId})`}
+        strokeWidth='5'
+      />
+    </svg>
+  );
+}
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -336,6 +403,8 @@ export function getChannelIcon(channelType) {
     case 3: // Azure OpenAI
     case 57: // Codex
       return <OpenAI size={iconSize} />;
+    case 58: // KIE
+      return <KieIcon size={iconSize} />;
     case 2: // Midjourney Proxy
     case 5: // Midjourney Proxy Plus
       return <Midjourney size={iconSize} />;
@@ -400,6 +469,7 @@ export function getChannelIcon(channelType) {
     case 50: // 可灵 Kling
       return <Kling.Color size={iconSize} />;
     case 51: // 即梦 Jimeng
+    case 59: // 即梦视频 OpenAI Video-compatible
       return <Jimeng.Color size={iconSize} />;
     case 54: // 豆包视频 Doubao Video
       return <Doubao.Color size={iconSize} />;
@@ -435,6 +505,11 @@ export function getLobeHubIcon(iconName, size = 14) {
   // 解析组件路径与点号链式属性
   const segments = String(iconName).split('.');
   const baseKey = segments[0];
+
+  if (baseKey.toLowerCase() === 'kie') {
+    return <KieIcon size={size} />;
+  }
+
   const BaseIcon = LobeIcons[baseKey];
 
   let IconComponent = undefined;
@@ -512,7 +587,7 @@ const oauthProviderIconMap = {
   linkedin: FaLinkedin,
   x: SiX,
   twitter: SiX,
-  slack: SiSlack,
+  slack: FaSlack,
   telegram: SiTelegram,
   wechat: SiWechat,
   keycloak: SiKeycloak,

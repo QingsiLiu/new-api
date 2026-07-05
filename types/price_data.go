@@ -25,6 +25,21 @@ type PriceData struct {
 	Quota                int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume    int // 按量计费的预消耗额度
 	GroupRatioInfo       GroupRatioInfo
+	SpecPricing          *SpecPricingInfo
+}
+
+type SpecPricingInfo struct {
+	Priced      bool    `json:"spec_priced,omitempty"`
+	Kind        string  `json:"spec_kind,omitempty"`
+	Model       string  `json:"spec_model,omitempty"`
+	SpecKey     string  `json:"spec_key,omitempty"`
+	Resolution  string  `json:"spec_resolution,omitempty"`
+	Ratio       string  `json:"spec_ratio,omitempty"`
+	Mode        string  `json:"spec_mode,omitempty"`
+	UnitCNY     float64 `json:"spec_unit_cny,omitempty"`
+	TotalCNY    float64 `json:"spec_total_cny,omitempty"`
+	Quota       int     `json:"spec_quota,omitempty"`
+	QuotaPerCNY float64 `json:"quota_per_cny,omitempty"`
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

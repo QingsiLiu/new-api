@@ -44,7 +44,6 @@ interface PaymentConfirmDialogProps {
   calculating: boolean
   processing: boolean
   discountRate?: number
-  usdExchangeRate?: number
 }
 
 export function PaymentConfirmDialog({
@@ -57,7 +56,6 @@ export function PaymentConfirmDialog({
   calculating,
   processing,
   discountRate = DEFAULT_DISCOUNT_RATE,
-  usdExchangeRate = 1,
 }: PaymentConfirmDialogProps) {
   const { t } = useTranslation()
   const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
@@ -82,7 +80,7 @@ export function PaymentConfirmDialog({
               {t('Topup Amount')}
             </span>
             <span className='text-lg font-semibold'>
-              {formatLocalCurrencyAmount(topupAmount * usdExchangeRate, {
+              {formatLocalCurrencyAmount(topupAmount, {
                 digitsLarge: 2,
                 digitsSmall: 2,
                 abbreviate: false,
@@ -114,7 +112,7 @@ export function PaymentConfirmDialog({
             <div className='bg-muted/50 rounded-lg p-3'>
               <div className='flex items-center justify-between text-sm'>
                 <span className='text-muted-foreground'>{t('You save')}</span>
-                <span className='font-semibold text-green-600'>
+                <span className='text-success font-semibold'>
                   {formatCurrency(discountAmount)}
                 </span>
               </div>

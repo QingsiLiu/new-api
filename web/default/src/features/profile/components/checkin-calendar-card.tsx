@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -122,8 +123,10 @@ export function CheckinCalendarCard({
     if (initialLoaded) return
     if (isLoading) return
     if (!checkinData) return
-    setCollapsed(checkedToday)
-    setInitialLoaded(true)
+    return deferEffect(() => {
+      setCollapsed(checkedToday)
+      setInitialLoaded(true)
+    })
   }, [checkinData, checkedToday, initialLoaded, isLoading])
 
   const shouldTriggerTurnstile = useCallback(
@@ -292,7 +295,7 @@ export function CheckinCalendarCard({
                     {t('Daily Check-in')}
                   </h3>
                   {checkedToday && (
-                    <div className='inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 sm:gap-1.5 sm:px-2.5 sm:text-xs dark:text-emerald-400'>
+                    <div className='inline-flex items-center gap-1 rounded-md bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success sm:gap-1.5 sm:px-2.5 sm:text-xs'>
                       <Sparkles className='h-2.5 w-2.5 sm:h-3 sm:w-3' />
                       {t('Checked in')}
                     </div>
@@ -308,7 +311,7 @@ export function CheckinCalendarCard({
                 <p className='text-muted-foreground mt-1 line-clamp-2 text-xs sm:text-sm'>
                   {checkedToday && todayAward !== undefined
                     ? `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
-                    : t('Check in daily to receive random quota rewards')}
+                    : t('Check in daily to receive random balance rewards')}
                 </p>
               </div>
             </button>
@@ -428,7 +431,7 @@ export function CheckinCalendarCard({
                       >
                         <span className='tabular-nums'>{dayNum}</span>
                         {isCheckedIn && !isToday && (
-                          <span className='absolute bottom-0.5 h-1 w-1 rounded-full bg-emerald-500 sm:bottom-1' />
+                          <span className='absolute bottom-0.5 h-1 w-1 rounded-sm bg-success sm:bottom-1' />
                         )}
                       </Button>
                     )
@@ -463,7 +466,7 @@ export function CheckinCalendarCard({
                 <div className='bg-muted/30 text-muted-foreground rounded-lg border p-3 text-xs'>
                   <ul className='list-disc space-y-1 pl-5'>
                     <li>
-                      {t('Check in daily to receive random quota rewards')}
+                      {t('Check in daily to receive random balance rewards')}
                     </li>
                     <li>
                       {t('Rewards will be added directly to your balance')}

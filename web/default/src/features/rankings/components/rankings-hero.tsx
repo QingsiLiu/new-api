@@ -79,7 +79,7 @@ export function RankingsHero(props: RankingsHeroProps) {
               <span
                 aria-hidden
                 className={cn(
-                  'bg-foreground absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-opacity',
+                  'bg-foreground absolute inset-x-3 -bottom-px h-[2px] rounded-sm transition-opacity',
                   isActive ? 'opacity-100' : 'opacity-0'
                 )}
               />

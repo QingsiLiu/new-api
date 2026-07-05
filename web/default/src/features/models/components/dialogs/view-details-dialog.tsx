@@ -263,7 +263,7 @@ export function ViewDetailsDialog({
                 {t('Raw JSON')}
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <pre className='mt-3 max-h-[360px] overflow-auto rounded-md bg-black p-3 text-xs text-gray-200'>
+                <pre className='bg-card text-foreground mt-3 max-h-[360px] overflow-auto rounded-md border p-3 text-xs'>
                   {payloadJson || '-'}
                 </pre>
               </CollapsibleContent>

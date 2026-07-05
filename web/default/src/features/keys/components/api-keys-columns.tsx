@@ -42,9 +42,10 @@ import {
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
-  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
-  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
+  if (percentage <= 10)
+    return '[&_[data-slot=progress-indicator]]:bg-destructive'
+  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-warning'
+  return '[&_[data-slot=progress-indicator]]:bg-success'
 }
 
 function useGroupRatios(): Record<string, number> {
@@ -133,7 +134,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       id: 'quota',
       accessorKey: 'remain_quota',
-      header: t('Quota'),
+      header: t('Balance'),
       cell: ({ row }) => {
         const apiKey = row.original
         if (apiKey.unlimited_quota) {

@@ -22,6 +22,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { setup2FA, enable2FA } from '@/lib/api'
+import { deferEffect } from '@/lib/defer-effect'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,7 +125,9 @@ export function TwoFASetupDialog({
   // Initialize when dialog opens
   useEffect(() => {
     if (open && !setupData && !initializing) {
-      handleSetup()
+      return deferEffect(() => {
+        void handleSetup()
+      })
     }
   }, [open, setupData, initializing, handleSetup])
 

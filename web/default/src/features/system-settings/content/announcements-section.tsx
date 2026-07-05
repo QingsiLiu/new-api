@@ -24,6 +24,7 @@ import { Plus, Edit, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import dayjs from '@/lib/dayjs'
+import { deferEffect } from '@/lib/defer-effect'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,31 +98,31 @@ const typeOptions = [
   {
     value: 'default',
     label: 'Default',
-    color: 'bg-gray-500',
+    color: 'bg-muted-foreground',
     badgeVariant: 'neutral' as const,
   },
   {
     value: 'ongoing',
     label: 'Ongoing',
-    color: 'bg-blue-500',
+    color: 'bg-info',
     badgeVariant: 'info' as const,
   },
   {
     value: 'success',
     label: 'Success',
-    color: 'bg-green-500',
+    color: 'bg-success',
     badgeVariant: 'success' as const,
   },
   {
     value: 'warning',
     label: 'Warning',
-    color: 'bg-orange-500',
+    color: 'bg-warning',
     badgeVariant: 'warning' as const,
   },
   {
     value: 'error',
     label: 'Error',
-    color: 'bg-red-500',
+    color: 'bg-destructive',
     badgeVariant: 'danger' as const,
   },
 ]
@@ -153,23 +154,27 @@ export function AnnouncementsSection({
   })
 
   useEffect(() => {
-    try {
-      const parsed = JSON.parse(data || '[]')
-      if (Array.isArray(parsed)) {
-        setAnnouncements(
-          parsed.map((item, idx) => ({
-            ...item,
-            id: item.id || idx + 1,
-          }))
-        )
+    return deferEffect(() => {
+      try {
+        const parsed = JSON.parse(data || '[]')
+        if (Array.isArray(parsed)) {
+          setAnnouncements(
+            parsed.map((item, idx) => ({
+              ...item,
+              id: item.id || idx + 1,
+            }))
+          )
+        }
+      } catch {
+        setAnnouncements([])
       }
-    } catch {
-      setAnnouncements([])
-    }
+    })
   }, [data])
 
   useEffect(() => {
-    setIsEnabled(enabled)
+    return deferEffect(() => {
+      setIsEnabled(enabled)
+    })
   }, [enabled])
 
   const handleToggleEnabled = async (checked: boolean) => {
@@ -535,7 +540,7 @@ export function AnnouncementsSection({
                         label: (
                           <div className='flex items-center gap-2'>
                             <div
-                              className={`h-3 w-3 rounded-full ${option.color}`}
+                              className={`h-3 w-0.5 rounded-sm ${option.color}`}
                             />
                             {option.label}
                           </div>
@@ -558,7 +563,7 @@ export function AnnouncementsSection({
                           <SelectItem key={option.value} value={option.value}>
                             <div className='flex items-center gap-2'>
                               <div
-                                className={`h-3 w-3 rounded-full ${option.color}`}
+                                className={`h-3 w-0.5 rounded-sm ${option.color}`}
                               />
                               {option.label}
                             </div>

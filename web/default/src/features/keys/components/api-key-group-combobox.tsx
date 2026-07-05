@@ -35,6 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 
 export type ApiKeyGroupOption = {
   value: string
@@ -61,19 +62,19 @@ function formatGroupRatio(
 
 function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {
   if (typeof ratio !== 'number') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+    return 'border-border bg-muted text-muted-foreground'
   }
 
   if (ratio > 5) {
-    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300'
+    return 'border-destructive/25 bg-destructive/10 text-destructive'
   }
   if (ratio > 3) {
-    return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/40 dark:text-orange-300'
+    return 'border-warning/25 bg-warning/10 text-warning'
   }
   if (ratio > 1) {
-    return 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300'
+    return 'border-info/25 bg-info/10 text-info'
   }
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+  return 'border-success/25 bg-success/10 text-success'
 }
 
 function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
@@ -103,15 +104,24 @@ export function ApiKeyGroupCombobox({
   disabled,
 }: ApiKeyGroupComboboxProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const selectedOption = options.find((option) => option.value === value)
+  const decoratedOptions = useMemo(
+    () =>
+      options.map((option) => ({
+        ...option,
+        label: option.label || getDisplayName(option.value),
+      })),
+    [options, getDisplayName]
+  )
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
-    if (!search) return options
+    if (!search) return decoratedOptions
 
-    return options.filter((option) => {
+    return decoratedOptions.filter((option) => {
       const ratioText = String(option.ratio ?? '').toLowerCase()
       return (
         option.value.toLowerCase().includes(search) ||
@@ -120,7 +130,7 @@ export function ApiKeyGroupCombobox({
         ratioText.includes(search)
       )
     })
-  }, [options, searchValue])
+  }, [decoratedOptions, searchValue])
 
   const handleSelect = (selectedValue: string) => {
     onValueChange(selectedValue)
@@ -145,7 +155,7 @@ export function ApiKeyGroupCombobox({
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
             <span className='block truncate font-medium'>
-              {selectedOption?.label || placeholder || t('Select a group')}
+              {selectedOption?.label || getDisplayName(value) || placeholder || t('Select a group')}
             </span>
             {selectedOption?.desc && (
               <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
@@ -160,7 +170,7 @@ export function ApiKeyGroupCombobox({
         <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
       </PopoverTrigger>
       <PopoverContent
-        className='data-closed:zoom-out-100 data-open:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[var(--anchor-width)] overflow-hidden rounded-xl p-0 shadow-lg data-closed:duration-75 data-open:duration-100'
+        className='data-closed:zoom-out-100 data-open:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 border-border bg-popover w-[var(--anchor-width)] overflow-hidden rounded-xl border p-0 shadow-none data-closed:duration-75 data-open:duration-100'
         onWheel={(event) => event.stopPropagation()}
         onTouchMove={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -179,7 +189,7 @@ export function ApiKeyGroupCombobox({
                   key={option.value}
                   value={option.value}
                   onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
+                  className='data-[selected=true]:bg-accent items-start gap-3 rounded-lg px-3 py-3 transition-colors'
                 >
                   <Check
                     className={cn(

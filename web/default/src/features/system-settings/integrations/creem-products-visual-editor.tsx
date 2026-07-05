@@ -68,7 +68,9 @@ export function CreemProductsVisualEditor({
         typeof item.productId === 'string' &&
         typeof item.price === 'number' &&
         typeof item.quota === 'number' &&
-        (item.currency === 'USD' || item.currency === 'EUR')
+        (item.currency === 'CNY' ||
+          item.currency === 'USD' ||
+          item.currency === 'EUR')
     )
   }, [value, t])
 
@@ -168,7 +170,7 @@ export function CreemProductsVisualEditor({
       </div>
 
       {filteredProducts.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm'>
+        <div className='bg-muted/30 text-muted-foreground rounded-lg p-8 text-center text-sm shadow-[var(--shadow-card)]'>
           {searchText
             ? t('No products match your search')
             : t('No products configured. Click "Add product" to get started.')}
@@ -207,7 +209,7 @@ export function CreemProductsVisualEditor({
               },
               {
                 id: 'quota',
-                header: t('Quota'),
+                header: t('Balance'),
                 cell: (product) => (
                   <span className='font-mono text-sm'>
                     {formatQuotaShort(product.quota)}
@@ -300,7 +302,7 @@ export function CreemProductsVisualEditor({
                   </div>
                   <div className='flex items-center gap-2'>
                     <span className='text-muted-foreground min-w-16'>
-                      {t('Quota')}:
+                      {t('Balance')}:
                     </span>
                     <span className='font-mono'>
                       {formatQuotaShort(product.quota)}

@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckSquare, RefreshCcw } from 'lucide-react'
+import { CheckSquare, Loader2, RefreshCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import {
   fetchUpstreamRatios,
@@ -72,6 +73,7 @@ type UpstreamRatioSyncProps = {
     'billing_setting.billing_mode': string
     'billing_setting.billing_expr': string
   }
+  readOnly?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +140,10 @@ function deleteResolutionField(
 // Component
 // ---------------------------------------------------------------------------
 
-export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
+export function UpstreamRatioSync({
+  modelRatios,
+  readOnly = false,
+}: UpstreamRatioSyncProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
@@ -166,16 +171,18 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
 
   useEffect(() => {
     if (channels.length === 0) return
-    setChannelEndpoints((prev) => {
-      let mutated = false
-      const next = { ...prev }
-      for (const channel of channels) {
-        if (!next[channel.id]) {
-          next[channel.id] = getDefaultEndpointForChannel(channel)
-          mutated = true
+    return deferEffect(() => {
+      setChannelEndpoints((prev) => {
+        let mutated = false
+        const next = { ...prev }
+        for (const channel of channels) {
+          if (!next[channel.id]) {
+            next[channel.id] = getDefaultEndpointForChannel(channel)
+            mutated = true
+          }
         }
-      }
-      return mutated ? next : prev
+        return mutated ? next : prev
+      })
     })
   }, [channels])
 
@@ -244,10 +251,12 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   })
 
   const handleOpenChannelDialog = () => {
+    if (readOnly) return
     setChannelDialogOpen(true)
   }
 
   const handleConfirmChannelSelection = (selectedIds: number[]) => {
+    if (readOnly) return
     const selectedChannels = channels.filter((ch) =>
       selectedIds.includes(ch.id)
     )
@@ -274,6 +283,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       value: number | string,
       sourceName: string
     ) => {
+      if (readOnly) return
       const modelDiffs = differences[model]
 
       // Prefer billing_expr over individual ratio fields when available
@@ -322,14 +332,15 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         return { ...prev, [model]: newModelRes }
       })
     },
-    [differences]
+    [differences, readOnly]
   )
 
   const handleUnselectValue = useCallback(
     (model: string, ratioType: RatioType) => {
+      if (readOnly) return
       setResolutions((prev) => deleteResolutionField(prev, model, ratioType))
     },
-    []
+    [readOnly]
   )
 
   const parsedRatios = useMemo(() => {
@@ -447,6 +458,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   }
 
   const handleApplySync = () => {
+    if (readOnly) return
     const currentRatios = parsedRatios
     const conflicts: ConflictItem[] = []
 
@@ -502,6 +514,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   }
 
   const handleConfirmConflict = async () => {
+    if (readOnly) return
     setConfirmLoading(true)
     try {
       const success = await performSync(parsedRatios)
@@ -520,17 +533,20 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     <div className='space-y-4'>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex flex-col gap-2 sm:flex-row'>
-          <Button onClick={handleOpenChannelDialog} disabled={isLoading}>
+          <Button
+            onClick={handleOpenChannelDialog}
+            disabled={isLoading || readOnly}
+          >
             <RefreshCcw className='mr-2 h-4 w-4' />
             {t('Select Sync Channels')}
           </Button>
           <Button
             variant='secondary'
             onClick={handleApplySync}
-            disabled={!hasSelections || isLoading}
+            disabled={!hasSelections || isLoading || readOnly}
           >
             {(isSyncPending || confirmLoading) && (
-              <span className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
             )}
             <CheckSquare className='mr-2 h-4 w-4' />
             {t('Apply Sync')}
@@ -541,7 +557,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       <UpstreamRatioSyncTable
         differences={differences}
         resolutions={resolutions}
-        isDisabled={isLoading}
+        isDisabled={isLoading || readOnly}
         isSyncing={fetchMutation.isPending}
         onSelectValue={handleSelectValue}
         onUnselectValue={handleUnselectValue}

@@ -51,7 +51,7 @@ export function getApiKeyFormSchema(t: TFunction) {
         ctx.addIssue({
           code: 'custom',
           path: ['remain_quota_dollars'],
-          message: t('Quota must be zero or greater'),
+          message: t('Balance must be zero or greater'),
         })
       }
     })

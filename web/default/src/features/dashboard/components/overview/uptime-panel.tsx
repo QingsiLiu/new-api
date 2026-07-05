@@ -39,7 +39,7 @@ const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
 
 const StatusDot = memo(function StatusDot(props: { status: number }) {
   const color = STATUS_COLOR_MAP[props.status] ?? DEFAULT_STATUS_COLOR
-  return <span className={cn('inline-block size-2 rounded-full', color)} />
+  return <span className={cn('inline-block h-3 w-0.5 rounded-sm', color)} />
 })
 
 export function UptimePanel() {

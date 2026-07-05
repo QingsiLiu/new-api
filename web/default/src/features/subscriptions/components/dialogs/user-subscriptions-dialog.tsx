@@ -20,6 +20,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
+import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -106,6 +108,7 @@ export function UserSubscriptionsDialog(props: Props) {
     type: 'invalidate' | 'delete'
     subId: number
   } | null>(null)
+  const userId = props.user?.id
 
   const planTitleMap = useMemo(() => {
     const map = new Map<number, string>()
@@ -116,12 +119,12 @@ export function UserSubscriptionsDialog(props: Props) {
   }, [plans])
 
   const loadData = useCallback(async () => {
-    if (!props.user?.id) return
+    if (!userId) return
     setLoading(true)
     try {
       const [plansRes, subsRes] = await Promise.all([
         getAdminPlans(),
-        getUserSubscriptions(props.user.id),
+        getUserSubscriptions(userId),
       ])
       if (plansRes.success) setPlans(plansRes.data || [])
       if (subsRes.success) setSubs(subsRes.data || [])
@@ -130,23 +133,25 @@ export function UserSubscriptionsDialog(props: Props) {
     } finally {
       setLoading(false)
     }
-  }, [props.user?.id, t])
+  }, [userId, t])
 
   useEffect(() => {
-    if (props.open && props.user?.id) {
-      setSelectedPlanId('')
-      loadData()
+    if (props.open && userId) {
+      return deferEffect(() => {
+        setSelectedPlanId('')
+        void loadData()
+      })
     }
-  }, [props.open, props.user?.id, loadData])
+  }, [props.open, userId, loadData])
 
   const handleCreate = async () => {
-    if (!props.user?.id || !selectedPlanId) {
+    if (!userId || !selectedPlanId) {
       toast.error(t('Please select a subscription plan'))
       return
     }
     setCreating(true)
     try {
-      const res = await createUserSubscription(props.user.id, {
+      const res = await createUserSubscription(userId, {
         plan_id: Number(selectedPlanId),
       })
       if (res.success) {
@@ -296,12 +301,14 @@ export function UserSubscriptionsDialog(props: Props) {
                 },
                 {
                   id: 'quota',
-                  header: t('Total Quota'),
+                  header: t('Included Balance'),
                   cell: (record) => {
                     const sub = record.subscription
                     const total = Number(sub.amount_total || 0)
                     const used = Number(sub.amount_used || 0)
-                    return total > 0 ? `${used}/${total}` : t('Unlimited')
+                    return total > 0
+                      ? `${formatQuota(used)}/${formatQuota(total)}`
+                      : t('Unlimited')
                   },
                 },
                 {

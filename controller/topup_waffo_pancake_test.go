@@ -45,9 +45,8 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 	setting.WaffoPancakeUnitPrice = 2.5
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
-		10:                           0.8,
-		int(common.QuotaPerUnit * 3): 0.5,
-		20:                           0,
+		10: 0.8,
+		20: 0,
 	}
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1,"vip":1.2}`))
 
@@ -59,24 +58,24 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		expected         float64
 	}{
 		{
-			name:             "currency display applies unit price group ratio and discount",
+			name:             "cny amount applies unit price group ratio and discount",
 			amount:           10,
 			group:            "vip",
-			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
+			quotaDisplayType: operation_setting.QuotaDisplayTypeCNY,
 			expected:         24,
 		},
 		{
-			name:             "tokens display converts quota to display units before pricing",
-			amount:           int64(common.QuotaPerUnit * 3),
+			name:             "legacy tokens display does not reinterpret cny amount",
+			amount:           3,
 			group:            "vip",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeTokens,
-			expected:         4.5,
+			expected:         9,
 		},
 		{
 			name:             "non-positive discount falls back to no discount",
 			amount:           20,
 			group:            "default",
-			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
+			quotaDisplayType: operation_setting.QuotaDisplayTypeCNY,
 			expected:         50,
 		},
 	}

@@ -42,9 +42,9 @@ import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
-  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
-  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
+  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-destructive'
+  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-warning'
+  return '[&_[data-slot=progress-indicator]]:bg-success'
 }
 
 export function useUsersColumns(): ColumnDef<User>[] {
@@ -165,7 +165,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       id: 'quota',
       accessorKey: 'quota',
-      header: t('Quota'),
+      header: t('Balance'),
       cell: ({ row }) => {
         const user = row.original
         const used = user.used_quota
@@ -176,7 +176,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         if (total === 0) {
           return (
             <StatusBadge
-              label={t('No Quota')}
+              label={t('No Balance')}
               variant='neutral'
               copyable={false}
               className='-ml-1.5'

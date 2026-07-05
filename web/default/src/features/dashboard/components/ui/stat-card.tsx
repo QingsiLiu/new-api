@@ -16,12 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useId, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatValue } from '@/components/stat-value'
 
-type StatCardTone = 'rose' | 'teal' | 'gray'
+type StatCardTone =
+  | 'primary'
+  | 'success'
+  | 'accent'
+  | 'neutral'
+  | 'chart-1'
+  | 'chart-2'
+  | 'chart-3'
 type StatCardSparklineVariant = 'bars' | 'line'
 type StatCardDetailTone =
   | 'default'
@@ -51,15 +59,23 @@ interface StatCardProps {
 }
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
-  rose: 'from-rose-500/80 via-rose-300/70 to-rose-200/20 dark:from-rose-400/70 dark:via-rose-500/30 dark:to-rose-500/5',
-  teal: 'from-teal-500/80 via-teal-300/70 to-teal-200/20 dark:from-teal-400/70 dark:via-teal-500/30 dark:to-teal-500/5',
-  gray: 'from-muted-foreground/50 via-muted-foreground/20 to-transparent dark:from-muted-foreground/40 dark:via-muted-foreground/20',
+  primary: 'bg-primary',
+  success: 'bg-success',
+  accent: 'bg-primary',
+  neutral: 'bg-muted-foreground',
+  'chart-1': 'bg-chart-1',
+  'chart-2': 'bg-chart-2',
+  'chart-3': 'bg-chart-3',
 }
 
 const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
-  rose: 'text-warning',
-  teal: 'text-primary',
-  gray: 'text-muted-foreground',
+  primary: 'text-primary',
+  success: 'text-success',
+  accent: 'text-primary',
+  neutral: 'text-muted-foreground',
+  'chart-1': 'text-chart-1',
+  'chart-2': 'text-chart-2',
+  'chart-3': 'text-chart-3',
 }
 
 const DETAIL_TONE_CLASSES: Record<StatCardDetailTone, string> = {
@@ -102,9 +118,13 @@ function buildLineSparkline(values?: number[]) {
     return { x, y }
   })
 
-  const linePath = points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-    .join(' ')
+  const linePath = points.reduce((path, point, index) => {
+    if (index === 0) return `M ${point.x} ${point.y}`
+
+    const previous = points[index - 1]
+    const controlX = previous.x + (point.x - previous.x) / 2
+    return `${path} C ${controlX} ${previous.y} ${controlX} ${point.y} ${point.x} ${point.y}`
+  }, '')
   const firstPoint = points[0]
   const lastPoint = points[points.length - 1]
   const areaPath = `${linePath} L ${lastPoint.x} ${height} L ${firstPoint.x} ${height} Z`
@@ -112,12 +132,11 @@ function buildLineSparkline(values?: number[]) {
   return {
     areaPath,
     linePath,
+    lastPoint,
   }
 }
 
 function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
-  const rawGradientId = useId()
-  const gradientId = `stat-card-line-${rawGradientId.replace(/:/g, '')}`
   const paths = buildLineSparkline(props.values)
 
   if (!paths) return <div className='h-8' aria-hidden='true' />
@@ -135,13 +154,7 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
         preserveAspectRatio='none'
         className='size-full'
       >
-        <defs>
-          <linearGradient id={gradientId} x1='0' x2='0' y1='0' y2='1'>
-            <stop offset='0%' stopColor='currentColor' stopOpacity='0.24' />
-            <stop offset='100%' stopColor='currentColor' stopOpacity='0' />
-          </linearGradient>
-        </defs>
-        <path d={paths.areaPath} fill={`url(#${gradientId})`} />
+        <path d={paths.areaPath} fill='currentColor' opacity='0.1' />
         <path
           d={paths.linePath}
           fill='none'
@@ -149,6 +162,22 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
           strokeLinecap='round'
           strokeLinejoin='round'
           strokeWidth='2.25'
+          vectorEffect='non-scaling-stroke'
+        />
+        <circle
+          cx={paths.lastPoint.x}
+          cy={paths.lastPoint.y}
+          r='6'
+          fill='currentColor'
+          opacity='0.16'
+        />
+        <circle
+          cx={paths.lastPoint.x}
+          cy={paths.lastPoint.y}
+          r='2.8'
+          fill='currentColor'
+          stroke='var(--card)'
+          strokeWidth='1.3'
           vectorEffect='non-scaling-stroke'
         />
       </svg>
@@ -165,7 +194,7 @@ function BarSparkline(props: { values?: number[]; tone: StatCardTone }) {
         <span
           key={`spark-${index}`}
           className={cn(
-            'flex-1 rounded-t-sm bg-linear-to-t',
+            'flex-1 rounded-t-sm',
             height <= 0 && 'opacity-20',
             TONE_CLASSES[props.tone]
           )}
@@ -204,7 +233,7 @@ function StatCardDetails(props: { details: StatCardDetail[] }) {
 
 export function StatCard(props: StatCardProps) {
   const Icon = props.icon
-  const tone = props.tone ?? 'gray'
+  const tone = props.tone ?? 'neutral'
   const sparklineVariant = props.sparklineVariant ?? 'bars'
 
   return (
@@ -212,7 +241,7 @@ export function StatCard(props: StatCardProps) {
       <div className='flex items-start justify-between gap-1'>
         <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium sm:gap-2'>
           <Icon
-            className='text-muted-foreground/60 size-3.5 shrink-0'
+            className='text-muted-foreground size-3.5 shrink-0'
             aria-hidden='true'
           />
           <span className='line-clamp-2 leading-snug'>{props.title}</span>
@@ -230,16 +259,16 @@ export function StatCard(props: StatCardProps) {
           <div className='text-muted-foreground mt-0.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:text-2xl'>
             --
           </div>
-          <p className='text-muted-foreground/60 text-xs'>
+          <p className='text-muted-foreground text-xs'>
             {props.description}
           </p>
         </div>
       ) : (
         <div className='flex flex-col gap-1'>
-          <div className='text-foreground font-mono text-2xl font-semibold tracking-tight break-all tabular-nums'>
-            {props.value}
+          <div className='editorial-stat-value text-foreground text-2xl break-all'>
+            <StatValue value={props.value} />
           </div>
-          <p className='text-muted-foreground/60 text-xs leading-relaxed'>
+          <p className='text-muted-foreground text-xs leading-relaxed'>
             {props.description}
           </p>
         </div>

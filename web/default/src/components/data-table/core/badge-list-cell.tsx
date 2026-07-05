@@ -62,7 +62,7 @@ export function BadgeListCell({
             side='top'
             className={
               tooltipClassName ??
-              'border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
+              'bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
             }
           >
             <div className='flex flex-wrap gap-1'>{items}</div>

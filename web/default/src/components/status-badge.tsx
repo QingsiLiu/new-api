@@ -29,21 +29,21 @@ export const dotColorMap = {
   danger: 'bg-destructive',
   info: 'bg-info',
   neutral: 'bg-neutral',
-  purple: 'bg-chart-4',
+  purple: 'bg-chart-2',
   amber: 'bg-warning',
-  blue: 'bg-chart-1',
-  cyan: 'bg-chart-2',
+  blue: 'bg-chart-5',
+  cyan: 'bg-chart-3',
   green: 'bg-success',
   grey: 'bg-neutral',
-  indigo: 'bg-chart-1',
+  indigo: 'bg-chart-2',
   'light-blue': 'bg-info',
   'light-green': 'bg-success',
-  lime: 'bg-chart-3',
+  lime: 'bg-success',
   orange: 'bg-warning',
-  pink: 'bg-chart-5',
+  pink: 'bg-chart-1',
   red: 'bg-destructive',
-  teal: 'bg-chart-2',
-  violet: 'bg-chart-4',
+  teal: 'bg-chart-3',
+  violet: 'bg-chart-2',
   yellow: 'bg-warning',
 } as const
 
@@ -53,28 +53,52 @@ export const textColorMap = {
   danger: 'text-destructive',
   info: 'text-info',
   neutral: 'text-muted-foreground',
-  purple: 'text-chart-4',
+  purple: 'text-chart-2',
   amber: 'text-warning',
-  blue: 'text-chart-1',
-  cyan: 'text-chart-2',
+  blue: 'text-chart-5',
+  cyan: 'text-chart-3',
   green: 'text-success',
   grey: 'text-muted-foreground',
-  indigo: 'text-chart-1',
+  indigo: 'text-chart-2',
   'light-blue': 'text-info',
   'light-green': 'text-success',
-  lime: 'text-chart-3',
+  lime: 'text-success',
   orange: 'text-warning',
-  pink: 'text-chart-5',
+  pink: 'text-chart-1',
   red: 'text-destructive',
-  teal: 'text-chart-2',
-  violet: 'text-chart-4',
+  teal: 'text-chart-3',
+  violet: 'text-chart-2',
   yellow: 'text-warning',
 } as const
 
 export type StatusVariant = keyof typeof dotColorMap
 
+export const badgeSurfaceMap: Record<StatusVariant, string> = {
+  success: 'bg-success/15',
+  warning: 'bg-warning/15',
+  danger: 'bg-destructive/15',
+  info: 'bg-info/15',
+  neutral: 'bg-muted/60',
+  purple: 'bg-chart-2/15',
+  amber: 'bg-warning/15',
+  blue: 'bg-chart-5/15',
+  cyan: 'bg-chart-3/15',
+  green: 'bg-success/15',
+  grey: 'bg-muted/60',
+  indigo: 'bg-chart-2/15',
+  'light-blue': 'bg-info/15',
+  'light-green': 'bg-success/15',
+  lime: 'bg-success/15',
+  orange: 'bg-warning/15',
+  pink: 'bg-chart-1/15',
+  red: 'bg-destructive/15',
+  teal: 'bg-chart-3/15',
+  violet: 'bg-chart-2/15',
+  yellow: 'bg-warning/15',
+}
+
 /** Controls the visual style of the badge.
- * - `badge`    — default pill with background and padding (default)
+ * - `badge`    — default editorial chip with dot and mono text (default)
  * - `text`     — plain text, no background or padding, only color
  * - `underline`— plain text with a bottom border underline
  */
@@ -86,14 +110,14 @@ export const StatusBadgeTypeContext =
   React.createContext<StatusBadgeType>('badge')
 
 const sizeMap = {
-  sm: 'h-5 gap-1 px-1.5 text-xs leading-none',
-  md: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  sm: 'h-5 gap-1.5 px-1.5 text-[0.6875rem] leading-none',
+  md: 'h-5 gap-1.5 px-1.5 text-[0.6875rem] leading-none',
   lg: 'h-6 gap-1.5 px-2 text-xs leading-none',
 } as const
 
 const textSizeMap = {
-  sm: 'gap-1 text-xs leading-none',
-  md: 'gap-1 text-xs leading-none',
+  sm: 'gap-1.5 text-[0.6875rem] leading-none',
+  md: 'gap-1.5 text-[0.6875rem] leading-none',
   lg: 'gap-1.5 text-xs leading-none',
 } as const
 
@@ -105,7 +129,7 @@ export interface StatusBadgeProps extends Omit<
   children?: React.ReactNode
   icon?: LucideIcon
   pulse?: boolean
-  /** Kept for compatibility. Badges no longer render leading dots. */
+  /** Kept for compatibility; when enabled, renders a small color swatch. */
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
@@ -165,7 +189,11 @@ export function StatusBadge({
       className={cn(
         'inline-flex w-fit max-w-full min-w-0 shrink items-center font-medium tracking-normal whitespace-nowrap transition-colors',
         isBadge
-          ? cn('rounded-4xl', sizeMap[size ?? 'sm'])
+          ? cn(
+              'rounded-md',
+              badgeSurfaceMap[computedVariant],
+              sizeMap[size ?? 'sm']
+            )
           : cn(
               textSizeMap[size ?? 'sm'],
               type === 'underline' && 'border-b border-current pb-px'
@@ -183,7 +211,7 @@ export function StatusBadge({
       {showDot && (
         <span
           className={cn(
-            'inline-block size-1.5 shrink-0 rounded-full',
+            'inline-block size-1.5 shrink-0 rounded-sm',
             dotColorMap[computedVariant]
           )}
           aria-hidden='true'

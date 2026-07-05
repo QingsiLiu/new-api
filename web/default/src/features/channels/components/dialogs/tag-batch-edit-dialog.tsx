@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,6 +40,8 @@ import { channelsQueryKeys } from '../../lib'
 import type { TagOperationParams } from '../../types'
 import { useChannels } from '../channels-provider'
 import { ModelMappingEditor } from '../model-mapping-editor'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 
 type TagBatchEditDialogProps = {
   open: boolean
@@ -51,6 +54,7 @@ export function TagBatchEditDialog({
 }: TagBatchEditDialogProps) {
   const { t } = useTranslation()
   const { currentTag } = useChannels()
+  const { getDisplayName } = useGroupRegistry()
   const queryClient = useQueryClient()
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -69,22 +73,19 @@ export function TagBatchEditDialog({
 
   // Transform groups to multi-select options
   const groupOptions = useMemo(() => {
-    if (!groupsData?.data) return []
-    const allGroups = new Set([...groupsData.data, ...groups])
+    const registryGroups = normalizeGroupRegistryItems(groupsData)
+    if (!registryGroups.length) return []
+    const allGroups = new Set([
+      ...registryGroups.map((group) => group.code),
+      ...groups,
+    ])
     return Array.from(allGroups).map((group) => ({
       value: group,
-      label: group,
+      label: getDisplayName(group),
     }))
-  }, [groupsData, groups])
+  }, [groupsData, groups, getDisplayName])
 
-  useEffect(() => {
-    if (open && currentTag) {
-      loadTagData()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentTag])
-
-  const loadTagData = async () => {
+  const loadTagData = useCallback(async () => {
     if (!currentTag) return
 
     setIsLoading(true)
@@ -110,7 +111,15 @@ export function TagBatchEditDialog({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [currentTag, t])
+
+  useEffect(() => {
+    if (open && currentTag) {
+      return deferEffect(() => {
+        void loadTagData()
+      })
+    }
+  }, [open, currentTag, loadTagData])
 
   const handleSave = async () => {
     if (!currentTag) return

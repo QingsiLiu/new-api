@@ -1,10 +1,12 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -380,6 +382,12 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
+					case "file":
+						if fileMessage := mediaMessage.GetFile(); fileMessage != nil {
+							if fileContent, ok := claudeFileContentFromFile(fileMessage); ok {
+								claudeMediaMessages = append(claudeMediaMessages, fileContent)
+							}
+						}
 					default:
 						source := mediaMessage.ToFileSource()
 						if source == nil {
@@ -436,6 +444,61 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
 	return &claudeRequest, nil
+}
+
+func claudeFileContentFromFile(file *dto.MessageFile) (dto.ClaudeMediaMessage, bool) {
+	fileName := strings.TrimSpace(file.FileName)
+	if fileName == "" || strings.TrimSpace(file.FileData) == "" {
+		return dto.ClaudeMediaMessage{}, false
+	}
+
+	mimeType := service.GetMimeTypeByExtension(strings.TrimPrefix(strings.ToLower(filepath.Ext(fileName)), "."))
+	if mimeType == "application/octet-stream" {
+		return dto.ClaudeMediaMessage{}, false
+	}
+
+	base64Data := claudeCleanBase64Data(file.FileData)
+	switch mimeType {
+	case "text/plain":
+		decoded, err := base64.StdEncoding.DecodeString(base64Data)
+		if err != nil {
+			return dto.ClaudeMediaMessage{}, false
+		}
+		text := string(decoded)
+		return dto.ClaudeMediaMessage{
+			Type: "text",
+			Text: common.GetPointer[string](text),
+		}, true
+	case "application/pdf":
+		return dto.ClaudeMediaMessage{
+			Type: "document",
+			Source: &dto.ClaudeMessageSource{
+				Type:      "base64",
+				MediaType: mimeType,
+				Data:      base64Data,
+			},
+		}, true
+	default:
+		if strings.HasPrefix(mimeType, "image/") {
+			return dto.ClaudeMediaMessage{
+				Type: "image",
+				Source: &dto.ClaudeMessageSource{
+					Type:      "base64",
+					MediaType: mimeType,
+					Data:      base64Data,
+				},
+			}, true
+		}
+		return dto.ClaudeMediaMessage{}, false
+	}
+}
+
+func claudeCleanBase64Data(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if idx := strings.Index(raw, ","); idx != -1 && strings.HasPrefix(raw[:idx], "data:") {
+		return raw[idx+1:]
+	}
+	return raw
 }
 
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {

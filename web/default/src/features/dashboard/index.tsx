@@ -122,7 +122,7 @@ function PerformanceOverviewFallback() {
         ))}
         <div className='ml-auto flex items-center gap-2'>
           {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className='h-5 w-28 rounded-full' />
+            <Skeleton key={i} className='h-5 w-28 rounded-md' />
           ))}
         </div>
       </div>

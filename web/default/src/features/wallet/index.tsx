@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
-import { useStatus } from '@/hooks/use-status'
-import { useSystemConfig } from '@/hooks/use-system-config'
+import { CNY_QUOTA_UNIT } from '@/lib/currency'
+import { deferEffect } from '@/lib/defer-effect'
 import { SectionPageLayout } from '@/components/layout'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
@@ -74,16 +74,7 @@ export function Wallet(props: WalletProps) {
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
 
-  const { status } = useStatus()
-  const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
-
-  // Calculate effective exchange rate - when display type is USD, use rate of 1
-  const effectiveUsdExchangeRate = useMemo(() => {
-    return currency?.quotaDisplayType === 'USD'
-      ? 1
-      : currency?.usdExchangeRate || 1
-  }, [currency?.quotaDisplayType, currency?.usdExchangeRate])
   const {
     amount: paymentAmount,
     calculating,
@@ -120,25 +111,31 @@ export function Wallet(props: WalletProps) {
   }, [])
 
   useEffect(() => {
-    fetchUser()
+    return deferEffect(() => {
+      void fetchUser()
+    })
   }, [fetchUser])
 
   useEffect(() => {
     if (props.initialShowHistory) {
-      setBillingDialogOpen(true)
-      window.history.replaceState({}, '', window.location.pathname)
+      return deferEffect(() => {
+        setBillingDialogOpen(true)
+        window.history.replaceState({}, '', window.location.pathname)
+      })
     }
   }, [props.initialShowHistory])
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
     if (topupInfo && topupAmount === 0) {
-      const minTopup = getMinTopupAmount(topupInfo)
-      setTopupAmount(minTopup)
+      return deferEffect(() => {
+        const minTopup = getMinTopupAmount(topupInfo)
+        setTopupAmount(minTopup)
 
-      // Calculate initial payment amount with default payment type
-      const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+        // Calculate initial payment amount with default payment type
+        const defaultPaymentType = getDefaultPaymentType(topupInfo)
+        calculatePaymentAmount(minTopup, defaultPaymentType)
+      })
     }
   }, [topupInfo, topupAmount, calculatePaymentAmount])
 
@@ -208,8 +205,8 @@ export function Wallet(props: WalletProps) {
   }
 
   // Handle transfer
-  const handleTransfer = async (amount: number) => {
-    const success = await transferQuota(amount)
+  const handleTransfer = async (amountCNY: number) => {
+    const success = await transferQuota(Math.round(amountCNY * CNY_QUOTA_UNIT))
     if (success) {
       await fetchUser()
     }
@@ -290,8 +287,7 @@ export function Wallet(props: WalletProps) {
                   redeeming={redeeming}
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
-                  priceRatio={(status?.price as number) || 1}
-                  usdExchangeRate={effectiveUsdExchangeRate}
+                  priceRatio={1}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
                   enableCreemTopup={topupInfo?.enable_creem_topup}
@@ -309,7 +305,9 @@ export function Wallet(props: WalletProps) {
               <SubscriptionPlansCard
                 topupInfo={topupInfo}
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
-                userQuota={user?.quota}
+                userQuota={Math.round(
+                  (user?.balance_cny ?? 0) * CNY_QUOTA_UNIT
+                )}
                 onPurchaseSuccess={fetchUser}
               />
             </div>
@@ -337,14 +335,13 @@ export function Wallet(props: WalletProps) {
         calculating={calculating}
         processing={processing || pancakeProcessing}
         discountRate={getDiscountRate()}
-        usdExchangeRate={effectiveUsdExchangeRate}
       />
 
       <TransferDialog
         open={transferDialogOpen}
         onOpenChange={setTransferDialogOpen}
         onConfirm={handleTransfer}
-        availableQuota={user?.aff_quota ?? 0}
+        availableCNY={user?.aff_balance_cny ?? 0}
         transferring={transferring}
       />
 

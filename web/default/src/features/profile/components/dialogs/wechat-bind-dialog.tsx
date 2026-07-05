@@ -56,7 +56,7 @@ export function WeChatBindDialog({
           </AlertDescription>
         </Alert>
 
-        <div className='flex flex-col items-center justify-center rounded-lg border border-dashed p-8'>
+        <div className='bg-muted/30 flex flex-col items-center justify-center rounded-lg p-8 shadow-[var(--shadow-card)]'>
           <QrCode className='text-muted-foreground mb-3 h-16 w-16' />
           <p className='text-muted-foreground text-sm'>
             {t('WeChat QR code will be displayed here')}

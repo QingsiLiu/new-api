@@ -21,9 +21,9 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
   CardDescription,
 } from '@/components/ui/card'
+import { EditorialLabel } from '@/components/editorial'
 
 type SettingsCardProps = {
   title: string
@@ -41,7 +41,7 @@ export const SettingsCard = memo(function SettingsCard({
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <EditorialLabel>{title}</EditorialLabel>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>{children}</CardContent>

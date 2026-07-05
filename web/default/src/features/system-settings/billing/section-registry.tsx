@@ -21,9 +21,11 @@ import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
+import { AsyncSpecPricingSettings } from '../models/async-spec-pricing-settings'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { LegacyModelPricingNotice } from './legacy-model-pricing-notice'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -53,7 +55,7 @@ const getGroupDefaults = (settings: BillingSettings) => ({
 const BILLING_SECTIONS = [
   {
     id: 'quota',
-    titleKey: 'Quota Settings',
+    titleKey: 'Balance Settings',
     build: (settings: BillingSettings) => (
       <QuotaSettingsSection
         defaultValues={{
@@ -104,13 +106,30 @@ const BILLING_SECTIONS = [
     id: 'model-pricing',
     titleKey: 'Model Pricing',
     build: (settings: BillingSettings) => (
-      <RatioSettingsCard
-        titleKey='Model Pricing'
-        modelDefaults={getModelDefaults(settings)}
-        groupDefaults={getGroupDefaults(settings)}
-        toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'tool-prices', 'upstream-sync']}
-      />
+      <>
+        <LegacyModelPricingNotice descriptionKey='Model ratios now live on each row in the unified model center. These legacy options are retained as a fallback and audit source.' />
+        <RatioSettingsCard
+          titleKey='Model Pricing'
+          modelDefaults={getModelDefaults(settings)}
+          groupDefaults={getGroupDefaults(settings)}
+          toolPricesDefault={settings['tool_price_setting.prices']}
+          visibleTabs={['models', 'tool-prices', 'upstream-sync']}
+          readOnly
+        />
+      </>
+    ),
+  },
+  {
+    id: 'spec-pricing',
+    titleKey: 'Spec Pricing',
+    build: (settings: BillingSettings) => (
+      <>
+        <LegacyModelPricingNotice descriptionKey='Image and video spec prices now live on each row in the unified model center. These legacy options are retained as a fallback and audit source.' />
+        <AsyncSpecPricingSettings
+          pricingDefault={settings.AsyncSpecPricing}
+          readOnly
+        />
+      </>
     ),
   },
   {
@@ -162,7 +181,7 @@ const BILLING_SECTIONS = [
           WaffoSandboxPrivateKey: settings.WaffoSandboxPrivateKey ?? '',
           WaffoSandbox: settings.WaffoSandbox ?? false,
           WaffoMerchantId: settings.WaffoMerchantId ?? '',
-          WaffoCurrency: settings.WaffoCurrency ?? 'USD',
+          WaffoCurrency: settings.WaffoCurrency ?? 'CNY',
           WaffoUnitPrice: settings.WaffoUnitPrice ?? 1,
           WaffoMinTopUp: settings.WaffoMinTopUp ?? 1,
           WaffoNotifyUrl: settings.WaffoNotifyUrl ?? '',

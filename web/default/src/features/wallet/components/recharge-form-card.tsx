@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -68,7 +68,6 @@ interface RechargeFormCardProps {
   topupLink?: string
   loading?: boolean
   priceRatio?: number
-  usdExchangeRate?: number
   onOpenBilling?: () => void
   creemProducts?: CreemProduct[]
   enableCreemTopup?: boolean
@@ -98,7 +97,6 @@ export function RechargeFormCard({
   topupLink,
   loading,
   priceRatio = 1,
-  usdExchangeRate = 1,
   onOpenBilling,
   creemProducts,
   enableCreemTopup,
@@ -113,7 +111,7 @@ export function RechargeFormCard({
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
   useEffect(() => {
-    setLocalAmount(topupAmount.toString())
+    return deferEffect(() => setLocalAmount(topupAmount.toString()))
   }, [topupAmount])
 
   const handleAmountChange = (value: string) => {
@@ -231,8 +229,7 @@ export function RechargeFormCard({
                       } = calculatePresetPricing(
                         preset.value,
                         priceRatio,
-                        discount,
-                        usdExchangeRate
+                        discount
                       )
                       return (
                         <Button
@@ -248,10 +245,10 @@ export function RechargeFormCard({
                         >
                           <div className='flex w-full items-center justify-between'>
                             <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(displayValue)}
+                              {formatCurrency(displayValue)}
                             </div>
                             {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
+                              <div className='text-success text-xs font-medium'>
                                 {getDiscountLabel(discount)}
                               </div>
                             )}
@@ -259,7 +256,7 @@ export function RechargeFormCard({
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
                             Pay {formatCurrency(actualPrice)}
                             {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
+                              <span className='text-success'>
                                 {' '}
                                 • Save {formatCurrency(savedAmount)}
                               </span>

@@ -136,6 +136,7 @@ type RatioSettingsCardProps = {
   toolPricesDefault: string
   titleKey?: string
   visibleTabs?: RatioTabId[]
+  readOnly?: boolean
 }
 
 export function RatioSettingsCard({
@@ -144,6 +145,7 @@ export function RatioSettingsCard({
   toolPricesDefault,
   titleKey = 'Pricing Ratios',
   visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
+  readOnly = false,
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -166,7 +168,7 @@ export function RatioSettingsCard({
     },
   })
 
-  const modelNormalizedDefaults = useRef({
+  const initialModelNormalizedDefaults = {
     ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
     ModelRatio: normalizeJsonString(modelDefaults.ModelRatio),
     CacheRatio: normalizeJsonString(modelDefaults.CacheRatio),
@@ -180,9 +182,10 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
-  })
+  }
+  const modelNormalizedDefaults = useRef(initialModelNormalizedDefaults)
   const [savedModelValues, setSavedModelValues] = useState(
-    modelNormalizedDefaults.current
+    initialModelNormalizedDefaults
   )
 
   const groupNormalizedDefaults = useRef({
@@ -407,6 +410,7 @@ export function RatioSettingsCard({
           onReset={handleResetRatios}
           isSaving={updateOption.isPending}
           isResetting={resetMutation.isPending}
+          readOnly={readOnly}
         />
       )
     }
@@ -420,10 +424,16 @@ export function RatioSettingsCard({
       )
     }
     if (tab === 'tool-prices') {
-      return <ToolPriceSettings defaultValue={toolPricesDefault} />
+      return (
+        <ToolPriceSettings
+          defaultValue={toolPricesDefault}
+          readOnly={readOnly}
+        />
+      )
     }
     return (
       <UpstreamRatioSync
+        readOnly={readOnly}
         modelRatios={{
           ModelPrice: modelDefaults.ModelPrice,
           ModelRatio: modelDefaults.ModelRatio,

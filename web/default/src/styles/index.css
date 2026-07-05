@@ -19,13 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/public-sans';
-/* Editorial serif (Lora) backing the `serif` font axis and the Anthropic
- * preset's default typography. See `--font-serif` in theme.css for the
- * full Latin + CJK fallback stack and `theme-presets.css` for the cascade
- * that activates it. Loaded globally so font-switching is instantaneous
- * with no FOUT once the variable is fetched. */
-@import '@fontsource-variable/lora';
 
 @import './theme.css';
 @import './theme-presets.css';
@@ -51,10 +44,92 @@ For commercial licensing, please contact support@quantumnous.com
   }
   body {
     @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
-    /* Font is driven by the theme's font axis via `--font-body`
-     * (defined in theme.css, swapped by `[data-theme-font='...']` blocks
-     * in theme-presets.css). Defaults to the project's humanist sans. */
+    /* Font is driven by the compatibility font axis, which now resolves every
+     * UI preset to Inter. */
     font-family: var(--font-body);
+    font-feature-settings:
+      'kern' 1,
+      'liga' 1,
+      'calt' 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
+    color: var(--foreground);
+  }
+
+  :is(h1, h2, h3, h4, h5, h6),
+  [data-slot='card-title'],
+  [data-slot='dialog-title'],
+  [data-slot='sheet-title'],
+  [data-slot='alert-dialog-title'],
+  [data-slot='drawer-title'],
+  .editorial-display,
+  .editorial-section-title,
+  .editorial-stat-value {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: 1.875rem;
+    font-weight: 750;
+    letter-spacing: 0;
+    font-variation-settings:
+      'opsz' 32,
+      'wght' 750;
+    line-height: 1.05;
+  }
+
+  h2 {
+    font-weight: 700;
+    font-variation-settings:
+      'opsz' 28,
+      'wght' 700;
+    line-height: 1.1;
+  }
+
+  h3 {
+    font-weight: 650;
+    font-variation-settings:
+      'opsz' 24,
+      'wght' 650;
+    line-height: 1.1;
+  }
+
+  .editorial-display,
+  .editorial-stat-value {
+    font-weight: 750;
+    font-variation-settings:
+      'opsz' 32,
+      'wght' 750;
+    line-height: 1;
+  }
+
+  :is(code, kbd, pre, samp) {
+    font-family: var(--font-mono);
+  }
+
+  [data-slot='table-head'],
+  .editorial-label,
+  .editorial-status {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  [data-slot='card'] {
+    box-shadow: var(--shadow-card);
+  }
+
+  [data-slot='table'] {
+    border-collapse: collapse;
   }
 
   /* Keep sticky headers stable while primitives lock body scrolling. */
@@ -78,41 +153,16 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
-/* Vercel Geist-style skeleton shimmer */
+/* Compact skeleton baseline */
 .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--skeleton-base) 0%,
-    var(--skeleton-base) 33%,
-    var(--skeleton-highlight) 50%,
-    var(--skeleton-base) 67%,
-    var(--skeleton-base) 100%
-  );
-  background-size: 300% 100%;
-  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  background: var(--skeleton-base);
+  animation: pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: -100% 50%;
-  }
-}
-
-/* Override auto-skeleton-react inline styles with Vercel shimmer */
+/* Override auto-skeleton-react inline styles with the shared skeleton token. */
 .auto-skeleton-fade [class^='skeleton-'] {
-  background: linear-gradient(
-    90deg,
-    var(--skeleton-base) 0%,
-    var(--skeleton-base) 33%,
-    var(--skeleton-highlight) 50%,
-    var(--skeleton-base) 67%,
-    var(--skeleton-base) 100%
-  ) !important;
-  background-size: 300% 100% !important;
-  animation: skeleton-shimmer 1.8s ease-in-out infinite !important;
+  background: var(--skeleton-base) !important;
+  animation: pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -134,6 +184,108 @@ For commercial licensing, please contact support@quantumnous.com
 
 @utility max-w-container-lg {
   max-width: 1536px;
+}
+
+@utility editorial-container {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding-inline: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+@utility editorial-stack {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+@utility editorial-label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@utility editorial-display {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: 0;
+  font-variation-settings:
+    'SOFT' 50,
+    'WONK' 0,
+    'opsz' 96;
+}
+
+@utility editorial-section-title {
+  font-family: var(--font-sans);
+  font-size: clamp(1.375rem, 2vw, 1.875rem);
+  line-height: 1.08;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+@utility editorial-stat-value {
+  font-family: var(--font-sans);
+  font-size: clamp(1.875rem, 4vw, 3.5rem);
+  line-height: 0.98;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  font-variation-settings:
+    'SOFT' 50,
+    'WONK' 0,
+    'opsz' 72,
+    'wght' 600;
+}
+
+@utility stat-value-affix {
+  font-size: 0.62em;
+  line-height: 1;
+  font-weight: 650;
+  opacity: 0.66;
+  vertical-align: 0.16em;
+}
+
+@utility stat-value-unit {
+  margin-left: 0.12em;
+  font-size: 0.58em;
+  line-height: 1;
+  font-weight: 650;
+  opacity: 0.62;
+  vertical-align: baseline;
+  text-transform: none;
+}
+
+@utility editorial-hairline {
+  border-color: var(--border);
+  border-style: solid;
+  border-width: 1px;
+}
+
+@utility editorial-hairline-y {
+  border-block-color: var(--border);
+  border-block-style: solid;
+  border-block-width: 1px;
+}
+
+@utility editorial-hairline-x {
+  border-inline-color: var(--border);
+  border-inline-style: solid;
+  border-inline-width: 1px;
+}
+
+@utility editorial-focus {
+  color: var(--primary);
+}
+
+@utility editorial-panel {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
 
 @utility no-scrollbar {
@@ -192,7 +344,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 @utility faded-bottom {
-  @apply after:pointer-events-none after:absolute after:start-0 after:bottom-0 after:hidden after:h-32 after:w-full after:rounded-b-2xl after:bg-[linear-gradient(180deg,_transparent_10%,_var(--background)_70%)] md:after:block;
+  @apply after:bg-background/90 after:pointer-events-none after:absolute after:start-0 after:bottom-0 after:hidden after:h-16 after:w-full after:rounded-b-2xl md:after:block;
 }
 
 .CollapsibleContent {
@@ -227,83 +379,66 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* Launch UI Animations and Effects - Matching Template Exactly */
 @layer utilities {
-  /* Gradient utilities */
-  .bg-radial {
-    background-image: radial-gradient(var(--tw-gradient-stops));
-  }
-
-  /* Glass morphism effects - matching Launch UI template */
+  /* Soft surface utilities retained as compatibility aliases. */
   .glass-1 {
-    @apply border-border from-card/80 to-card/40 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:from-card/5 dark:to-card/0 border bg-linear-to-b;
+    @apply bg-card/80 shadow-[var(--shadow-card)];
   }
 
   .glass-2 {
-    @apply border-border from-card/100 to-card/80 dark:border-border/10 dark:border-b-border/5 dark:border-t-border/20 dark:from-card/10 dark:to-card/5 border bg-linear-to-b;
+    @apply bg-card/90 shadow-[var(--shadow-card)];
   }
 
   .glass-3 {
-    @apply border-border from-card/30 to-card/20 dark:border-border/10 dark:border-t-border/20 dark:border-b-border/5 dark:from-primary/5 dark:to-primary/2 border bg-linear-to-b;
+    @apply bg-muted/50 shadow-[var(--shadow-card)];
   }
 
   .glass-4 {
-    @apply border-border border-b-input/90 from-card/60 to-card/20 dark:border-border/10 dark:border-t-border/30 dark:from-primary/10 dark:to-primary/5 border bg-linear-to-b dark:border-b-0;
+    @apply bg-card/70 shadow-[var(--shadow-card)];
   }
 
   .glass-5 {
-    @apply border-border border-b-input from-card/100 to-card/20 dark:border-border/10 dark:border-t-border/30 dark:from-primary/15 dark:to-primary/5 border bg-linear-to-b dark:border-b-0;
+    @apply bg-card shadow-[var(--shadow-card)];
   }
 
-  /* Fade effects - matching Launch UI template */
+  /* Fade utility aliases kept neutral for the consolidated system. */
   .fade-x {
-    mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      black 25%,
-      black 75%,
-      transparent 100%
-    );
+    mask-image: none;
   }
 
   .fade-y {
-    mask-image: linear-gradient(
-      to top,
-      transparent 0%,
-      black 25%,
-      black 75%,
-      transparent 100%
-    );
+    mask-image: none;
   }
 
   .fade-top {
-    mask-image: linear-gradient(to bottom, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-bottom {
-    mask-image: linear-gradient(to top, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-top-lg {
-    mask-image: linear-gradient(to bottom, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   .fade-bottom-lg {
-    mask-image: linear-gradient(to top, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   .fade-left {
-    mask-image: linear-gradient(to right, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-right {
-    mask-image: linear-gradient(to left, transparent 0%, black 35%);
+    mask-image: none;
   }
 
   .fade-left-lg {
-    mask-image: linear-gradient(to right, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   .fade-right-lg {
-    mask-image: linear-gradient(to left, transparent 15%, black 100%);
+    mask-image: none;
   }
 
   /* Animations */
@@ -475,22 +610,71 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+[data-modern-hero='balance'] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--primary) 6%, var(--card));
+}
+
+[data-modern-hero='balance'] > * {
+  position: relative;
+  z-index: 1;
+}
+
+.geili-modern-primary-cta {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 12px 28px color-mix(in oklch, var(--primary) 20%, transparent);
+}
+
+.geili-modern-status-pulse {
+  position: relative;
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--success) 24%, transparent);
+}
+
+.geili-modern-status-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: color-mix(in oklch, var(--success) 24%, transparent);
+  animation: geili-modern-status-pulse 1.8s ease-out infinite;
+}
+
+@keyframes geili-modern-status-pulse {
+  0% {
+    opacity: 0.52;
+    transform: scale(0.72);
+  }
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(2.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geili-modern-status-pulse::after {
+    animation: none !important;
+    opacity: 0.22;
+  }
+}
+
 /* Micro-interactions — Vercel-style subtle hover/active feedback */
 @media (prefers-reduced-motion: no-preference) {
   [data-slot='card']:not([data-card-hover='false']) {
     transition:
       transform 150ms ease,
-      box-shadow 150ms ease;
+      border-color 150ms ease,
+      background-color 150ms ease;
   }
 
   @media (min-width: 641px) {
     [data-slot='card']:not([data-card-hover='false']):hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
-    }
-
-    .dark [data-slot='card']:not([data-card-hover='false']):hover {
-      box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+      border-color: color-mix(in oklch, var(--foreground) 20%, var(--border));
     }
   }
 

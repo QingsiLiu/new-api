@@ -16,8 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createContext, useContext, useState } from 'react'
-import { getCookie, setCookie } from '@/lib/cookies'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
+import {
+  LAYOUT_DEFAULTS_VERSION,
+  LAYOUT_DEFAULTS_VERSION_COOKIE_NAME,
+  resolveVersionedPreferenceDefault,
+  shouldMigratePreferenceDefaults,
+} from '@/lib/preference-defaults'
 
 export type Collapsible = 'offcanvas' | 'icon' | 'none'
 export type Variant = 'inset' | 'sidebar' | 'floating'
@@ -28,8 +34,20 @@ const LAYOUT_VARIANT_COOKIE_NAME = 'layout_variant'
 const LAYOUT_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
 // Default values
-const DEFAULT_VARIANT = 'inset'
+const DEFAULT_VARIANT = 'sidebar'
 const DEFAULT_COLLAPSIBLE = 'icon'
+
+const LAYOUT_COLLAPSIBLE_VALUES: ReadonlySet<Collapsible> = new Set([
+  'offcanvas',
+  'icon',
+  'none',
+])
+
+const LAYOUT_VARIANT_VALUES: ReadonlySet<Variant> = new Set([
+  'inset',
+  'sidebar',
+  'floating',
+])
 
 type LayoutContextType = {
   resetLayout: () => void
@@ -45,20 +63,69 @@ type LayoutContextType = {
 
 const LayoutContext = createContext<LayoutContextType | null>(null)
 
+function shouldMigrateLayoutDefaults() {
+  return shouldMigratePreferenceDefaults(
+    getCookie(LAYOUT_DEFAULTS_VERSION_COOKIE_NAME),
+    LAYOUT_DEFAULTS_VERSION
+  )
+}
+
+function readLayoutCookie<T extends string>(
+  name: string,
+  allowed: ReadonlySet<T>,
+  fallback: T,
+  migration?: {
+    legacyDefault: T
+    shouldMigrateLegacyDefault: boolean
+  }
+): T {
+  return resolveVersionedPreferenceDefault({
+    savedValue: getCookie(name),
+    allowedValues: allowed,
+    fallback,
+    legacyDefault: migration?.legacyDefault,
+    shouldMigrateLegacyDefault:
+      migration?.shouldMigrateLegacyDefault ?? false,
+  })
+}
+
 type LayoutProviderProps = {
   children: React.ReactNode
 }
 
 export function LayoutProvider({ children }: LayoutProviderProps) {
-  const [collapsible, _setCollapsible] = useState<Collapsible>(() => {
-    const saved = getCookie(LAYOUT_COLLAPSIBLE_COOKIE_NAME)
-    return (saved as Collapsible) || DEFAULT_COLLAPSIBLE
-  })
+  const [collapsible, _setCollapsible] = useState<Collapsible>(() =>
+    readLayoutCookie(
+      LAYOUT_COLLAPSIBLE_COOKIE_NAME,
+      LAYOUT_COLLAPSIBLE_VALUES,
+      DEFAULT_COLLAPSIBLE
+    )
+  )
 
-  const [variant, _setVariant] = useState<Variant>(() => {
-    const saved = getCookie(LAYOUT_VARIANT_COOKIE_NAME)
-    return (saved as Variant) || DEFAULT_VARIANT
-  })
+  const [variant, _setVariant] = useState<Variant>(() =>
+    readLayoutCookie(
+      LAYOUT_VARIANT_COOKIE_NAME,
+      LAYOUT_VARIANT_VALUES,
+      DEFAULT_VARIANT,
+      {
+        legacyDefault: 'inset',
+        shouldMigrateLegacyDefault: shouldMigrateLayoutDefaults(),
+      }
+    )
+  )
+
+  useEffect(() => {
+    if (shouldMigrateLayoutDefaults()) {
+      if (getCookie(LAYOUT_VARIANT_COOKIE_NAME) === 'inset') {
+        removeCookie(LAYOUT_VARIANT_COOKIE_NAME)
+      }
+    }
+    setCookie(
+      LAYOUT_DEFAULTS_VERSION_COOKIE_NAME,
+      LAYOUT_DEFAULTS_VERSION,
+      LAYOUT_COOKIE_MAX_AGE
+    )
+  }, [])
 
   const setCollapsible = (newCollapsible: Collapsible) => {
     _setCollapsible(newCollapsible)

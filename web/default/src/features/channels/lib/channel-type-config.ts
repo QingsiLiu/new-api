@@ -134,6 +134,29 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'kie',
+    defaultBaseUrl: 'https://api.kie.ai',
+    hints: {
+      key: 'KIE API Key',
+      models: 'bytedance/seedance-2-fast',
+      baseUrl: 'Default: https://api.kie.ai',
+    },
+  },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'jimeng',
+    defaultBaseUrl: 'https://zz1cc.cc.cd',
+    hints: {
+      key: 'zz1cc API Key',
+      models: 'video-ds-2.0-fast,video-ds-2.0',
+      baseUrl: 'Default: https://zz1cc.cc.cd',
+      other: 'Uses OpenAI Video-compatible /v1/videos endpoints for Jimeng/Seedance video models.',
+    },
+  },
 }
 
 /**

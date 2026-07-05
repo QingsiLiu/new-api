@@ -86,6 +86,27 @@ export function getModelStatusConfig(
   }
 }
 
+export function getModelModalOptions(t: TFunction) {
+  return [
+    { label: t('All Modalities'), value: 'all' },
+    { label: t('Text'), value: 'text' },
+    { label: t('Image'), value: 'image' },
+    { label: t('Video'), value: 'video' },
+    { label: t('Audio'), value: 'audio' },
+  ] as const
+}
+
+export function getPricingModeOptions(t: TFunction) {
+  return [
+    { label: t('All Pricing'), value: 'all' },
+    { label: t('Ratio'), value: 'ratio' },
+    { label: t('Image spec'), value: 'image_spec' },
+    { label: t('Video matrix'), value: 'video_matrix' },
+    { label: t('Free'), value: 'free' },
+    { label: t('Legacy fallback'), value: 'inherit' },
+  ] as const
+}
+
 // ============================================================================
 // Sync Status Options
 // ============================================================================

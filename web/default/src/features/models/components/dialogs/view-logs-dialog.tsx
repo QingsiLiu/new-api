@@ -251,9 +251,9 @@ export function ViewLogsDialog({
           <div className='text-muted-foreground text-xs'>{t('Stream')}</div>
           <Select
             items={[
-              { value: 'stdout', label: 'stdout' },
-              { value: 'stderr', label: 'stderr' },
-              { value: 'all', label: 'all' },
+              { value: 'stdout', label: t('stdout') },
+              { value: 'stderr', label: t('stderr') },
+              { value: 'all', label: t('all') },
             ]}
             value={stream}
             onValueChange={(v) => {
@@ -269,9 +269,9 @@ export function ViewLogsDialog({
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectGroup>
-                <SelectItem value='stdout'>stdout</SelectItem>
-                <SelectItem value='stderr'>stderr</SelectItem>
-                <SelectItem value='all'>all</SelectItem>
+                <SelectItem value='stdout'>{t('stdout')}</SelectItem>
+                <SelectItem value='stderr'>{t('stderr')}</SelectItem>
+                <SelectItem value='all'>{t('all')}</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
@@ -279,7 +279,7 @@ export function ViewLogsDialog({
       </div>
       <div
         ref={scrollRef}
-        className='flex-1 overflow-auto rounded-md border bg-black p-3 sm:p-4'
+        className='bg-card flex-1 overflow-auto rounded-md border p-3 sm:p-4'
         onScroll={(e) => {
           const target = e.target as HTMLDivElement
           const isAtBottom =
@@ -289,22 +289,24 @@ export function ViewLogsDialog({
       >
         {isLoadingContainers || isLoadingLogs ? (
           <div className='flex items-center justify-center py-8'>
-            <Loader2 className='h-6 w-6 animate-spin text-gray-400' />
+            <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
           </div>
         ) : containers.length === 0 ? (
-          <div className='py-8 text-center text-gray-400'>
+          <div className='text-muted-foreground py-8 text-center'>
             {t('No containers')}
           </div>
         ) : !containerId ? (
-          <div className='py-8 text-center text-gray-400'>
+          <div className='text-muted-foreground py-8 text-center'>
             {t('Please select a container')}
           </div>
         ) : !logsText.trim() ? (
-          <div className='py-8 text-center text-gray-400'>{t('No logs')}</div>
+          <div className='text-muted-foreground py-8 text-center'>
+            {t('No logs')}
+          </div>
         ) : (
           <div className='font-mono text-sm'>
             {logLines.map((line, idx) => (
-              <div key={idx} className='whitespace-pre-wrap text-gray-200'>
+              <div key={idx} className='text-foreground whitespace-pre-wrap'>
                 {line}
               </div>
             ))}

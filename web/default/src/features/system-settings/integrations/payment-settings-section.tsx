@@ -258,10 +258,10 @@ export function PaymentSettingsSection({
   const complianceStatements = React.useMemo(
     () => [
       t(
-        'You have legally obtained authorization for the connected model APIs, accounts, keys, and quotas.'
+        'You have legally obtained authorization for the connected model APIs, accounts, keys, and balances.'
       ),
       t(
-        'You commit to using upstream APIs, accounts, keys, quotas, and service capabilities only within the scope of lawful authorization obtained from upstream service providers, model service providers, or relevant rights holders, and will not conduct unauthorized resale, trafficking, distribution, or other non-compliant commercialization.'
+        'You commit to using upstream APIs, accounts, keys, balances, and service capabilities only within the scope of lawful authorization obtained from upstream service providers, model service providers, or relevant rights holders, and will not conduct unauthorized resale, trafficking, distribution, or other non-compliant commercialization.'
       ),
       t(
         'If you provide generative AI services to the public in mainland China, you will fulfill legal obligations including filing, security assessment, content safety, complaint handling, generated content labeling, log retention, and personal information protection.'
@@ -422,7 +422,7 @@ export function PaymentSettingsSection({
       WaffoEnabled: values.WaffoEnabled,
       WaffoSandbox: values.WaffoSandbox,
       WaffoMerchantId: values.WaffoMerchantId.trim(),
-      WaffoCurrency: values.WaffoCurrency.trim() || 'USD',
+      WaffoCurrency: values.WaffoCurrency.trim() || 'CNY',
       WaffoUnitPrice: values.WaffoUnitPrice,
       WaffoMinTopUp: values.WaffoMinTopUp,
       WaffoNotifyUrl: values.WaffoNotifyUrl.trim(),
@@ -467,7 +467,7 @@ export function PaymentSettingsSection({
       WaffoEnabled: initialRef.current.WaffoEnabled,
       WaffoSandbox: initialRef.current.WaffoSandbox,
       WaffoMerchantId: initialRef.current.WaffoMerchantId.trim(),
-      WaffoCurrency: initialRef.current.WaffoCurrency.trim() || 'USD',
+      WaffoCurrency: initialRef.current.WaffoCurrency.trim() || 'CNY',
       WaffoUnitPrice: initialRef.current.WaffoUnitPrice,
       WaffoMinTopUp: initialRef.current.WaffoMinTopUp,
       WaffoNotifyUrl: initialRef.current.WaffoNotifyUrl.trim(),
@@ -871,7 +871,7 @@ export function PaymentSettingsSection({
                 name='Price'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Price (local currency / USD)')}</FormLabel>
+                    <FormLabel>{t('Gateway price multiplier')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -882,7 +882,7 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'How much to charge for each US dollar of balance (Epay)'
+                        'How much the gateway charges for each CNY of balance (Epay)'
                       )}
                     </FormDescription>
                     <FormMessage />
@@ -895,7 +895,7 @@ export function PaymentSettingsSection({
                 name='MinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormLabel>{t('Minimum top-up (CNY)')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -905,7 +905,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Smallest USD amount users can recharge (Epay)')}
+                      {t('Smallest CNY amount users can recharge (Epay)')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1191,22 +1191,22 @@ export function PaymentSettingsSection({
               </p>
             </div>
 
-            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+            <div className='rounded-md bg-info/10 p-4 text-sm text-info dark:bg-info/15'>
               <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
               <ul className='list-inside list-disc space-y-1'>
                 <li>
                   {t('Webhook URL:')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                  <code className='rounded bg-info/10 px-1 py-0.5 text-xs dark:bg-info/15'>
                     {'<ServerAddress>/api/stripe/webhook'}
                   </code>
                 </li>
                 <li>
                   {t('Required events:')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                  <code className='rounded bg-info/10 px-1 py-0.5 text-xs dark:bg-info/15'>
                     {t('checkout.session.completed')}
                   </code>{' '}
                   {t('and')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                  <code className='rounded bg-info/10 px-1 py-0.5 text-xs dark:bg-info/15'>
                     {t('checkout.session.expired')}
                   </code>
                 </li>
@@ -1302,7 +1302,7 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {t('Unit price (local currency / USD)')}
+                      {t('Gateway price multiplier')}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -1313,7 +1313,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('e.g., 8 means 8 local currency per USD')}
+                      {t('e.g., 1 means users pay ¥1 for ¥1 balance')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1325,7 +1325,7 @@ export function PaymentSettingsSection({
                 name='StripeMinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormLabel>{t('Minimum top-up (CNY)')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -1335,7 +1335,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Minimum recharge amount in USD')}
+                      {t('Minimum recharge amount in CNY')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1375,12 +1375,12 @@ export function PaymentSettingsSection({
               </p>
             </div>
 
-            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+            <div className='rounded-md bg-info/10 p-4 text-sm text-info dark:bg-info/15'>
               <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
               <ul className='list-inside list-disc space-y-1'>
                 <li>
                   {t('Webhook URL:')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                  <code className='rounded bg-info/10 px-1 py-0.5 text-xs dark:bg-info/15'>
                     {'<ServerAddress>/api/creem/webhook'}
                   </code>
                 </li>
@@ -1497,7 +1497,7 @@ export function PaymentSettingsSection({
                     ) : (
                       <Textarea
                         rows={4}
-                        placeholder='[{"name":"Basic","productId":"prod_xxx","price":10,"quota":500000,"currency":"USD"}]'
+                        placeholder='[{"name":"Basic","productId":"prod_xxx","price":10,"quota":1000000,"currency":"CNY"}]'
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />

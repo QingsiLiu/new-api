@@ -101,7 +101,7 @@ export function QuotaSettingsSection({
     })
 
   return (
-    <SettingsSection title={t('Quota Settings')}>
+    <SettingsSection title={t('Balance Settings')}>
       <FormNavigationGuard when={isDirty} />
 
       {!complianceConfirmed ? (
@@ -127,7 +127,7 @@ export function QuotaSettingsSection({
               name='QuotaForNewUser'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('New User Quota')}</FormLabel>
+                  <FormLabel>{t('New User Balance')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -139,7 +139,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Initial quota given to new users')}
+                    {t('Initial balance given to new users')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -151,7 +151,7 @@ export function QuotaSettingsSection({
               name='PreConsumedQuota'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Pre-Consumed Quota')}</FormLabel>
+                  <FormLabel>{t('Pre-Consumed Amount')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -163,7 +163,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota consumed before charging users')}
+                    {t('Amount reserved before charging users')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -187,7 +187,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to users who invite others')}
+                    {t('Balance given to users who invite others')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -211,7 +211,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to invited users')}
+                    {t('Balance given to invited users')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -228,7 +228,7 @@ export function QuotaSettingsSection({
                       <FormLabel>{t('Pre-Consume for Free Models')}</FormLabel>
                       <FormDescription>
                         {t(
-                          'When enabled, zero-cost models also pre-consume quota before final settlement.'
+                          'When enabled, zero-cost models also reserve balance before final settlement.'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>
@@ -257,7 +257,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('External link for users to purchase quota')}
+                    {t('External link for users to add funds')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

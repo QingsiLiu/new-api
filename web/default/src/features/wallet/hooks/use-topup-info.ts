@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect } from 'react'
+import { deferEffect } from '@/lib/defer-effect'
 import { getTopupInfo } from '../api'
 import {
   generatePresetAmounts,
@@ -104,7 +105,9 @@ function parseCreemProducts(data: unknown): CreemProduct[] {
     )
     .map((item) => {
       const currency: CreemProduct['currency'] =
-        item.currency === 'EUR' ? 'EUR' : 'USD'
+        item.currency === 'USD' || item.currency === 'EUR'
+          ? item.currency
+          : 'CNY'
 
       return {
         name: typeof item.name === 'string' ? item.name : '',
@@ -214,7 +217,9 @@ export function useTopupInfo() {
   }
 
   useEffect(() => {
-    fetchTopupInfo()
+    return deferEffect(() => {
+      void fetchTopupInfo()
+    })
   }, [])
 
   return {

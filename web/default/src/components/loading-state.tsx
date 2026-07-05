@@ -55,8 +55,8 @@ export function LoadingState(props: LoadingStateProps) {
         props.className
       )}
     >
-      <div className='animate-spin'>
-        <Loader2 className={iconSize} />
+      <div className='bg-primary/10 text-primary flex size-10 items-center justify-center rounded-lg'>
+        <Loader2 className={cn(iconSize, 'animate-spin')} />
       </div>
       <p className='text-muted-foreground text-sm'>
         {props.message ?? t('Loading...')}

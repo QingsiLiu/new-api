@@ -66,7 +66,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         id: 'price',
         header: t('Price'),
         cell: ({ row }) => (
-          <span className='font-semibold text-emerald-600'>
+          <span className='font-semibold text-success'>
             ${Number(row.original.plan.price_amount || 0).toFixed(2)}
           </span>
         ),
@@ -84,7 +84,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'reset',
-        header: t('Quota Reset'),
+        header: t('Balance Reset'),
         meta: { mobileHidden: true },
         cell: ({ row }) => (
           <span className='text-muted-foreground'>

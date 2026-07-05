@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { AreaChart, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { deferEffect } from '@/lib/defer-effect'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -74,7 +75,12 @@ export function ConsumptionDistributionChart(
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
 
   useEffect(() => {
-    if (props.defaultChartType) setChartType(props.defaultChartType)
+    const defaultChartType = props.defaultChartType
+    if (defaultChartType) {
+      return deferEffect(() => {
+        setChartType(defaultChartType)
+      })
+    }
   }, [props.defaultChartType])
 
   useEffect(() => {
@@ -130,7 +136,7 @@ export function ConsumptionDistributionChart(
       <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
           <WalletCards className='text-muted-foreground/60 size-4' />
-          <div className='text-sm font-semibold'>{t('Quota Distribution')}</div>
+          <div className='text-sm font-semibold'>{t('Cost Distribution')}</div>
           <span className='text-muted-foreground text-xs'>
             {t('Total:')} {chartData.totalQuotaDisplay}
           </span>

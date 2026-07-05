@@ -76,6 +76,8 @@ import {
 } from '../lib'
 import type { PlanRecord } from '../types'
 import { useSubscriptions } from './subscriptions-provider'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 
 interface Props {
   open: boolean
@@ -89,10 +91,13 @@ export function SubscriptionsMutateDrawer({
   currentRow,
 }: Props) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const isEdit = !!currentRow?.plan?.id
   const { triggerRefresh } = useSubscriptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [groupOptions, setGroupOptions] = useState<string[]>([])
+  const [groupOptions, setGroupOptions] = useState<
+    { code: string; display_name: string }[]
+  >([])
   const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false)
   const [pancakeProducts, setPancakeProducts] = useState<
     { id: string; name: string; status: string }[]
@@ -113,7 +118,8 @@ export function SubscriptionsMutateDrawer({
       }
       getGroups()
         .then((res) => {
-          if (res.success) setGroupOptions(res.data || [])
+          const groups = normalizeGroupRegistryItems(res)
+          if (res.success) setGroupOptions(groups)
         })
         .catch(() => {})
       // Best-effort — empty list still lets the operator use "+ Create".
@@ -349,7 +355,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          '0 means unlimited. The value is converted to quota units when saved.'
+                          '0 means unlimited. The value is saved as CNY balance.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -368,7 +374,10 @@ export function SubscriptionsMutateDrawer({
                       <Select
                         items={[
                           { value: '__none__', label: t('No Upgrade') },
-                          ...groupOptions.map((g) => ({ value: g, label: g })),
+                          ...groupOptions.map((g) => ({
+                            value: g.code,
+                            label: g.display_name || getDisplayName(g.code),
+                          })),
                         ]}
                         onValueChange={(v) =>
                           field.onChange(v === '__none__' ? '' : v)
@@ -385,11 +394,11 @@ export function SubscriptionsMutateDrawer({
                             <SelectItem value='__none__'>
                               {t('No Upgrade')}
                             </SelectItem>
-                            {groupOptions.map((g) => (
-                              <SelectItem key={g} value={g}>
-                                {g}
-                              </SelectItem>
-                            ))}
+                              {groupOptions.map((g) => (
+                                <SelectItem key={g.code} value={g.code}>
+                                  {g.display_name || getDisplayName(g.code)}
+                                </SelectItem>
+                              ))}
                           </SelectGroup>
                         </SelectContent>
                       </Select>
@@ -572,11 +581,11 @@ export function SubscriptionsMutateDrawer({
               </div>
             </SideDrawerSection>
 
-            {/* Quota Reset */}
+            {/* Balance reset */}
             <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <RefreshCw className='h-4 w-4' />
-                {t('Quota Reset')}
+                {t('Balance Reset')}
               </h3>
 
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>

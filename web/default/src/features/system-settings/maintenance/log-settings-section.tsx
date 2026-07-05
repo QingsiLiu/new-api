@@ -181,7 +181,7 @@ export function LogSettingsSection({
             render={({ field }) => (
               <SettingsSwitchItem>
                 <SettingsSwitchContent>
-                  <FormLabel>{t('Record quota usage')}</FormLabel>
+                  <FormLabel>{t('Record billing usage')}</FormLabel>
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'

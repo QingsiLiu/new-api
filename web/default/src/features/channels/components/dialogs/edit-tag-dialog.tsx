@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -47,6 +48,7 @@ import {
 import { channelsQueryKeys } from '../../lib'
 import type { TagOperationParams } from '../../types'
 import { useChannels } from '../channels-provider'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 
 type EditTagDialogProps = {
   open: boolean
@@ -89,23 +91,28 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
   const availableModels =
     allModelsData?.data?.map((m) => m.id).filter(Boolean) || []
-  const availableGroups = groupsData?.data || []
+  const availableGroups = useMemo(
+    () => normalizeGroupRegistryItems(groupsData),
+    [groupsData]
+  )
 
   // Initialize form when tag changes
   useEffect(() => {
     if (open && currentTag) {
-      setNewTag(currentTag)
-      setModelMapping('')
-      setSelectedGroups([])
-      setCustomModel('')
+      return deferEffect(() => {
+        setNewTag(currentTag)
+        setModelMapping('')
+        setSelectedGroups([])
+        setCustomModel('')
 
-      // Load tag models
-      if (tagModelsData?.data) {
-        const models = tagModelsData.data.split(',').filter(Boolean)
-        setSelectedModels(models)
-      } else {
-        setSelectedModels([])
-      }
+        // Load tag models
+        if (tagModelsData?.data) {
+          const models = tagModelsData.data.split(',').filter(Boolean)
+          setSelectedModels(models)
+        } else {
+          setSelectedModels([])
+        }
+      })
     }
   }, [open, currentTag, tagModelsData])
 
@@ -425,12 +432,14 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
             <div className='flex min-h-[60px] flex-wrap gap-2 rounded-md border p-3'>
               {availableGroups.map((group) => (
                 <GroupBadge
-                  key={group}
-                  group={group}
+                  key={group.code}
+                  group={group.code}
                   className={`cursor-pointer rounded-sm transition-opacity hover:opacity-70 ${
-                    selectedGroups.includes(group) ? 'bg-muted/70 px-1' : ''
+                    selectedGroups.includes(group.code)
+                      ? 'bg-muted/70 px-1'
+                      : ''
                   }`}
-                  onClick={() => handleToggleGroup(group)}
+                  onClick={() => handleToggleGroup(group.code)}
                 />
               ))}
             </div>

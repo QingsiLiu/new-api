@@ -283,7 +283,7 @@ function VendorList(props: {
           </span>
           <span
             aria-hidden
-            className='size-2.5 shrink-0 rounded-full'
+            className='h-4 w-1 shrink-0 rounded-sm'
             style={{
               backgroundColor: props.colourMap[vendor.vendor] ?? '#94a3b8',
             }}

@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search, Info, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -121,13 +122,6 @@ export function FetchModelsDialog({
     })
   }, [fetchedModelSet, redirectSourceKeysSet, searchKeyword, selectedModels])
 
-  useEffect(() => {
-    if (open && (activeChannel || customFetcher)) {
-      handleFetchModels()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activeChannel?.id, customFetcher])
-
   const handleFetchModels = async () => {
     if (!activeChannel && !customFetcher) return
 
@@ -159,6 +153,15 @@ export function FetchModelsDialog({
       setIsFetching(false)
     }
   }
+
+  useEffect(() => {
+    if (open && (activeChannel || customFetcher)) {
+      return deferEffect(() => {
+        void handleFetchModels()
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeChannel?.id, customFetcher])
 
   const handleSave = async () => {
     // If onModelsSelected callback is provided, use it (form filling mode)
@@ -342,7 +345,7 @@ export function FetchModelsDialog({
                   {redirectOnlySet.has(normalizeModelName(model)) && (
                     <Tooltip>
                       <TooltipTrigger
-                        render={<Info className='h-3.5 w-3.5 text-amber-500' />}
+                        render={<Info className='h-3.5 w-3.5 text-warning' />}
                       ></TooltipTrigger>
                       <TooltipContent>
                         {t('From model redirect, not yet added to models list')}

@@ -42,6 +42,13 @@ type tokenKeyResponse struct {
 	Key string `json:"key"`
 }
 
+type adminUserTokenResponse struct {
+	Key     string `json:"key"`
+	TokenID int    `json:"token_id"`
+	UserID  int    `json:"user_id"`
+	Created bool   `json:"created"`
+}
+
 type sqliteColumnInfo struct {
 	Name string `gorm:"column:name"`
 	Type string `gorm:"column:type"`
@@ -537,5 +544,90 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestAdminMintOrReuseUserTokenCreatesStudioTokenForTargetUser(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/admin/user/42", nil, 1)
+	ctx.Set("role", common.RoleAdminUser)
+	ctx.Params = gin.Params{{Key: "id", Value: "42"}}
+	AdminMintOrReuseUserToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected admin mint response to succeed, got message: %s", response.Message)
+	}
+	var data adminUserTokenResponse
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode admin token response: %v", err)
+	}
+	if !data.Created || data.UserID != 42 || data.TokenID == 0 || data.Key == "" {
+		t.Fatalf("unexpected admin token response: %#v", data)
+	}
+
+	var token model.Token
+	if err := db.First(&token, "id = ? AND user_id = ?", data.TokenID, 42).Error; err != nil {
+		t.Fatalf("expected token for target user: %v", err)
+	}
+	if token.Key != data.Key || token.Name != "Geili Studio Online" || !token.UnlimitedQuota || token.Status != common.TokenStatusEnabled {
+		t.Fatalf("unexpected minted token: %#v", token)
+	}
+}
+
+func TestAdminMintOrReuseUserTokenReusesExistingStudioToken(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	existing := seedToken(t, db, 42, "Geili Studio Online", "existingStudioToken42")
+	existing.UnlimitedQuota = true
+	existing.RemainQuota = 0
+	if err := existing.Update(); err != nil {
+		t.Fatalf("failed to update existing token: %v", err)
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/admin/user/42", nil, 1)
+	ctx.Set("role", common.RoleAdminUser)
+	ctx.Params = gin.Params{{Key: "id", Value: "42"}}
+	AdminMintOrReuseUserToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected admin mint response to succeed, got message: %s", response.Message)
+	}
+	var data adminUserTokenResponse
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode admin token response: %v", err)
+	}
+	if data.Created || data.TokenID != existing.Id || data.Key != existing.Key || data.UserID != 42 {
+		t.Fatalf("expected existing token to be reused, got %#v", data)
+	}
+
+	var count int64
+	if err := db.Model(&model.Token{}).Where("user_id = ?", 42).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly one target user token, got %d", count)
+	}
+}
+
+func TestAdminMintOrReuseUserTokenRejectsNonAdminActor(t *testing.T) {
+	_ = setupTokenControllerTestDB(t)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/admin/user/42", nil, 1)
+	ctx.Set("role", common.RoleCommonUser)
+	ctx.Params = gin.Params{{Key: "id", Value: "42"}}
+	AdminMintOrReuseUserToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected non-admin mint response to fail")
+	}
+	var count int64
+	if err := model.DB.Model(&model.Token{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expected no token to be created, got %d", count)
 	}
 }

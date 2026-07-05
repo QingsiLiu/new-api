@@ -117,7 +117,7 @@ function SegmentedControl(props: {
               'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all',
               Icon && !option.label ? 'w-7' : 'gap-1.5 px-3',
               isActive
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -189,7 +189,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             </span>
             <span>{props.filteredCount === 1 ? t('model') : t('models')}</span>
             {props.hasActiveFilters && props.totalCount && (
-              <span className='text-muted-foreground/60 text-xs'>
+              <span className='text-muted-foreground text-xs'>
                 / {props.totalCount.toLocaleString()}
               </span>
             )}

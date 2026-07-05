@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -553,15 +554,15 @@ const getOperationSummary = (
 
 const getModeTagTailwind = (mode: string): string => {
   if (mode.includes('header'))
-    return 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/20'
+    return 'bg-info/15 text-info border-info/25'
   if (mode.includes('replace') || mode.includes('trim'))
-    return 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/20'
+    return 'bg-chart-4/15 text-chart-4 border-chart-4/25'
   if (mode.includes('copy') || mode.includes('move'))
-    return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/20'
+    return 'bg-info/15 text-info border-info/25'
   if (mode.includes('error') || mode.includes('prune'))
-    return 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/20'
+    return 'bg-destructive/15 text-destructive border-destructive/25'
   if (mode.includes('sync'))
-    return 'bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/20'
+    return 'bg-success/15 text-success border-success/25'
   return 'bg-muted text-muted-foreground'
 }
 
@@ -1114,34 +1115,39 @@ export function ParamOverrideEditorDialog(
   // Initialize state when dialog opens
   useEffect(() => {
     if (!props.open) return
-    const state = parseInitialState(props.value)
-    setEditMode(state.editMode)
-    setVisualMode(state.visualMode)
-    setLegacyValue(state.legacyValue)
-    setOperations(state.operations)
-    setJsonText(state.jsonText)
-    setJsonError(state.jsonError)
-    setOperationSearch('')
-    setSelectedOperationId(state.operations[0]?.id || '')
-    setExpandedConditions({})
-    setDraggedOperationId('')
-    setDragOverOperationId('')
-    setDragOverPosition('before')
-    if (state.visualMode === 'legacy') {
-      setTemplatePresetKey('legacy_default')
-    } else {
-      setTemplatePresetKey('operations_default')
-    }
+    return deferEffect(() => {
+      const state = parseInitialState(props.value)
+      setEditMode(state.editMode)
+      setVisualMode(state.visualMode)
+      setLegacyValue(state.legacyValue)
+      setOperations(state.operations)
+      setJsonText(state.jsonText)
+      setJsonError(state.jsonError)
+      setOperationSearch('')
+      setSelectedOperationId(state.operations[0]?.id || '')
+      setExpandedConditions({})
+      setDraggedOperationId('')
+      setDragOverOperationId('')
+      setDragOverPosition('before')
+      if (state.visualMode === 'legacy') {
+        setTemplatePresetKey('legacy_default')
+      } else {
+        setTemplatePresetKey('operations_default')
+      }
+    })
   }, [props.open, props.value])
 
   // Keep selectedOperationId valid
   useEffect(() => {
     if (operations.length === 0) {
-      setSelectedOperationId('')
-      return
+      return deferEffect(() => {
+        setSelectedOperationId('')
+      })
     }
     if (!operations.some((o) => o.id === selectedOperationId)) {
-      setSelectedOperationId(operations[0].id)
+      return deferEffect(() => {
+        setSelectedOperationId(operations[0].id)
+      })
     }
   }, [operations, selectedOperationId])
 

@@ -104,6 +104,8 @@ import {
   SecureVerificationDialog,
   useSecureVerification,
 } from '@/features/auth/secure-verification'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import {
   fetchModels,
   getAllModels,
@@ -274,6 +276,7 @@ export function ChannelMutateDrawer({
   currentRow,
 }: ChannelMutateDrawerProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const queryClient = useQueryClient()
   const { setOpen } = useChannels()
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
@@ -433,13 +436,16 @@ export function ChannelMutateDrawer({
 
   // Transform groups to multi-select options
   const groupOptions = useMemo(() => {
-    if (!groupsData?.data) return []
-    const allGroups = new Set([...groupsData.data, ...(currentGroups || [])])
+    const registryGroups = normalizeGroupRegistryItems(groupsData)
+    const allGroups = new Set([
+      ...registryGroups.map((group) => group.code),
+      ...(currentGroups || []),
+    ])
     return Array.from(allGroups).map((group) => ({
       value: group,
-      label: group,
+      label: getDisplayName(group),
     }))
-  }, [groupsData, currentGroups])
+  }, [groupsData, currentGroups, getDisplayName])
 
   // Parse current models as array
   const currentModelsArray = useMemo(
@@ -1949,7 +1955,7 @@ export function ChannelMutateDrawer({
                                 </div>
                               </FormDescription>
                               {isEditing && (
-                                <div className='border-border/60 mt-4 flex flex-col gap-3 border-y border-dashed py-4'>
+                                <div className='border-border/40 mt-4 flex flex-col gap-3 border-y py-4'>
                                   <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
                                     <div>
                                       <p className='text-sm font-medium'>
@@ -2039,7 +2045,7 @@ export function ChannelMutateDrawer({
                               )}
                             </div>
                           </div>
-                          <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                          <Alert className='border-warning/25 bg-warning/10 text-warning dark:border-warning/30 dark:bg-warning/10'>
                             <AlertDescription>
                               {t(
                                 "Disclaimer: Personal use only. Do not distribute or share any credentials. This channel has prerequisites and requires prior setup; use it only if you understand the flow and risks, and comply with OpenAI's terms and policies. Credentials and configuration are for Codex CLI integration only, and are not intended for any other client, platform, or channel."
@@ -2190,7 +2196,7 @@ export function ChannelMutateDrawer({
                               </FormControl>
                               {modelMappingGuardrail.exposedTargetModels
                                 .length > 0 && (
-                                <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                <Alert className='border-warning/25 bg-warning/10 text-warning dark:border-warning/30 dark:bg-warning/10'>
                                   <AlertDescription className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                                     <span>
                                       {t('The mapped upstream model(s)')}{' '}
@@ -2430,7 +2436,7 @@ export function ChannelMutateDrawer({
                               )}
                               {modelMappingGuardrail.missingSourceModels
                                 .length > 0 && (
-                                <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                <Alert className='border-warning/25 bg-warning/10 text-warning dark:border-warning/30 dark:bg-warning/10'>
                                   <AlertDescription className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                                     <span>
                                       {t('Add')}{' '}

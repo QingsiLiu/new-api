@@ -62,7 +62,7 @@ function renderCellContent<TData>(cell: Cell<TData, unknown>): React.ReactNode {
 
 function ListSkeleton() {
   return (
-    <div className='divide-y overflow-hidden rounded-lg border'>
+    <div className='divide-border/60 divide-y overflow-hidden rounded-lg shadow-[var(--shadow-card)]'>
       {[1, 2, 3, 4, 5].map((i) => (
         <div key={i} className='px-3 py-2.5'>
           <div className='flex items-center justify-between'>
@@ -87,7 +87,7 @@ function ListSkeleton() {
 
 function FallbackListSkeleton() {
   return (
-    <div className='divide-y overflow-hidden rounded-lg border'>
+    <div className='divide-border/60 divide-y overflow-hidden rounded-lg shadow-[var(--shadow-card)]'>
       {[1, 2, 3, 4, 5].map((i) => (
         <div key={i} className='space-y-1.5 px-3 py-2.5'>
           {[1, 2, 3].map((j) => (
@@ -118,11 +118,7 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
     .filter((cell) => cell.column.id !== 'select')
 
   // Read each cell's meta once, then reuse for all categorisation checks.
-  const cellMetas = React.useMemo(
-    () => allCells.map((c) => c.column.columnDef.meta),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allCells.map((c) => c.id).join(',')]
-  )
+  const cellMetas = allCells.map((c) => c.column.columnDef.meta)
 
   const titleCell = allCells.find((_, i) => cellMetas[i]?.mobileTitle)
   const badgeCell = allCells.find((_, i) => cellMetas[i]?.mobileBadge)
@@ -193,11 +189,7 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
     .getVisibleCells()
     .filter((cell) => cell.column.id !== 'select')
 
-  const cellMetas = React.useMemo(
-    () => allCells.map((c) => c.column.columnDef.meta),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allCells.map((c) => c.id).join(',')]
-  )
+  const cellMetas = allCells.map((c) => c.column.columnDef.meta)
 
   const actionsCell = allCells.find((c) => c.column.id === 'actions')
   const contentCells = allCells.filter(
@@ -294,7 +286,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
 
   if (!rows || rows.length === 0) {
     return (
-      <div className='rounded-lg border p-6'>
+      <div className='rounded-lg p-6 shadow-[var(--shadow-card)]'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -311,7 +303,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
   const RowComponent = hasCompactMeta ? CompactRow : FallbackRow
 
   return (
-    <div className='divide-y overflow-hidden rounded-lg border'>
+    <div className='divide-border/60 divide-y overflow-hidden rounded-lg shadow-[var(--shadow-card)]'>
       {rows.map((row) => {
         const key = getRowKey ? getRowKey(row) : row.id
         return (

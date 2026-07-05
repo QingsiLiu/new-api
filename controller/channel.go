@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -67,6 +68,19 @@ func clearChannelInfo(channel *model.Channel) {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
 	}
+}
+
+func attachChannelGroupDisplay(channel *model.Channel) {
+	if channel == nil {
+		return
+	}
+	groups := model.SplitAndResolveChannelGroups(channel.Group)
+	channel.GroupsDisplay = groups
+	displays := make([]string, 0, len(groups))
+	for _, group := range groups {
+		displays = append(displays, group.DisplayName)
+	}
+	channel.GroupDisplay = strings.Join(displays, ", ")
 }
 
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
@@ -159,6 +173,7 @@ func GetAllChannels(c *gin.Context) {
 
 	for _, datum := range channelData {
 		clearChannelInfo(datum)
+		attachChannelGroupDisplay(datum)
 	}
 
 	countQuery := buildChannelListQuery(groupFilter, statusFilter, -1)
@@ -365,6 +380,7 @@ func SearchChannels(c *gin.Context) {
 
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
+		attachChannelGroupDisplay(datum)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -392,6 +408,7 @@ func GetChannel(c *gin.Context) {
 	}
 	if channel != nil {
 		clearChannelInfo(channel)
+		attachChannelGroupDisplay(channel)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -1038,6 +1055,7 @@ func UpdateChannel(c *gin.Context) {
 	})
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
+	attachChannelGroupDisplay(&channel.Channel)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -1076,6 +1094,8 @@ func FetchModels(c *gin.Context) {
 	if baseURL == "" {
 		baseURL = constant.ChannelBaseURLs[req.Type]
 	}
+	// 去除 base_url 末尾的斜杠，避免拼接出双斜杠导致 404/HTML 响应
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
@@ -1120,14 +1140,17 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	client := &http.Client{}
+	// 设置 30 秒超时，适应跨洲网络延迟
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": fmt.Sprintf("创建请求失败: %s", err.Error()),
 		})
 		return
 	}
@@ -1136,21 +1159,23 @@ func FetchModels(c *gin.Context) {
 
 	response, err := client.Do(request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	//check status code
-	if response.StatusCode != http.StatusOK {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Failed to fetch models",
+			"message": fmt.Sprintf("请求上游失败: %s (请检查 base_url 和网络连接)", err.Error()),
 		})
 		return
 	}
 	defer response.Body.Close()
+
+	// 检查状态码，返回更详细的错误信息
+	if response.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(response.Body)
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("上游返回错误 (HTTP %d): %s", response.StatusCode, string(bodyBytes)),
+		})
+		return
+	}
 
 	var result struct {
 		Data []struct {
@@ -1159,16 +1184,26 @@ func FetchModels(c *gin.Context) {
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": fmt.Sprintf("解析上游响应失败: %s (响应格式可能不兼容)", err.Error()),
+		})
+		return
+	}
+
+	if len(result.Data) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "上游未返回任何模型，请检查 API Key 权限或渠道配置",
 		})
 		return
 	}
 
 	var models []string
 	for _, model := range result.Data {
-		models = append(models, model.ID)
+		if model.ID != "" {
+			models = append(models, model.ID)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

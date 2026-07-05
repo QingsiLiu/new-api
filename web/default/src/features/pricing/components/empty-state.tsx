@@ -31,7 +31,7 @@ export function EmptyState(props: EmptyStateProps) {
   const hasSearch = Boolean(props.searchQuery?.trim())
 
   return (
-    <div className='flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed px-6 py-12 text-center'>
+    <div className='bg-card flex min-h-[320px] flex-col items-center justify-center rounded-lg px-6 py-12 text-center shadow-[var(--shadow-card)]'>
       <Search className='text-muted-foreground/40 mb-3 size-10' />
 
       <h3 className='text-foreground mb-1 text-base font-semibold'>

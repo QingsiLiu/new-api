@@ -28,6 +28,8 @@ import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
+import { EditorialLabel } from '@/components/editorial'
+import { StatValue } from '@/components/stat-value'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -216,7 +218,7 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['rose', 'teal', 'gray'] as const
+    const tones = ['chart-1', 'chart-2', 'chart-3'] as const
 
     return {
       key: config.key,
@@ -224,7 +226,7 @@ export function SummaryCards() {
       value: config.value,
       desc: config.description,
       icon: config.icon,
-      tone: tones[index] ?? 'gray',
+      tone: tones[index] ?? 'neutral',
       sparkline:
         config.key === 'todayUsage'
           ? sparklineData.usage
@@ -234,12 +236,13 @@ export function SummaryCards() {
   })
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
+    <div className='editorial-panel overflow-hidden'>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
         <div className='flex flex-col gap-3 p-4 sm:p-5'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div className='flex flex-col gap-1'>
-              <h3 className='text-base font-semibold'>
+              <EditorialLabel>{t('Overview')}</EditorialLabel>
+              <h3 className='editorial-section-title text-2xl'>
                 {t('Usage at a glance')}
               </h3>
               <p className='text-muted-foreground text-sm'>
@@ -251,7 +254,7 @@ export function SummaryCards() {
             {items.map((it) => (
               <StaggerItem
                 key={it.key}
-                className='bg-background/60 rounded-xl border p-3'
+                className='bg-card rounded-xl border p-3'
               >
                 <StatCard
                   title={it.title}
@@ -268,7 +271,10 @@ export function SummaryCards() {
           </StaggerContainer>
         </div>
 
-        <div className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div
+          data-modern-hero='balance'
+          className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'
+        >
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>
@@ -276,7 +282,11 @@ export function SummaryCards() {
               </span>
               <span className='flex items-center gap-1.5'>
                 <span
-                  className={cn('size-1.5 rounded-full', healthCfg.dotClass)}
+                  className={cn(
+                    'inline-block h-3 w-0.5 rounded-sm',
+                    healthCfg.dotClass,
+                    healthLevel === 'healthy' && 'geili-modern-status-pulse'
+                  )}
                   aria-hidden='true'
                 />
                 <span className='text-muted-foreground text-[11px] font-medium'>
@@ -285,12 +295,12 @@ export function SummaryCards() {
               </span>
             </div>
 
-            <div className='font-mono text-2xl font-semibold tracking-tight'>
-              {formatQuota(remainQuota)}
+            <div className='text-foreground text-3xl font-semibold tabular-nums'>
+              <StatValue value={formatQuota(remainQuota)} />
             </div>
 
             <div className='grid grid-cols-2 gap-2'>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
+              <div className='bg-card rounded-lg border px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
                   <Flame className='size-3 shrink-0' aria-hidden='true' />
                   <span className='truncate'>{t('Last 24h usage')}</span>
@@ -299,7 +309,7 @@ export function SummaryCards() {
                   {formatQuota(recentUsage)}
                 </div>
               </div>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
+              <div className='bg-card rounded-lg border px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
                   {runwayDays !== null && runwayDays < 3 ? (
                     <TrendingDown
@@ -335,7 +345,10 @@ export function SummaryCards() {
             </div>
           </div>
 
-          <Button className='justify-between' render={<Link to='/wallet' />}>
+          <Button
+            className='geili-modern-primary-cta justify-between'
+            render={<Link to='/wallet' />}
+          >
             <span>{t('Wallet')}</span>
             <ArrowRight data-icon='inline-end' />
           </Button>

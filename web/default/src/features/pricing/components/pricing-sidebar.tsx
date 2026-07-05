@@ -37,6 +37,7 @@ import {
 } from '../constants'
 import { parseTags } from '../lib/filters'
 import type { PricingModel, PricingVendor } from '../types'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 
 type FilterOption = {
   value: string
@@ -101,7 +102,7 @@ function FilterChip(props: {
       className={cn(
         'group inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-all',
         props.active
-          ? 'border-foreground/30 bg-foreground/5 text-foreground shadow-sm'
+          ? 'border-border bg-accent text-foreground'
           : 'border-border/70 bg-background text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
       )}
       title={props.option.label}
@@ -156,6 +157,7 @@ function FilterSection(props: FilterSectionProps) {
 
 export function PricingSidebar(props: PricingSidebarProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const quotaTypeLabels = getQuotaTypeLabels(t)
   const endpointTypeLabels = getEndpointTypeLabels(t)
 
@@ -185,7 +187,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
     },
     ...props.groups.map((group) => ({
       value: group,
-      label: group,
+      label: getDisplayName(group),
       suffix: formatGroupRatio(props.groupRatios?.[group]),
     })),
   ]

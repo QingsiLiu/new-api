@@ -106,11 +106,14 @@ export function ResetPasswordConfirm({
   return (
     <AuthLayout>
       <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+        <div className='space-y-3'>
+          <p className='text-muted-foreground text-xs font-medium'>
+            {t('Credential Reset')}
+          </p>
+          <h2 className='editorial-section-title text-left'>
             {t('Reset password')}
           </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
+          <p className='text-muted-foreground text-left text-sm leading-6'>
             {newPassword
               ? t('auth.resetPasswordConfirm.success')
               : t('auth.resetPasswordConfirm.description')}

@@ -263,7 +263,7 @@ export function WaffoSettingsSection({
             <Input value={values.WaffoCurrency} disabled />
           </div>
           <div className='grid gap-1.5'>
-            <Label>{t('Unit price (USD)')}</Label>
+            <Label>{t('Gateway price multiplier')}</Label>
             <Input
               type='number'
               step={0.1}

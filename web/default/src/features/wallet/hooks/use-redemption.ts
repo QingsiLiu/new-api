@@ -41,10 +41,10 @@ export function useRedemption() {
       const response = await redeemTopupCode({ key: code })
 
       if (response.success && response.data) {
-        const quotaAdded = response.data
+        const amountAdded = response.data
         toast.success(
-          i18next.t('Redemption successful! Added: {{quota}}', {
-            quota: formatQuota(quotaAdded),
+          i18next.t('Redemption successful! Added: {{amount}}', {
+            amount: formatQuota(amountAdded),
           })
         )
         await getSelf()

@@ -251,7 +251,7 @@ export function BillingHistoryDialog({
                           <Label className='text-muted-foreground text-xs'>
                             {t('Payment')}
                           </Label>
-                          <div className='text-sm font-semibold text-red-600'>
+                          <div className='text-primary text-sm font-semibold'>
                             {formatNumber(record.money)}
                           </div>
                         </div>
@@ -324,7 +324,7 @@ export function BillingHistoryDialog({
             <AlertDialogTitle>{t('Complete Order')}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                'Are you sure you want to manually complete this order? The user will be credited with the corresponding quota.'
+                'Are you sure you want to manually complete this order? The user will be credited with the corresponding balance amount.'
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

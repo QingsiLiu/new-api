@@ -37,7 +37,7 @@ function StatBadge(props: {
 }) {
   return (
     <span className='border-border/60 bg-muted/25 inline-flex h-7 items-center gap-2 rounded-md border px-2.5 text-xs shadow-xs'>
-      <span className={cn('h-3.5 w-0.5 rounded-full', props.accent)} />
+      <span className={cn('h-3.5 w-0.5 rounded-sm', props.accent)} />
       <span className='text-muted-foreground'>{props.label}</span>
       <span className='text-foreground/85 font-mono font-semibold tabular-nums'>
         {props.value}
@@ -89,17 +89,17 @@ export function CommonLogsStats() {
       <StatBadge
         label={t('Usage')}
         value={sensitiveVisible ? formatLogQuota(stats?.quota || 0) : '••••'}
-        accent='bg-sky-500/70'
+        accent='bg-info'
       />
       <StatBadge
         label={t('RPM')}
         value={stats?.rpm || 0}
-        accent='bg-rose-500/65'
+        accent='bg-destructive'
       />
       <StatBadge
         label={t('TPM')}
         value={stats?.tpm || 0}
-        accent='bg-slate-400/70'
+        accent='bg-muted-foreground'
       />
     </div>
   )

@@ -44,7 +44,7 @@ export function PulseSection(props: PulseSectionProps) {
       <PulseCard
         title={t('Trending up')}
         description={t('Models climbing the leaderboard')}
-        icon={<TrendingUp className='size-4 text-emerald-500' />}
+        icon={<TrendingUp className='size-4 text-success' />}
       >
         {props.movers.length === 0 ? (
           <PulseEmpty label={t('No notable climbers right now')} />
@@ -60,7 +60,7 @@ export function PulseSection(props: PulseSectionProps) {
       <PulseCard
         title={t('Trending down')}
         description={t('Models losing positions')}
-        icon={<TrendingDown className='size-4 text-rose-500' />}
+        icon={<TrendingDown className='size-4 text-destructive' />}
       >
         {props.droppers.length === 0 ? (
           <PulseEmpty label={t('No notable drops right now')} />
@@ -128,8 +128,8 @@ function MoverRow(props: { row: RankingMover; intent: 'up' | 'down' }) {
         className={cn(
           'inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-semibold tabular-nums',
           props.intent === 'up'
-            ? 'text-emerald-600 dark:text-emerald-400'
-            : 'text-rose-600 dark:text-rose-400'
+            ? 'text-success'
+            : 'text-destructive'
         )}
       >
         {props.intent === 'up' ? (

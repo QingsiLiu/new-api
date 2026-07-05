@@ -32,6 +32,7 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
+		apiRouter.GET("/model/pricing-parity", middleware.AdminAuth(), controller.GetModelPricingParity)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{
@@ -277,6 +278,11 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.POST("/batch", controller.DeleteTokenBatch)
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
 		}
+		tokenAdminRoute := apiRouter.Group("/token/admin")
+		tokenAdminRoute.Use(middleware.AdminAuth())
+		{
+			tokenAdminRoute.POST("/user/:id", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AdminMintOrReuseUserToken)
+		}
 
 		usageRoute := apiRouter.Group("/usage")
 		usageRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
@@ -322,6 +328,10 @@ func SetApiRouter(router *gin.Engine) {
 		groupRoute.Use(middleware.AdminAuth())
 		{
 			groupRoute.GET("/", controller.GetGroups)
+			groupRoute.GET("/registry", controller.ListGroupRegistry)
+			groupRoute.POST("/registry", controller.CreateGroupRegistry)
+			groupRoute.PUT("/registry/:code", controller.UpdateGroupRegistry)
+			groupRoute.DELETE("/registry/:code", controller.DeleteGroupRegistry)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
@@ -363,6 +373,7 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.GET("/", controller.GetAllModelsMeta)
 			modelsRoute.GET("/search", controller.SearchModelsMeta)
 			modelsRoute.GET("/:id", controller.GetModelMeta)
+			modelsRoute.PUT("/:id/access", controller.UpdateModelAccess)
 			modelsRoute.POST("/", controller.CreateModelMeta)
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)

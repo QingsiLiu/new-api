@@ -31,11 +31,10 @@ export function getMessageContentStyles() {
     'group-[.is-user]:bg-secondary',
     'dark:group-[.is-user]:bg-muted',
     'group-[.is-user]:rounded-3xl',
-    // Assistant bubble: flat serif style (one-sided style)
+    // Assistant bubble: flat full-width style
     'group-[.is-assistant]:text-foreground',
     'group-[.is-assistant]:bg-transparent',
     'group-[.is-assistant]:p-0',
-    'group-[.is-assistant]:font-serif',
     // Preferred readable widths and wrapping
     'leading-relaxed',
     'break-words',

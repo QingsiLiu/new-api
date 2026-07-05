@@ -40,9 +40,9 @@ import type { LogCategory } from '../types'
 
 const logTypeRowTint: Record<number, string> = {
   [LOG_TYPE_ENUM.ERROR]:
-    'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/50 dark:border-rose-900/30',
+    'border-destructive/20 bg-destructive/5',
   [LOG_TYPE_ENUM.REFUND]:
-    'bg-blue-50/30 dark:bg-blue-950/15 border-blue-200/50 dark:border-blue-900/30',
+    'border-info/20 bg-info/5',
 }
 
 interface UsageLogsMobileListProps<TData> {
@@ -164,7 +164,7 @@ function MobileLogTimeStatus({
         )}
       >
         <span
-          className={cn('size-1.5 shrink-0 rounded-full', dotColorMap[variant])}
+          className={cn('h-3 w-0.5 shrink-0 rounded-sm', dotColorMap[variant])}
           aria-hidden='true'
         />
         <span>{t(config.label)}</span>

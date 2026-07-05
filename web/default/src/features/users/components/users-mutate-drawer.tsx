@@ -23,7 +23,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -74,6 +74,8 @@ import {
 import { type User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 
 type UsersMutateDrawerProps = {
   open: boolean
@@ -87,6 +89,7 @@ export function UsersMutateDrawer({
   currentRow,
 }: UsersMutateDrawerProps) {
   const { t } = useTranslation()
+  const { getDisplayName } = useGroupRegistry()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -99,7 +102,7 @@ export function UsersMutateDrawer({
     staleTime: 5 * 60 * 1000,
   })
 
-  const groups = groupsData?.data || []
+  const groups = normalizeGroupRegistryItems(groupsData)
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -121,9 +124,7 @@ export function UsersMutateDrawer({
     }
   }, [open, isUpdate, currentRow, form])
 
-  const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
-  const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 
@@ -315,10 +316,12 @@ export function UsersMutateDrawer({
                 />
               </SideDrawerSection>
 
-              {/* Group & Quota Settings (Update only) */}
+              {/* Group & balance settings (update only) */}
               {isUpdate && (
                 <SideDrawerSection>
-                  <h3 className='text-sm font-medium'>{t('Group & Quota')}</h3>
+                  <h3 className='text-sm font-medium'>
+                    {t('Group & Balance')}
+                  </h3>
 
                   <FormField
                     control={form.control}
@@ -329,8 +332,8 @@ export function UsersMutateDrawer({
                         <Select
                           items={[
                             ...groups.map((group) => ({
-                              value: group,
-                              label: group,
+                              value: group.code,
+                              label: group.display_name || getDisplayName(group.code),
                             })),
                           ]}
                           onValueChange={field.onChange}
@@ -344,8 +347,8 @@ export function UsersMutateDrawer({
                           <SelectContent alignItemWithTrigger={false}>
                             <SelectGroup>
                               {groups.map((group) => (
-                                <SelectItem key={group} value={group}>
-                                  {group}
+                                <SelectItem key={group.code} value={group.code}>
+                                  {group.display_name || getDisplayName(group.code)}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
@@ -362,18 +365,14 @@ export function UsersMutateDrawer({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          {t('Remaining Quota ({{currency}})', {
+                          {t('Remaining Balance ({{currency}})', {
                             currency: currencyLabel,
                           })}
                         </FormLabel>
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
-                              value={
-                                tokensOnly
-                                  ? String(field.value || 0)
-                                  : (field.value || 0).toFixed(6)
-                              }
+                              value={(field.value || 0).toFixed(6)}
                               readOnly
                               className='flex-1'
                             />
@@ -384,7 +383,7 @@ export function UsersMutateDrawer({
                             onClick={() => setQuotaDialogOpen(true)}
                           >
                             <Pencil className='mr-1 h-4 w-4' />
-                            {t('Adjust Quota')}
+                            {t('Adjust Balance')}
                           </Button>
                         </div>
                         <FormDescription>
@@ -460,7 +459,7 @@ export function UsersMutateDrawer({
         </SheetContent>
       </Sheet>
 
-      {/* Adjust Quota Dialog */}
+      {/* Adjust balance dialog */}
       {currentRow && (
         <UserQuotaDialog
           open={quotaDialogOpen}

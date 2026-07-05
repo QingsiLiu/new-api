@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { deferEffect } from '@/lib/defer-effect'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -61,7 +62,7 @@ const FIELD_LABELS: Record<string, string> = {
   name_rule: 'Name Rule',
   status: 'Status',
   endpoints: 'Endpoints',
-  quota_types: 'Quota Types',
+  quota_types: 'Billing Types',
   enable_groups: 'Enable Groups',
 }
 
@@ -122,9 +123,11 @@ export function UpstreamConflictDialog({
 
   useEffect(() => {
     if (open) {
-      setRowSelection({})
-      setSearch('')
-      setPageIndex(0)
+      return deferEffect(() => {
+        setRowSelection({})
+        setSearch('')
+        setPageIndex(0)
+      })
     }
   }, [open, upstreamConflicts])
 
@@ -355,7 +358,9 @@ export function UpstreamConflictDialog({
     totalFilteredFields === 0 ? 1 : Math.ceil(totalFilteredFields / pageSize)
 
   useEffect(() => {
-    setPageIndex((prev) => Math.min(prev, Math.max(0, totalPages - 1)))
+    return deferEffect(() => {
+      setPageIndex((prev) => Math.min(prev, Math.max(0, totalPages - 1)))
+    })
   }, [totalPages])
 
   const pageStart = pageIndex * pageSize
@@ -477,7 +482,7 @@ export function UpstreamConflictDialog({
     >
       <div className='flex min-h-0 flex-1 flex-col gap-4'>
         {!hasConflicts ? (
-          <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
+          <div className='bg-muted/30 text-muted-foreground flex flex-1 items-center justify-center rounded-md p-8 text-center text-sm shadow-[var(--shadow-card)]'>
             {t('No conflict entries available.')}
           </div>
         ) : (
@@ -520,7 +525,7 @@ export function UpstreamConflictDialog({
             </div>
 
             {showSearchEmptyState ? (
-              <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
+              <div className='bg-muted/30 text-muted-foreground flex flex-1 items-center justify-center rounded-md p-8 text-center text-sm shadow-[var(--shadow-card)]'>
                 {t('No conflicts match your search.')}
               </div>
             ) : (

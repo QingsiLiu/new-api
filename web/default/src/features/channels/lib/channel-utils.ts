@@ -96,11 +96,13 @@ export function getChannelTypeIcon(type: number): string {
     5: 'Midjourney', // MidjourneyPlus
     50: 'Kling', // Kling
     51: 'Jimeng', // Jimeng
+    59: 'Jimeng', // Jimeng Video (OpenAI Video)
     52: 'Vidu', // Vidu
     36: 'Suno', // SunoAPI
     55: 'OpenAI', // Sora
     54: 'Doubao', // DoubaoVideo
     56: 'Replicate', // Replicate
+    58: 'Kie', // KIE
 
     // Tools & Platforms
     37: 'Dify', // Dify
