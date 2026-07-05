@@ -26,14 +26,39 @@ type ProviderBadgeProps = Omit<StatusBadgeProps, 'children' | 'label'> & {
   label: string
 }
 
+function getProviderVariant(
+  label: string,
+  iconKey?: string | null
+): StatusBadgeProps['variant'] {
+  const identity = `${iconKey ?? ''} ${label}`.toLowerCase()
+
+  if (identity.includes('openai')) return 'green'
+  if (identity.includes('anthropic') || identity.includes('claude')) {
+    return 'violet'
+  }
+  if (
+    identity.includes('gemini') ||
+    identity.includes('google') ||
+    identity.includes('vertex') ||
+    identity.includes('azure')
+  ) {
+    return 'blue'
+  }
+  if (identity.includes('kie')) return 'teal'
+
+  return undefined
+}
+
 export function ProviderBadge({
   className,
   iconKey,
   iconSize = 14,
   label,
+  variant,
   ...badgeProps
 }: ProviderBadgeProps) {
   const icon = iconKey ? getLobeIcon(iconKey, iconSize) : null
+  const providerVariant = variant ?? getProviderVariant(label, iconKey)
 
   return (
     <div
@@ -43,7 +68,8 @@ export function ProviderBadge({
       {icon && <span className='flex shrink-0 items-center'>{icon}</span>}
       <StatusBadge
         label={label}
-        autoColor={label}
+        autoColor={providerVariant ? undefined : label}
+        variant={providerVariant}
         size='sm'
         className={cn('min-w-0 shrink overflow-hidden', !icon && 'pl-1')}
         {...badgeProps}
