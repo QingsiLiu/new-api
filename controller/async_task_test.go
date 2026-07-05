@@ -3741,3 +3741,87 @@ func waitAsyncTaskSchedulerIdleForTest() {
 func TestOpenAIModelListIncludesGPTImage2(t *testing.T) {
 	require.Contains(t, openai.ModelList, "gpt-image-2")
 }
+
+func TestGetAsyncBillingUsageAdminCanProxyTargetUser(t *testing.T) {
+	previous := operation_setting.AsyncTaskServiceUserProxyEnabled
+	operation_setting.AsyncTaskServiceUserProxyEnabled = true
+	t.Cleanup(func() { operation_setting.AsyncTaskServiceUserProxyEnabled = previous })
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aW1nLWJ5dGVz"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+
+	// promote token owner (2001) to admin
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 2001).Updates(map[string]interface{}{
+		"role":  common.RoleAdminUser,
+		"quota": 1000000,
+	}).Error)
+	// create target user 2002
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       2002,
+		Username: "target-usage-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Quota:    500000,
+		Group:    "default",
+		AffCode:  "AFF2002B",
+	}).Error)
+	// write a log entry belonging to user 2002
+	require.NoError(t, model.DB.Create(&model.Log{
+		UserId:    2002,
+		Type:      model.LogTypeConsume,
+		ModelName: "gpt-image-2",
+		Quota:     1000,
+		CreatedAt: time.Now().Unix(),
+	}).Error)
+
+	// admin proxies billing/usage for user 2002
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/billing/usage?p=1&page_size=10", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("New-Api-User", "2002")
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var usage asyncBillingUsageResponse
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &usage))
+	require.Equal(t, 1, usage.Total, "should see the log entry belonging to user 2002")
+	require.Len(t, usage.Items, 1)
+	require.Equal(t, "gpt-image-2", usage.Items[0].ModelName)
+}
+
+func TestGetAsyncBillingUsageProxyRequiresAdminToken(t *testing.T) {
+	previous := operation_setting.AsyncTaskServiceUserProxyEnabled
+	operation_setting.AsyncTaskServiceUserProxyEnabled = true
+	t.Cleanup(func() { operation_setting.AsyncTaskServiceUserProxyEnabled = previous })
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "gpt-image-2", constant.ChannelTypeOpenAI, "")
+
+	// token owner remains a normal user (RoleCommonUser by default in setup)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       2003,
+		Username: "another-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Quota:    500000,
+		Group:    "default",
+		AffCode:  "AFF2003",
+	}).Error)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/billing/usage?p=1&page_size=10", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("New-Api-User", "2003")
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusForbidden, rec.Code, "non-admin should be rejected when proxying another user")
+}

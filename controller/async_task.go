@@ -385,6 +385,9 @@ func GetAsyncBillingBalance(c *gin.Context) {
 }
 
 func GetAsyncBillingUsage(c *gin.Context) {
+	if !applyAsyncTaskServiceUserProxy(c) {
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
 	userID := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
