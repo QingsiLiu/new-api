@@ -81,13 +81,13 @@ function DataTableFacetedFilterInner<TData, TValue>({
       <PopoverTrigger
         render={
           <Button
-            variant='outline'
+            variant='ghost'
             size='sm'
-            className='h-8 border-transparent bg-muted/55 hover:bg-muted'
+            className='h-8 border-0 bg-muted/60 hover:bg-muted'
           />
         }
       >
-        <PlusCircledIcon className='size-4' />
+        <PlusCircledIcon className='text-muted-foreground size-4' />
         {title}
         {selectedValues?.size > 0 && (
           <>
