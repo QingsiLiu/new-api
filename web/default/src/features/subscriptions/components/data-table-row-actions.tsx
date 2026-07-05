@@ -41,7 +41,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     <div className='-ml-2'>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant='ghost' className='h-8 w-8 p-0' />}
+          render={<Button variant='ghost' className='h-8 w-8 border-0 p-0' />}
         >
           <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>

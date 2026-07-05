@@ -38,16 +38,18 @@ export function MultiKeyTableRowActions({
     <div className='flex justify-end gap-2'>
       {isEnabled ? (
         <Button
-          variant='outline'
+          variant='ghost'
           size='sm'
+          className='border-0'
           onClick={() => onAction({ type: 'disable', keyIndex })}
         >
           {t('Disable')}
         </Button>
       ) : (
         <Button
-          variant='outline'
+          variant='ghost'
           size='sm'
+          className='border-0'
           onClick={() => onAction({ type: 'enable', keyIndex })}
         >
           {t('Enable')}
