@@ -113,14 +113,14 @@ export function PerformanceOverview() {
 
   if (!loading && !hasData) {
     return (
-      <div className='text-muted-foreground overflow-hidden rounded-lg border px-4 py-3 text-center text-xs'>
+      <div className='text-muted-foreground overflow-hidden rounded-[var(--radius-surface)] border px-4 py-3 text-center text-xs'>
         {t('No performance data available')}
       </div>
     )
   }
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
+    <div className='overflow-hidden rounded-[var(--radius-surface)] border'>
       <div className='flex flex-wrap items-center gap-x-5 gap-y-2.5 px-4 py-2.5 sm:px-5 sm:py-3'>
         {/* Title */}
         <div className='flex items-center gap-1.5'>
@@ -214,13 +214,13 @@ function ModelBadge(props: { model: PerfModelSummary }) {
   const model = props.model
 
   return (
-    <span className='bg-muted/50 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1'>
+    <span className='bg-muted/50 inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] px-2.5 py-1'>
       <span className='max-w-[10rem] truncate font-mono text-[11px]'>
         {model.model_name}
       </span>
       <span
         className={cn(
-          'h-3 w-0.5 rounded-sm',
+          'h-3 w-0.5 rounded-full',
           successDotClassName(model.success_rate)
         )}
         aria-hidden='true'

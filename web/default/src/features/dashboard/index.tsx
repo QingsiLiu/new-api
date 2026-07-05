@@ -79,7 +79,7 @@ const LazyUserCharts = lazy(() =>
 
 function LogStatCardsFallback() {
   return (
-    <div className='overflow-hidden rounded-lg border'>
+    <div className='overflow-hidden rounded-[var(--radius-surface)] border'>
       <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
@@ -95,7 +95,7 @@ function LogStatCardsFallback() {
 
 function ModelChartsFallback() {
   return (
-    <div className='overflow-hidden rounded-lg border'>
+    <div className='overflow-hidden rounded-[var(--radius-surface)] border'>
       <div className='flex items-center justify-between border-b px-4 py-3 sm:px-5'>
         <Skeleton className='h-5 w-32' />
         <Skeleton className='h-8 w-72' />
@@ -109,7 +109,7 @@ function ModelChartsFallback() {
 
 function PerformanceOverviewFallback() {
   return (
-    <div className='overflow-hidden rounded-lg border'>
+    <div className='overflow-hidden rounded-[var(--radius-surface)] border'>
       <div className='flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-5'>
         <div className='flex items-center gap-2'>
           <Skeleton className='h-4 w-24' />
@@ -122,7 +122,7 @@ function PerformanceOverviewFallback() {
         ))}
         <div className='ml-auto flex items-center gap-2'>
           {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className='h-5 w-28 rounded-md' />
+            <Skeleton key={i} className='h-5 w-28 rounded-[var(--radius-surface)]' />
           ))}
         </div>
       </div>

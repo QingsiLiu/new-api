@@ -30,7 +30,7 @@ export function FeatureItem({ title, description, icon }: FeatureItemProps) {
     <div className='group/feature text-foreground flex flex-col gap-4 p-4'>
       {/* Icon */}
       <div className='flex items-center self-start'>
-        <div className='border-border bg-muted/30 text-muted-foreground group-hover/feature:text-foreground flex h-10 w-10 items-center justify-center rounded-lg border transition-colors duration-200'>
+        <div className='bg-muted/45 text-muted-foreground group-hover/feature:bg-muted group-hover/feature:text-foreground flex h-10 w-10 items-center justify-center rounded-[var(--radius-surface)] transition-colors duration-200'>
           {icon}
         </div>
       </div>

@@ -52,7 +52,7 @@ export function Features(_props: FeaturesProps) {
             (name) => (
               <div
                 key={name}
-                className='border-border bg-muted/20 text-muted-foreground flex items-center justify-center rounded-md border px-3 py-2 font-mono text-[11px]'
+                className='bg-muted/45 text-muted-foreground flex items-center justify-center rounded-[var(--radius-surface)] px-3 py-2 font-mono text-[11px]'
               >
                 {name}
               </div>
@@ -72,7 +72,7 @@ export function Features(_props: FeaturesProps) {
       icon: <Shield className='size-4' />,
       visual: (
         <div className='mt-5 flex items-center gap-3'>
-          <span className='border-border bg-muted/20 flex size-14 items-center justify-center rounded-lg border'>
+          <span className='bg-muted/45 flex size-14 items-center justify-center rounded-[var(--radius-surface)]'>
             <Shield className='text-success size-6' strokeWidth={1.5} />
           </span>
           <span className='editorial-label text-success'>{t('Verified')}</span>
@@ -91,7 +91,7 @@ export function Features(_props: FeaturesProps) {
           {[t('Load Balancing'), t('Rate Limiting'), t('Cost Tracking')].map(
             (step, i) => (
               <div key={step} className='flex items-center gap-2'>
-                <div className='border-border bg-muted text-muted-foreground flex size-6 items-center justify-center rounded-md border font-mono text-[10px] font-medium'>
+                <div className='bg-muted text-muted-foreground flex size-6 items-center justify-center rounded-[var(--radius-surface)] font-mono text-[10px] font-medium'>
                   {i + 1}
                 </div>
                 <div className='bg-border h-px flex-1' />
@@ -165,7 +165,7 @@ export function Features(_props: FeaturesProps) {
           </h2>
         </AnimateInView>
 
-        <div className='border-border bg-border grid gap-px overflow-hidden rounded-xl border md:grid-cols-3'>
+        <div className='border-border bg-border grid gap-px overflow-hidden rounded-[var(--radius-card)] border md:grid-cols-3'>
           {features.map((f, i) => (
             <AnimateInView
               key={f.id}
@@ -174,7 +174,7 @@ export function Features(_props: FeaturesProps) {
               className={`bg-background hover:bg-accent/30 p-7 transition-colors duration-200 md:p-8 ${f.span}`}
             >
               <div className='mb-4 flex items-center gap-3'>
-                <span className='border-border bg-muted text-muted-foreground flex size-7 items-center justify-center rounded-md border font-mono text-[10px] font-medium tabular-nums'>
+                <span className='bg-muted text-muted-foreground flex size-7 items-center justify-center rounded-[var(--radius-surface)] font-mono text-[10px] font-medium tabular-nums'>
                   {f.num}
                 </span>
                 <span className='text-muted-foreground'>{f.icon}</span>

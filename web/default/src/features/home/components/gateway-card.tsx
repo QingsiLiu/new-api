@@ -39,7 +39,7 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
           <img
             src={logo}
             alt={systemName}
-            className='border-border h-12 w-12 rounded-md border object-cover'
+            className='border-border h-12 w-12 rounded-[var(--radius-surface)] border object-cover'
           />
           <h3 className='editorial-section-title'>{systemName}</h3>
         </div>
@@ -49,7 +49,7 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
           {features.map((feature, i) => (
             <div
               key={i}
-              className='border-border bg-muted/20 hover:bg-accent/60 relative overflow-hidden rounded-lg border px-4 py-3.5 text-center transition-colors duration-200'
+              className='bg-muted/45 hover:bg-muted relative overflow-hidden rounded-[var(--radius-surface)] px-4 py-3.5 text-center transition-colors duration-200'
             >
               <span className='text-foreground/90 group-hover/item:text-foreground relative text-sm font-medium'>
                 {feature}
