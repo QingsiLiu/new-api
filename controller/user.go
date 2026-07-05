@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -394,6 +395,140 @@ func GenerateAccessToken(c *gin.Context) {
 		"data":    user.AccessToken,
 	})
 	return
+}
+
+// SSORedirect generates a one-time code for the logged-in user and redirects
+// them to the trusted redirect_uri (e.g. Studio). If not logged in, redirects
+// with sso=none so Studio can show its own login page.
+// Used for seamless cross-domain SSO: New API → Studio.
+func SSORedirect(c *gin.Context) {
+	redirectURI := strings.TrimSpace(c.Query("redirect_uri"))
+	if redirectURI == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "redirect_uri is required"})
+		return
+	}
+	// Allow-list: only redirect to configured studio domain(s).
+	allowedHosts := []string{"studio.geiliapi.com", "localhost"}
+	if extra := strings.TrimSpace(os.Getenv("SSO_ALLOWED_HOSTS")); extra != "" {
+		for _, h := range strings.Split(extra, ",") {
+			if h = strings.TrimSpace(h); h != "" {
+				allowedHosts = append(allowedHosts, h)
+			}
+		}
+	}
+	parsed, err := url.Parse(redirectURI)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid redirect_uri"})
+		return
+	}
+	allowed := false
+	for _, host := range allowedHosts {
+		if parsed.Hostname() == host {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "redirect_uri not allowed"})
+		return
+	}
+
+	// OptionalAuth: check if user is logged in
+	id := c.GetInt("id")
+	if id == 0 {
+		// Not logged in → redirect with sso=none so Studio shows its login page
+		q := parsed.Query()
+		q.Set("sso", "none")
+		parsed.RawQuery = q.Encode()
+		c.Redirect(http.StatusFound, parsed.String())
+		return
+	}
+
+	user, err := model.GetUserById(id, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Ensure user has an access_token (generate if missing).
+	if user.GetAccessToken() == "" {
+		randI := common.GetRandomInt(4)
+		key, err := common.GenerateRandomKey(29 + randI)
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgGenerateFailed)
+			return
+		}
+		user.SetAccessToken(key)
+		if err := user.Update(false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
+	// Generate a one-time code (60s TTL) and store user_id + access_token in Redis
+	code, err := common.GenerateRandomKey(32)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgGenerateFailed)
+		return
+	}
+	redisKey := "sso_code:" + code
+	payload := fmt.Sprintf("%d:%s", user.Id, user.GetAccessToken())
+	if err := common.RedisSet(redisKey, payload, 60); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// Redirect back to Studio with the one-time code
+	q := parsed.Query()
+	q.Set("code", code)
+	parsed.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, parsed.String())
+}
+
+// SSOExchange exchanges a one-time code for the user's access_token.
+// This is called server-to-server by Studio's backend after the user is redirected back.
+type SSOExchangeRequest struct {
+	Code string `json:"code" binding:"required"`
+}
+
+type SSOExchangeResponse struct {
+	Success     bool   `json:"success"`
+	Message     string `json:"message,omitempty"`
+	UserID      int    `json:"user_id,omitempty"`
+	AccessToken string `json:"access_token,omitempty"`
+}
+
+func SSOExchange(c *gin.Context) {
+	var req SSOExchangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, SSOExchangeResponse{Success: false, Message: "code is required"})
+		return
+	}
+	redisKey := "sso_code:" + strings.TrimSpace(req.Code)
+	payload, err := common.RedisGet(redisKey)
+	if err != nil || payload == "" {
+		c.JSON(http.StatusUnauthorized, SSOExchangeResponse{Success: false, Message: "invalid or expired code"})
+		return
+	}
+	// Delete the code immediately (one-time use)
+	_ = common.RedisDel(redisKey)
+
+	parts := strings.SplitN(payload, ":", 2)
+	if len(parts) != 2 {
+		c.JSON(http.StatusInternalServerError, SSOExchangeResponse{Success: false, Message: "malformed code payload"})
+		return
+	}
+	userID, err := strconv.Atoi(parts[0])
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, SSOExchangeResponse{Success: false, Message: "invalid user_id in payload"})
+		return
+	}
+	accessToken := parts[1]
+
+	c.JSON(http.StatusOK, SSOExchangeResponse{
+		Success:     true,
+		UserID:      userID,
+		AccessToken: accessToken,
+	})
 }
 
 type TransferAffQuotaRequest struct {

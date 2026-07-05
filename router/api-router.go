@@ -77,6 +77,10 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/epay/notify", anonymousRequestBodyLimit, controller.EpayNotify)
 			userRoute.GET("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/groups", controller.GetUserGroups)
+			// SSO: seamless cross-domain login to Studio (OptionalAuth)
+			userRoute.GET("/sso", middleware.TryUserAuth(), controller.SSORedirect)
+			// SSO exchange: service-to-service (TokenAuth)
+			userRoute.POST("/sso/exchange", middleware.TokenAuth(), controller.SSOExchange)
 
 			selfRoute := userRoute.Group("/")
 			selfRoute.Use(middleware.UserAuth())
