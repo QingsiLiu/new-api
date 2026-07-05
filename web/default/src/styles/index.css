@@ -818,3 +818,42 @@ For commercial licensing, please contact support@quantumnous.com
     animation: none !important;
   }
 }
+
+/* DS-FIX: restore borderless table ── global, no preset scope */
+[data-slot='table'] {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+[data-slot='table-head'] {
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+[data-slot='table-cell'] {
+  border-top: 1px solid var(--border);
+}
+[data-slot='table-row']:last-child [data-slot='table-cell'] {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+}
+[data-slot='table-row']:hover [data-slot='table-cell'] {
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+/* DS-FIX: card无描边，靠阴影浮起 */
+[data-slot='card'] {
+  border: none;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 4px 16px rgba(0, 0, 0, 0.05);
+}
+.dark [data-slot='card'] {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* DS-FIX: 侧栏无右边框 */
+[data-slot='sidebar'] {
+  border-right: none;
+}
