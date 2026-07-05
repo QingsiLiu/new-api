@@ -691,6 +691,14 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* Geili Modern — card definition: subtle hairline + shadow */
+[data-theme-preset='geili-modern'] [data-slot='card'] {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.dark [data-theme-preset='geili-modern'] [data-slot='card'] {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
 /* Micro-interactions — Vercel-style subtle hover/active feedback */
 @media (prefers-reduced-motion: no-preference) {
   [data-slot='card']:not([data-card-hover='false']) {
@@ -856,4 +864,104 @@ For commercial licensing, please contact support@quantumnous.com
 /* DS-FIX: 侧栏无右边框 */
 [data-slot='sidebar'] {
   border-right: none;
+}
+
+/* ── Geili Minimal — design skill overrides ─────────────────────────────
+ * Implements typeui.sh "minimal" design language:
+ *   Cards: 24px radius, no shadow, #F5F5F5 surface, optional hairline border
+ *   Controls (buttons, inputs, badges, alerts): 9999px pill geometry
+ *   Sidebar: #FFFFFF with 1px #E5E7EB right rail
+ *   Shadows: none anywhere — depth comes from surface contrast only
+ * ────────────────────────────────────────────────────────────────────── */
+
+/* Cards: flat, #F5F5F5 surface, hairline border, no shadow */
+[data-theme-preset='geili-minimal'] [data-slot='card'] {
+  border-radius: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: none !important;
+}
+.dark [data-theme-preset='geili-minimal'] [data-slot='card'] {
+  border-color: #1f1f1f;
+  box-shadow: none !important;
+}
+
+/* Remove hover lift/shadow on cards for minimal theme */
+[data-theme-preset='geili-minimal'] [data-slot='card']:not([data-card-hover='false']):hover {
+  transform: none;
+  box-shadow: none !important;
+}
+
+/* Buttons: 9999px pill */
+[data-theme-preset='geili-minimal'] [data-slot='button']:not([data-slot='button'][class*='rounded-none']) {
+  border-radius: 9999px;
+}
+
+/* Input fields: 9999px pill */
+[data-theme-preset='geili-minimal'] [data-slot='input'] {
+  border-radius: 9999px;
+}
+
+/* Select / combobox triggers */
+[data-theme-preset='geili-minimal'] [data-slot='select-trigger'],
+[data-theme-preset='geili-minimal'] [data-slot='combobox-trigger'] {
+  border-radius: 9999px;
+}
+
+/* Badges: 9999px pill */
+[data-theme-preset='geili-minimal'] .group\/badge {
+  border-radius: 9999px;
+}
+
+/* Alerts: 9999px pill */
+[data-theme-preset='geili-minimal'] [data-slot='alert'] {
+  border-radius: 9999px;
+}
+
+/* Sidebar: show 1px #E5E7EB right border, no shadow */
+[data-theme-preset='geili-minimal'] [data-slot='sidebar'] {
+  border-right: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+.dark [data-theme-preset='geili-minimal'] [data-slot='sidebar'] {
+  border-right-color: #1f1f1f !important;
+}
+
+/* No shadow anywhere in minimal theme */
+[data-theme-preset='geili-minimal'] [data-slot='popover-content'],
+[data-theme-preset='geili-minimal'] [data-slot='dropdown-menu-content'],
+[data-theme-preset='geili-minimal'] [data-slot='select-content'],
+[data-theme-preset='geili-minimal'] [data-slot='command'],
+[data-theme-preset='geili-minimal'] [data-slot='tooltip-content'] {
+  box-shadow: none;
+  border: 1px solid #e5e7eb;
+}
+.dark [data-theme-preset='geili-minimal'] [data-slot='popover-content'],
+.dark [data-theme-preset='geili-minimal'] [data-slot='dropdown-menu-content'],
+.dark [data-theme-preset='geili-minimal'] [data-slot='select-content'],
+.dark [data-theme-preset='geili-minimal'] [data-slot='command'],
+.dark [data-theme-preset='geili-minimal'] [data-slot='tooltip-content'] {
+  border-color: #1f1f1f;
+}
+
+/* Table wrapper: 6.08px radius, 1px hairline, no shadow */
+[data-theme-preset='geili-minimal'] .data-table-card,
+[data-theme-preset='geili-minimal'] [data-slot='sidebar-inset'] [data-slot='card'] {
+  border-radius: 6.08px;
+  box-shadow: none !important;
+}
+
+/* Reset glass utilities for minimal */
+[data-theme-preset='geili-minimal'] .glass-1,
+[data-theme-preset='geili-minimal'] .glass-2,
+[data-theme-preset='geili-minimal'] .glass-3,
+[data-theme-preset='geili-minimal'] .glass-4,
+[data-theme-preset='geili-minimal'] .glass-5 {
+  box-shadow: none !important;
+}
+
+/* Also null out the --shadow-card variable itself for the theme */
+[data-theme-preset='geili-minimal'] {
+  --shadow-card: none;
+  --color-1-400: rgba(255, 255, 255, 0);
+  --color-1-700: rgba(0, 0, 0, 0);
 }

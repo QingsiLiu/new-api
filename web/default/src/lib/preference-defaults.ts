@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 export const THEME_DEFAULTS_VERSION_COOKIE_NAME = 'theme_defaults_version'
-export const THEME_DEFAULTS_VERSION = 'geili-modern-v2'
+export const THEME_DEFAULTS_VERSION = 'geili-minimal-v1'
 
 export const LAYOUT_DEFAULTS_VERSION_COOKIE_NAME = 'layout_defaults_version'
 export const LAYOUT_DEFAULTS_VERSION = 'sidebar-v1'

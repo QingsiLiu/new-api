@@ -25,6 +25,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 export const THEME_PRESETS = [
   {
+    value: 'geili-minimal',
+    name: '极简 / Geili Minimal',
+    description:
+      'Radically minimal: pure white canvas, #F5F5F5 cards, black as the only accent. No shadows.',
+    swatches: ['#FFFFFF', '#F5F5F5', '#000000'],
+  },
+  {
     value: 'geili-modern',
     name: '现代精致 / Geili Modern',
     description:
@@ -128,7 +135,7 @@ export type ThemeCustomization = {
 }
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  preset: 'geili-modern',
+  preset: 'geili-minimal',
   font: 'default',
   radius: 'default',
   scale: 'sm',
@@ -187,6 +194,7 @@ export const PRESET_DEFAULT_FONT: Partial<
   Record<ThemePreset, ResolvedThemeFont>
 > = {
   default: 'sans',
+  'geili-minimal': 'sans',
   'geili-modern': 'sans',
   'geili-editorial': 'sans',
   anthropic: 'serif',
