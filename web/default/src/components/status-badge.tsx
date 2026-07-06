@@ -254,7 +254,7 @@ export function StatusBadgeList<T>(props: StatusBadgeListProps<T>) {
   return (
     <div
       className={cn(
-        'flex max-w-full min-w-0 items-center gap-1 overflow-hidden',
+        'flex max-w-full min-w-0 items-center gap-1 overflow-visible [&_[data-slot=status-badge]]:overflow-hidden',
         className
       )}
       {...domProps}

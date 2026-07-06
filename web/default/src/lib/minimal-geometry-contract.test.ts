@@ -109,4 +109,74 @@ describe('geili-minimal geometry contract', () => {
       }
     }
   })
+
+  test('sidebar pill navigation rows keep a visible gap', () => {
+    const source = readSource('src/components/ui/sidebar.tsx')
+
+    assert.ok(
+      source.includes('flex w-full min-w-0 flex-col gap-1'),
+      'adjacent sidebar pill rows need a real gap so active/hover backgrounds do not merge'
+    )
+  })
+
+  test('table badge containers do not use negative offsets that clip pills', () => {
+    const badgeCell = readSource('src/components/data-table/core/badge-cell.tsx')
+    const badgeListCell = readSource(
+      'src/components/data-table/core/badge-list-cell.tsx'
+    )
+    const channelsColumns = readSource(
+      'src/features/channels/components/channels-columns.tsx'
+    )
+    const channelActions = readSource(
+      'src/features/channels/components/data-table-row-actions.tsx'
+    )
+
+    assert.equal(badgeCell.includes('-ml-1.5'), false)
+    assert.equal(badgeListCell.includes('-ml-1.5'), false)
+    assert.equal(channelsColumns.includes('-ml-1.5'), false)
+    assert.equal(channelActions.includes('-ml-1.5'), false)
+  })
+
+  test('channel actions column has enough width for three pill icon buttons', () => {
+    const source = readSource(
+      'src/features/channels/components/channels-columns.tsx'
+    )
+    const actionsColumn = source.match(
+      /id: 'actions'[\s\S]*?enableHiding: false/
+    )?.[0]
+
+    assert.ok(actionsColumn, 'expected channels actions column definition')
+    assert.match(
+      actionsColumn,
+      /size:\s*(?:1[6-9]\d|[2-9]\d{2})/,
+      'sticky actions column must reserve scale-safe width'
+    )
+  })
+
+  test('pinned table headers use an opaque surface background', () => {
+    const source = readSource('src/components/data-table/core/column-pinning.ts')
+
+    assert.ok(
+      source.includes("kind === 'header'\n      ? 'z-30 !bg-card"),
+      'sticky header cells must mask the columns beneath them'
+    )
+    assert.equal(source.includes('[background-color:'), false)
+  })
+
+  test('theme density axis applies compact default instead of dropping it', () => {
+    const source = readSource(
+      'src/context/theme-customization-provider.tsx'
+    )
+
+    assert.ok(
+      source.includes("scale === 'default' ? null : scale"),
+      'only the explicit Default density option should remove data-theme-scale'
+    )
+    assert.equal(
+      source.includes(
+        'scale === DEFAULT_THEME_CUSTOMIZATION.scale ? null : scale'
+      ),
+      false
+    )
+  })
 })

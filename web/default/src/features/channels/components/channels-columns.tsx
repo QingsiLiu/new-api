@@ -298,7 +298,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   // Tag row: only show cumulative used quota
   if (isTagRow) {
     return (
-      <span className={cn('-ml-1.5', getNumericTextClassName(usedQuota))}>
+      <span className={getNumericTextClassName(usedQuota)}>
         {usedLabel}
       </span>
     )
@@ -332,7 +332,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
   return (
     <TooltipProvider>
-      <div className='-ml-1.5 flex items-center gap-1'>
+      <div className='flex min-w-0 items-center gap-1 overflow-hidden'>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -598,7 +598,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               variant='blue'
               size='sm'
               copyable={false}
-              className='-ml-1.5'
             />
           )
         }
@@ -631,7 +630,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <span className='border-border bg-muted text-primary inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border' />
+                      <span className='bg-muted text-primary inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-surface)]' />
                     }
                   >
                     <MultiKeyModeIcon className='h-3 w-3' />
@@ -733,7 +732,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 variant='success'
                 size='sm'
                 copyable={false}
-                className='-ml-1.5'
               />
             )
           } else {
@@ -743,7 +741,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 variant='neutral'
                 size='sm'
                 copyable={false}
-                className='-ml-1.5'
               />
             )
           }
@@ -821,7 +818,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },
@@ -903,7 +899,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             label={tag}
             autoColor={tag}
             size='sm'
-            className='-ml-1.5'
           />
         )
       },
@@ -947,7 +942,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         const responseTime = row.getValue('response_time') as number
         const config = getResponseTimeConfig(responseTime)
         const responseClassName = cn(
-          '-ml-1.5 inline-flex h-5 items-center px-1.5 text-[0.6875rem] leading-none font-medium tabular-nums',
+          'inline-flex h-5 items-center px-1.5 text-[0.6875rem] leading-none font-medium tabular-nums',
           responseTime === 0
             ? 'text-muted-foreground'
             : config.variant === 'danger'
@@ -1021,7 +1016,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
 
         return <DataTableRowActions row={row} />
       },
-      size: 132,
+      size: 168,
       enableSorting: false,
       enableHiding: false,
       meta: { pinned: 'right' as const },

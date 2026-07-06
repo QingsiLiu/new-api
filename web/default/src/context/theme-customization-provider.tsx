@@ -205,7 +205,7 @@ export function ThemeCustomizationProvider(props: {
   useEffect(() => {
     applyAttribute(
       'data-theme-scale',
-      scale === DEFAULT_THEME_CUSTOMIZATION.scale ? null : scale
+      scale === 'default' ? null : scale
     )
   }, [scale])
 

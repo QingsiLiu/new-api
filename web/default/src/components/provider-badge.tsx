@@ -61,19 +61,17 @@ export function ProviderBadge({
   const providerVariant = variant ?? getProviderVariant(label, iconKey)
 
   return (
-    <div
+    <StatusBadge
       data-slot='provider-badge'
-      className={cn('flex max-w-full min-w-0 items-center gap-1.5', className)}
+      label={label}
+      autoColor={providerVariant ? undefined : label}
+      variant={providerVariant}
+      size='sm'
+      className={cn('min-w-0 shrink overflow-hidden', className)}
+      {...badgeProps}
     >
       {icon && <span className='flex shrink-0 items-center'>{icon}</span>}
-      <StatusBadge
-        label={label}
-        autoColor={providerVariant ? undefined : label}
-        variant={providerVariant}
-        size='sm'
-        className={cn('min-w-0 shrink overflow-hidden', !icon && 'pl-1')}
-        {...badgeProps}
-      />
-    </div>
+      <span className='min-w-0 truncate leading-normal'>{label}</span>
+    </StatusBadge>
   )
 }

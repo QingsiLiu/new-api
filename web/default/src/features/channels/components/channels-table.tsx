@@ -400,6 +400,13 @@ export function ChannelsTable() {
             : DISABLED_ROW_DESKTOP
           : undefined
       }
+      getColumnClassName={(columnId) =>
+        columnId === 'actions'
+          ? 'px-3'
+          : columnId === 'balance'
+            ? 'px-4'
+            : undefined
+      }
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )
