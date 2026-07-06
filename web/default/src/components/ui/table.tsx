@@ -78,8 +78,8 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
       data-slot='table-row'
       className={cn(
         'group data-[state=selected]:bg-muted hover:bg-muted/50 has-aria-expanded:bg-muted/50 transition-colors',
-        'bg-[linear-gradient(to_right,transparent_1.5rem,var(--border)_1.5rem,var(--border)_calc(100%-1.5rem),transparent_calc(100%-1.5rem))] bg-[length:100%_1px] bg-no-repeat bg-bottom',
-        'last:bg-none',
+        '[box-shadow:inset_1.5rem_-1px_0_0_var(--border),inset_-1.5rem_-1px_0_0_var(--border)]',
+        'last:[box-shadow:none]',
         className
       )}
       {...props}
