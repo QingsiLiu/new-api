@@ -3,6 +3,7 @@ import { describe, test } from 'node:test'
 import {
   groupRegistryScopeForRole,
   normalizeGroupRegistryItems,
+  shouldUseAdminGroupRegistry,
 } from './utils'
 
 describe('normalizeGroupRegistryItems', () => {
@@ -31,10 +32,20 @@ describe('normalizeGroupRegistryItems', () => {
     ])
   })
 
-  test('uses the current-user group endpoint for non-admin roles', () => {
+  test('uses the current-user group endpoint for non-admin and user-facing routes', () => {
     assert.equal(groupRegistryScopeForRole(undefined), 'anonymous')
     assert.equal(groupRegistryScopeForRole(1), 'self')
-    assert.equal(groupRegistryScopeForRole(10), 'admin')
-    assert.equal(groupRegistryScopeForRole(100), 'admin')
+    assert.equal(groupRegistryScopeForRole(10, '/keys'), 'self')
+    assert.equal(groupRegistryScopeForRole(100, '/pricing'), 'self')
+    assert.equal(groupRegistryScopeForRole(10, '/channels'), 'admin')
+    assert.equal(groupRegistryScopeForRole(100, '/system-settings/billing'), 'admin')
+  })
+
+  test('only admin management routes can use the admin registry endpoint', () => {
+    assert.equal(shouldUseAdminGroupRegistry('/pricing'), false)
+    assert.equal(shouldUseAdminGroupRegistry('/keys'), false)
+    assert.equal(shouldUseAdminGroupRegistry('/dashboard/users'), false)
+    assert.equal(shouldUseAdminGroupRegistry('/channels'), true)
+    assert.equal(shouldUseAdminGroupRegistry('/models/group-pricing'), true)
   })
 })

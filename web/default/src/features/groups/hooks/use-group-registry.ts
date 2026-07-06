@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useLocation } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getGroupRegistry, getUserGroupRegistry } from '../api'
 import {
@@ -27,7 +28,8 @@ import {
 
 export function useGroupRegistry() {
   const userRole = useAuthStore((s) => s.auth.user?.role)
-  const scope = groupRegistryScopeForRole(userRole)
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const scope = groupRegistryScopeForRole(userRole, pathname)
   const { data } = useQuery({
     queryKey: ['group-registry', scope],
     queryFn: scope === 'admin' ? getGroupRegistry : getUserGroupRegistry,

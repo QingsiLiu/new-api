@@ -19,10 +19,27 @@ For commercial licensing, please contact support@quantumnous.com
 import type { GroupRegistryItem, GroupRegistryResponse } from './types'
 
 export function groupRegistryScopeForRole(
-  role?: number | null
+  role?: number | null,
+  pathname = '/'
 ): 'admin' | 'self' | 'anonymous' {
   if (role === undefined || role === null) return 'anonymous'
-  return role >= 10 ? 'admin' : 'self'
+  if (role >= 10 && shouldUseAdminGroupRegistry(pathname)) return 'admin'
+  return 'self'
+}
+
+const ADMIN_GROUP_REGISTRY_PATH_PREFIXES = [
+  '/channels',
+  '/models',
+  '/redemption-codes',
+  '/subscriptions',
+  '/system-settings',
+  '/users',
+]
+
+export function shouldUseAdminGroupRegistry(pathname: string): boolean {
+  return ADMIN_GROUP_REGISTRY_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  )
 }
 
 function normalizeUserGroupMap(
