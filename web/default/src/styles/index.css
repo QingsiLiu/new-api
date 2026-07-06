@@ -964,6 +964,17 @@ For commercial licensing, please contact support@quantumnous.com
   box-shadow: none !important;
 }
 
+/* Table cells: horizontal inset for row dividers */
+[data-theme-preset='geili-minimal'] [data-slot='table'] th:first-child,
+[data-theme-preset='geili-minimal'] [data-slot='table'] td:first-child {
+  padding-left: 1.5rem;
+}
+
+[data-theme-preset='geili-minimal'] [data-slot='table'] th:last-child,
+[data-theme-preset='geili-minimal'] [data-slot='table'] td:last-child {
+  padding-right: 1.5rem;
+}
+
 /* Reset glass utilities for minimal */
 [data-theme-preset='geili-minimal'] .glass-1,
 [data-theme-preset='geili-minimal'] .glass-2,
