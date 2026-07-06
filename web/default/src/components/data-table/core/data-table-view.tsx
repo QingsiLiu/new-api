@@ -248,7 +248,7 @@ function renderTableBody<TData>(
   getColumnClassName: DataTableColumnClassName
 ) {
   return (
-    <TableBody className={props.tableBodyClassName}>
+    <TableBody className={cn('[&>tr]:border-b [&>tr]:border-border [&>tr]:px-6 [&>tr:last-child]:border-b-0', props.tableBodyClassName)}>
       {renderTableBodyContent(props, rows, colSpan, getColumnClassName)}
     </TableBody>
   )
