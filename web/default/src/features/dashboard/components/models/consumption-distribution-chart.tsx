@@ -132,7 +132,7 @@ export function ConsumptionDistributionChart(
   ].join('-')
 
   return (
-    <div className='overflow-hidden rounded-[var(--radius-surface)] border'>
+    <div className='overflow-hidden rounded-[var(--radius-card)]'>
       <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
           <WalletCards className='text-muted-foreground/60 size-4' />
