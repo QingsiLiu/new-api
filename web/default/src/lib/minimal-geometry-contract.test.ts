@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +10,27 @@ const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
 
 function readSource(relativePath: string): string {
   return readFileSync(join(projectRoot, relativePath), 'utf8')
+}
+
+function listSourceFiles(dir: string): string[] {
+  const files: string[] = []
+
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry)
+    const stat = statSync(path)
+
+    if (stat.isDirectory()) {
+      if (entry === 'node_modules' || entry === 'dist') continue
+      files.push(...listSourceFiles(path))
+      continue
+    }
+
+    if (/\.(ts|tsx)$/.test(entry)) {
+      files.push(path)
+    }
+  }
+
+  return files
 }
 
 describe('geili-minimal geometry contract', () => {
@@ -139,6 +160,12 @@ describe('geili-minimal geometry contract', () => {
     const apiKeyActions = readSource(
       'src/features/keys/components/data-table-row-actions.tsx'
     )
+    const taskLogsColumns = readSource(
+      'src/features/usage-logs/components/columns/task-logs-columns.tsx'
+    )
+    const drawingLogsColumns = readSource(
+      'src/features/usage-logs/components/columns/drawing-logs-columns.tsx'
+    )
 
     assert.equal(badgeCell.includes('-ml-1.5'), false)
     assert.equal(badgeListCell.includes('-ml-1.5'), false)
@@ -146,6 +173,18 @@ describe('geili-minimal geometry contract', () => {
     assert.equal(channelActions.includes('-ml-1.5'), false)
     assert.equal(apiKeysColumns.includes('-ml-1.5'), false)
     assert.equal(apiKeyActions.includes('-ml-1.5'), false)
+    assert.equal(taskLogsColumns.includes('-ml-1.5'), false)
+    assert.equal(drawingLogsColumns.includes('-ml-1.5'), false)
+
+    for (const file of listSourceFiles(join(projectRoot, 'src'))) {
+      if (file.endsWith('minimal-geometry-contract.test.ts')) continue
+
+      assert.equal(
+        readFileSync(file, 'utf8').includes('-ml-1.5'),
+        false,
+        `${file} still has negative badge offset`
+      )
+    }
   })
 
   test('table cells clip overflowing content instead of bleeding across columns', () => {

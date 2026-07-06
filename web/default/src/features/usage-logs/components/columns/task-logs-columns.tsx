@@ -212,7 +212,6 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             variant={taskStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },

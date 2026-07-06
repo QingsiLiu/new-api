@@ -162,7 +162,6 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
         label={t('Unlimited')}
         variant='neutral'
         copyable={false}
-        className='-ml-1.5'
       />
     )
   }
@@ -201,7 +200,6 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
         label={t('No restriction')}
         variant='neutral'
         copyable={false}
-        className='-ml-1.5'
       />
     )
   }

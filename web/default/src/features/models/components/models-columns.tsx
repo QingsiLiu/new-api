@@ -143,7 +143,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             variant='neutral'
             copyText={name}
             size='sm'
-            className='-ml-1.5 font-mono'
+            className='font-mono'
           />
         )
       },
@@ -163,7 +163,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             variant='info'
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },
@@ -201,7 +200,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
                 | 'info'
             }
             size='sm'
-            className='-ml-1.5'
           />
         )
 
@@ -218,7 +216,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           return (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger render={<div className='-ml-1.5' />}>
+                <TooltipTrigger render={<div />}>
                   {badge}
                 </TooltipTrigger>
                 <TooltipContent
@@ -254,7 +252,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },
@@ -280,7 +277,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger render={<div className='-ml-1.5' />}>
+              <TooltipTrigger render={<div />}>
                 <StatusBadge
                   label={summarizeModelPricing(model, t)}
                   variant={pricingMode === 'inherit' ? 'warning' : 'success'}
@@ -481,7 +478,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             variant={syncOfficial === 1 ? 'success' : 'warning'}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },

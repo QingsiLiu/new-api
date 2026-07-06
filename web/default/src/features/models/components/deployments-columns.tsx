@@ -66,7 +66,7 @@ export function useDeploymentsColumns(opts: {
             variant='neutral'
             copyText={name}
             size='sm'
-            className='-ml-1.5 font-mono'
+            className='font-mono'
           />
         )
       },
@@ -90,7 +90,6 @@ export function useDeploymentsColumns(opts: {
             variant={config.variant}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },
@@ -121,7 +120,6 @@ export function useDeploymentsColumns(opts: {
             autoColor={String(provider)}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },
