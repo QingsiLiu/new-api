@@ -39,7 +39,7 @@ For commercial licensing, please contact support@quantumnous.com
  * - Zero shadows — depth from surface contrast and hairlines only
  */
 [data-theme-preset='geili-minimal'] {
-  --background: #ffffff;
+  --background: #fafafa;
   --foreground: #000000;
   --card: #f5f5f5;
   --card-foreground: #000000;

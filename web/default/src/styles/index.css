@@ -920,13 +920,9 @@ For commercial licensing, please contact support@quantumnous.com
   color: var(--primary-foreground);
 }
 
-/* Sidebar: show 1px #E5E7EB right border, no shadow */
+/* Sidebar: no border, no shadow — depth from surface contrast only */
 [data-theme-preset='geili-minimal'] [data-slot='sidebar'] {
-  border-right: 1px solid var(--sidebar-border) !important;
   box-shadow: none !important;
-}
-.dark [data-theme-preset='geili-minimal'] [data-slot='sidebar'] {
-  border-right-color: var(--sidebar-border) !important;
 }
 
 /* No shadow anywhere in minimal theme */
