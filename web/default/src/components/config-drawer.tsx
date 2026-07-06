@@ -174,7 +174,7 @@ function RadioGroupItem(props: {
     >
       <div
         className={cn(
-          'ring-border relative rounded-md ring-[1px]',
+          'ring-border relative rounded-full ring-[1px]',
           'group-data-checked:ring-primary group-data-checked:shadow-[var(--shadow-card)]',
           'group-focus-visible:ring-2'
         )}
@@ -266,7 +266,7 @@ function PresetConfig() {
           >
             <div
               className={cn(
-                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'ring-border relative h-12 rounded-full ring-[1px] transition',
                 'group-data-checked:ring-primary group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
@@ -274,7 +274,7 @@ function PresetConfig() {
             >
               <div
                 aria-hidden='true'
-                className='absolute inset-1 flex overflow-hidden rounded-[calc(var(--radius)*0.75)]'
+                className='absolute inset-1 flex overflow-hidden rounded-[var(--radius-surface)]'
               >
                 {(preset.value === 'default'
                   ? ['var(--background)', 'var(--muted)', 'var(--foreground)']
@@ -353,7 +353,7 @@ function FontConfig() {
           >
             <div
               className={cn(
-                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'ring-border relative h-12 rounded-full ring-[1px] transition',
                 'group-data-checked:ring-primary group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
@@ -429,7 +429,7 @@ function RadiusConfig() {
           >
             <div
               className={cn(
-                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'ring-border relative h-12 rounded-full ring-[1px] transition',
                 'group-data-checked:ring-primary group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
@@ -514,7 +514,7 @@ function ScaleConfig() {
           >
             <div
               className={cn(
-                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'ring-border relative h-12 rounded-full ring-[1px] transition',
                 'group-data-checked:ring-primary group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
@@ -655,7 +655,7 @@ function ContentLayoutConfig() {
           >
             <div
               className={cn(
-                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'ring-border relative h-12 rounded-full ring-[1px] transition',
                 'group-data-checked:ring-primary group-data-checked:shadow-md',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
