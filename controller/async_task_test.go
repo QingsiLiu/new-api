@@ -1552,8 +1552,9 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 			var payload map[string]interface{}
 			require.NoError(t, common.Unmarshal(body, &payload))
 			require.Equal(t, "seedance-2.0", payload["model"])
-			require.Equal(t, "16:9", payload["aspect_ratio"])
-			require.Equal(t, "5", payload["seconds"])
+			require.Equal(t, "1280x720", payload["size"])
+			require.Equal(t, float64(5), payload["seconds"])
+			require.NotContains(t, payload, "aspect_ratio")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":"video-matrix-1","status":"queued"}`))
 		case "/v1/videos/video-matrix-1":
@@ -1612,6 +1613,197 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 	require.Equal(t, "720p", task.PrivateData.BillingContext.SpecPricing.Resolution)
 	require.Equal(t, "16:9", task.PrivateData.BillingContext.SpecPricing.Ratio)
 	require.Equal(t, "no_video_input", task.PrivateData.BillingContext.SpecPricing.Mode)
+}
+
+func TestAsyncVideoPricingEstimateInfersVideoKindFromSeedancePayload(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"video":{
+			"seedance-2.0-fast":{
+				"prices":{
+					"480p":{
+						"16:9":{
+							"no_video_input":{"cny_per_second":0.3902}
+						}
+					}
+				}
+			}
+		}
+	}`, 100000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("pricing estimate should not call upstream: %s", r.URL.String())
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "seedance-2.0-fast", constant.ChannelTypeJimengOpenAIVideo, "")
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0-fast":65}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+
+	payload := `{
+		"action":"generate",
+		"model":"seedance-2.0-fast",
+		"input":{"prompt":"matrix priced video"},
+		"parameters":{"resolution":"480p","ratio":"16:9","duration":5}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, asyncTaskKindVideo, estimate.Kind)
+	require.Equal(t, 1.951, estimate.AmountCNY)
+	require.Equal(t, 0.3902, estimate.Breakdown.SpecUnitCNY)
+	require.Equal(t, 1.951, estimate.Breakdown.SpecTotalCNY)
+}
+
+func TestAsyncOpenAIVideoPayloadUsesXinxingshukeSeedanceFields(t *testing.T) {
+	payload := requireAsyncJSONPayload(t, asyncOpenAIVideoPayload(asyncTaskRequest{
+		Model: "doubao-seedance-2-0-fast-260128",
+		Input: asyncTaskInput{Prompt: "6秒竖屏短视频"},
+		Parameters: map[string]interface{}{
+			"size":              "720x1280",
+			"seconds":           6,
+			"generate_audio":    false,
+			"return_last_frame": false,
+			"watermark":         false,
+			"input_references": []interface{}{
+				map[string]interface{}{
+					"type":      "image_url",
+					"image_url": "https://example.com/product_reference.jpg",
+				},
+			},
+		},
+	}))
+
+	require.Equal(t, "doubao-seedance-2-0-fast-260128", payload["model"])
+	require.Equal(t, "6秒竖屏短视频", payload["prompt"])
+	require.Equal(t, "720x1280", payload["size"])
+	require.Equal(t, float64(6), payload["seconds"])
+	require.Equal(t, false, payload["generate_audio"])
+	require.Equal(t, false, payload["return_last_frame"])
+	require.Equal(t, false, payload["watermark"])
+	require.NotContains(t, payload, "aspect_ratio")
+	require.NotContains(t, payload, "input_reference")
+	require.Len(t, payload["input_references"], 1)
+	references := payload["input_references"].([]interface{})
+	require.Equal(t, map[string]interface{}{
+		"type":      "image_url",
+		"image_url": "https://example.com/product_reference.jpg",
+	}, references[0])
+}
+
+func TestAsyncOpenAIVideoPayloadPreservesSeedance15ContentRoles(t *testing.T) {
+	payload := requireAsyncJSONPayload(t, asyncOpenAIVideoPayload(asyncTaskRequest{
+		Model: "doubao-seedance-1-5-pro-251215",
+		Input: asyncTaskInput{Prompt: "一只橘猫奔向木屋"},
+		Parameters: map[string]interface{}{
+			"size":              "1920x1080",
+			"seconds":           5,
+			"generate_audio":    true,
+			"return_last_frame": true,
+			"watermark":         false,
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "一只橘猫奔向木屋",
+				},
+				map[string]interface{}{
+					"type": "image_url",
+					"role": "first_frame",
+					"image_url": map[string]interface{}{
+						"url": "https://example.com/first_frame.jpg",
+					},
+				},
+				map[string]interface{}{
+					"type": "image_url",
+					"role": "last_frame",
+					"image_url": map[string]interface{}{
+						"url": "https://example.com/last_frame.jpg",
+					},
+				},
+			},
+		},
+	}))
+
+	require.Equal(t, "doubao-seedance-1-5-pro-251215", payload["model"])
+	require.Equal(t, "一只橘猫奔向木屋", payload["prompt"])
+	require.Equal(t, "1920x1080", payload["size"])
+	require.Equal(t, float64(5), payload["seconds"])
+	require.Equal(t, true, payload["generate_audio"])
+	require.Equal(t, true, payload["return_last_frame"])
+	require.Equal(t, false, payload["watermark"])
+	require.NotContains(t, payload, "aspect_ratio")
+	require.NotContains(t, payload, "input_reference")
+	content := payload["content"].([]interface{})
+	require.Len(t, content, 3)
+	firstFrame := content[1].(map[string]interface{})
+	require.Equal(t, "image_url", firstFrame["type"])
+	require.Equal(t, "first_frame", firstFrame["role"])
+	require.Equal(t, map[string]interface{}{"url": "https://example.com/first_frame.jpg"}, firstFrame["image_url"])
+	lastFrame := content[2].(map[string]interface{})
+	require.Equal(t, "last_frame", lastFrame["role"])
+}
+
+func TestAsyncVideoMatrixSpecPricingUsesVideoInputReferencesMode(t *testing.T) {
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{
+		"video":{
+			"seedance-2.0":{
+				"prices":{
+					"480p":{
+						"16:9":{
+							"no_video_input":{"cny_per_second":9},
+							"with_video_input":{"cny_per_second":0.25}
+						}
+					}
+				}
+			}
+		}
+	}`, 100000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("pricing estimate should not call upstream: %s", r.URL.String())
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "seedance-2.0", constant.ChannelTypeJimengOpenAIVideo, "")
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0":65}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+
+	payload := `{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-2.0",
+		"input":{"prompt":"video input reference"},
+		"parameters":{
+			"resolution":"480p",
+			"ratio":"16:9",
+			"duration":4,
+			"input_references":[{"type":"video_url","url":"https://example.com/reference_video.mp4"}]
+		}
+	}`
+
+	estimateRecorder := httptest.NewRecorder()
+	estimateRequest := httptest.NewRequest(http.MethodPost, "/v1/pricing/estimate", strings.NewReader(payload))
+	estimateRequest.Header.Set("Authorization", "Bearer "+token)
+	estimateRequest.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(estimateRecorder, estimateRequest)
+	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+
+	var estimate asyncTaskPricingEstimateResponse
+	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, asyncTaskKindVideo, estimate.Kind)
+	require.Equal(t, 1.0, estimate.AmountCNY)
+	require.Equal(t, 0.25, estimate.Breakdown.SpecUnitCNY)
+	require.Equal(t, 1.0, estimate.Breakdown.SpecTotalCNY)
 }
 
 func TestAsyncVideoMatrixSpecPricingRejectsUnsupportedCell(t *testing.T) {
@@ -1745,6 +1937,121 @@ func TestAsyncImageSpecPricingIsDisabledByDefault(t *testing.T) {
 	})
 
 	require.Equal(t, baseQuota, highQuota)
+}
+
+func TestAsyncSeedreamImagePayloadUsesXinxingshukeDocumentedFields(t *testing.T) {
+	payload := asyncImageGenerationPayload(asyncTaskRequest{
+		Model: "doubao-seedream-5-0-260128",
+		Input: asyncTaskInput{Prompt: "ecommerce hero image"},
+		Parameters: map[string]interface{}{
+			"image": []interface{}{
+				"https://example.com/reference1.jpg",
+				"https://example.com/reference2.jpg",
+			},
+			"size":                        "2K",
+			"seed":                        -1,
+			"guidance_scale":              2.5,
+			"sequential_image_generation": "auto",
+			"sequential_image_generation_options": map[string]interface{}{
+				"max_images": 4,
+			},
+			"tools": []interface{}{
+				map[string]interface{}{"type": "web_search"},
+			},
+			"stream":                  false,
+			"output_format":           "png",
+			"response_format":         "url",
+			"watermark":               false,
+			"optimize_prompt_options": map[string]interface{}{"mode": "standard"},
+		},
+	})
+
+	require.Equal(t, "doubao-seedream-5-0-260128", payload["model"])
+	require.Equal(t, "ecommerce hero image", payload["prompt"])
+	require.Equal(t, []interface{}{"https://example.com/reference1.jpg", "https://example.com/reference2.jpg"}, payload["image"])
+	require.Equal(t, "2K", payload["size"])
+	require.Equal(t, -1, payload["seed"])
+	require.Equal(t, 2.5, payload["guidance_scale"])
+	require.Equal(t, "auto", payload["sequential_image_generation"])
+	require.Equal(t, map[string]interface{}{"max_images": 4}, payload["sequential_image_generation_options"])
+	require.Equal(t, []interface{}{map[string]interface{}{"type": "web_search"}}, payload["tools"])
+	require.Equal(t, false, payload["stream"])
+	require.Equal(t, "png", payload["output_format"])
+	require.Equal(t, "url", payload["response_format"])
+	require.Equal(t, false, payload["watermark"])
+	require.Equal(t, map[string]interface{}{"mode": "standard"}, payload["optimize_prompt_options"])
+	require.NotContains(t, payload, "n")
+}
+
+func TestAsyncSeedreamSequentialMaxImagesCountsForImageSpecPricing(t *testing.T) {
+	withTrustedModelPricingConfigForTest(t)
+	withAsyncTaskSpecPricingEnabled(t, true)
+	withAsyncSpecPricingForTest(t, `{"currency":"CNY"}`, 1000)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var payload map[string]interface{}
+		require.NoError(t, common.Unmarshal(body, &payload))
+		require.Equal(t, "doubao-seedream-5-0-260128", payload["model"])
+		require.Equal(t, "2K", payload["size"])
+		require.Equal(t, []interface{}{"https://example.com/reference1.jpg", "https://example.com/reference2.jpg"}, payload["image"])
+		require.Equal(t, false, payload["watermark"])
+		require.NotContains(t, payload, "n")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"url":"https://example.test/1.png"},{"url":"https://example.test/2.png"},{"url":"https://example.test/3.png"},{"url":"https://example.test/4.png"}]}`))
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(
+		t,
+		upstream.URL,
+		"seedream-5.0",
+		constant.ChannelTypeJimengOpenAIVideo,
+		`{"seedream-5.0":"doubao-seedream-5-0-260128"}`,
+	)
+	require.NoError(t, createModelPricingConfigForTest("seedream-5.0", model.ModelModalImage, model.PricingModeImageSpec, model.ModelPricingConfig{
+		Mode: model.PricingModeImageSpec,
+		Unit: "per_image",
+		Resolutions: map[string]model.ModelSpecResolutionPrice{
+			"2k": {CNYPerImage: common.GetPointer(0.23)},
+		},
+		DefaultCNYPerImage: common.GetPointer(0.23),
+	}))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(`{
+		"action":"generate",
+		"model":"seedream-5.0",
+		"input":{"prompt":"ecommerce hero image"},
+		"parameters":{
+			"image":["https://example.com/reference1.jpg","https://example.com/reference2.jpg"],
+			"size":"2K",
+			"seed":-1,
+			"guidance_scale":2.5,
+			"sequential_image_generation":"auto",
+			"sequential_image_generation_options":{"max_images":4},
+			"tools":[{"type":"web_search"}],
+			"stream":false,
+			"output_format":"png",
+			"response_format":"url",
+			"watermark":false,
+			"optimize_prompt_options":{"mode":"standard"}
+		}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, common.CNYToQuota(0.92), task.Quota)
+	require.NotNil(t, task.PrivateData.BillingContext)
+	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
+	require.Equal(t, 0.92, task.PrivateData.BillingContext.SpecPricing.TotalCNY)
 }
 
 func TestAsyncImageSpecPricingFallsBackToPerModelWhenModelUnconfigured(t *testing.T) {
@@ -1917,8 +2224,10 @@ func TestAsyncSeedanceProductAliasRoutesToJimengOpenAIVideoChannel(t *testing.T)
 			require.NoError(t, common.Unmarshal(body, &payload))
 			require.Equal(t, "video-ds-2.0-fast", payload["model"])
 			require.Equal(t, "moving product shot", payload["prompt"])
-			require.Equal(t, "5", payload["seconds"])
-			require.Equal(t, "16:9", payload["aspect_ratio"])
+			require.Equal(t, float64(5), payload["seconds"])
+			require.Equal(t, "1280x720", payload["size"])
+			require.Equal(t, true, payload["generate_audio"])
+			require.NotContains(t, payload, "aspect_ratio")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":"zz1-task-1","status":"queued"}`))
 			createCalled <- struct{}{}
@@ -2047,7 +2356,7 @@ func TestAsyncKieImagePayloadUsesDocumentedFieldsByModel(t *testing.T) {
 		Input: asyncTaskInput{Prompt: "premium poster"},
 		Parameters: map[string]interface{}{
 			"ratio":         "16:9",
-			"resolution":    "2K",
+			"resolution":    "2k",
 			"image_urls":    []string{"https://example.com/ref.png"},
 			"output_format": "jpg",
 		},
@@ -2058,6 +2367,19 @@ func TestAsyncKieImagePayloadUsesDocumentedFieldsByModel(t *testing.T) {
 	require.Equal(t, "2K", proInput["resolution"])
 	require.Equal(t, "jpg", proInput["output_format"])
 	require.ElementsMatch(t, []string{"https://example.com/ref.png"}, proInput["image_input"])
+
+	banana2Payload := asyncKieImagePayload(asyncTaskRequest{
+		Model: "nano-banana-2",
+		Input: asyncTaskInput{Prompt: "next generation poster"},
+		Parameters: map[string]interface{}{
+			"ratio":      "1:1",
+			"resolution": "1k",
+		},
+	})
+	banana2Input := requireAsyncPayloadInput(t, banana2Payload)
+	require.Equal(t, "nano-banana-2", banana2Payload["model"])
+	require.Equal(t, "1K", banana2Input["resolution"])
+	require.Equal(t, "jpg", banana2Input["output_format"])
 
 	gptEditPayload := asyncKieImagePayload(asyncTaskRequest{
 		Model: "gpt-image-2-image-to-image",
@@ -2283,6 +2605,15 @@ func requireAsyncPayloadInput(t *testing.T, payload map[string]interface{}) map[
 	input, ok := payload["input"].(map[string]interface{})
 	require.True(t, ok, "expected payload input object: %#v", payload)
 	return input
+}
+
+func requireAsyncJSONPayload(t *testing.T, payload map[string]interface{}) map[string]interface{} {
+	t.Helper()
+	body, err := common.Marshal(payload)
+	require.NoError(t, err)
+	var normalized map[string]interface{}
+	require.NoError(t, common.Unmarshal(body, &normalized))
+	return normalized
 }
 
 func TestAsyncSeedanceProductAliasRoutesToKieStandardModel(t *testing.T) {

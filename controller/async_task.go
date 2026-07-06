@@ -45,7 +45,7 @@ const (
 	asyncTaskStatusFailed    = "failed"
 	asyncTaskStatusCanceled  = "canceled"
 	asyncTaskStatusTimeout   = "timeout"
-	asyncTaskPlatformOpenAI  = constant.TaskPlatform("openai-async")
+	asyncTaskPlatformOpenAI  = constant.TaskPlatformOpenAIAsync
 
 	asyncTaskHTTPTimeoutEnv            = "ASYNC_TASK_HTTP_TIMEOUT_SECONDS"
 	asyncTaskMaxRunningEnv             = "ASYNC_TASK_MAX_RUNNING"
@@ -320,6 +320,7 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
 		return
 	}
+	request = inferAsyncTaskPricingEstimateKind(request)
 	if !applyAsyncTaskServiceUserProxy(c) {
 		return
 	}
@@ -667,6 +668,34 @@ func normalizeAsyncTaskRequest(request asyncTaskRequest) asyncTaskRequest {
 	return request
 }
 
+func inferAsyncTaskPricingEstimateKind(request asyncTaskRequest) asyncTaskRequest {
+	if request.Kind != asyncTaskKindImage {
+		return request
+	}
+	if asyncTaskRequestLooksVideo(request) {
+		request.Kind = asyncTaskKindVideo
+	}
+	return request
+}
+
+func asyncTaskRequestLooksVideo(request asyncTaskRequest) bool {
+	modelName := strings.ToLower(strings.TrimSpace(request.Model))
+	if strings.Contains(modelName, "seedance") ||
+		strings.Contains(modelName, "sora") ||
+		strings.Contains(modelName, "veo") ||
+		strings.Contains(modelName, "kling") ||
+		strings.Contains(modelName, "hailuo") ||
+		strings.Contains(modelName, "vidu") ||
+		strings.Contains(modelName, "video") {
+		return true
+	}
+	if asyncParamIntValue(request.Parameters, "duration", 0) > 0 ||
+		asyncParamIntValue(request.Parameters, "seconds", 0) > 0 {
+		return true
+	}
+	return false
+}
+
 func isSupportedAsyncTaskKind(kind string) bool {
 	return kind == asyncTaskKindImage || kind == asyncTaskKindVideo
 }
@@ -857,7 +886,7 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 				quality := asyncParamString(request.Parameters, "quality")
 				size := asyncParamString(request.Parameters, "size")
 				resolution := asyncParamString(request.Parameters, "resolution")
-				count := asyncParamIntValue(request.Parameters, "n", 1)
+				count := asyncImageSpecCount(request.Parameters)
 				pricing := operation_setting.AsyncSpecPricing{Currency: "CNY", Image: map[string]operation_setting.AsyncImageSpecPrice{
 					relayInfo.OriginModelName: cfg.AsyncImageSpecPrice(),
 				}}
@@ -892,7 +921,7 @@ func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.
 		quality := asyncParamString(request.Parameters, "quality")
 		size := asyncParamString(request.Parameters, "size")
 		resolution := asyncParamString(request.Parameters, "resolution")
-		count := asyncParamIntValue(request.Parameters, "n", 1)
+		count := asyncImageSpecCount(request.Parameters)
 		result = operation_setting.ResolveImageSpecQuota(relayInfo.OriginModelName, size, resolution, quality, count)
 	}
 	return applyResolvedAsyncTaskSpecPricing(relayInfo, result)
@@ -1731,6 +1760,9 @@ func asyncGeminiGenerateContentURL(channel *model.Channel, modelName string) str
 }
 
 func asyncImageGenerationPayload(request asyncTaskRequest) map[string]interface{} {
+	if isAsyncSeedreamImageModel(request.Model) {
+		return asyncSeedreamImageGenerationPayload(request)
+	}
 	payload := map[string]interface{}{
 		"model":           request.Model,
 		"prompt":          request.Input.Prompt,
@@ -1743,6 +1775,104 @@ func asyncImageGenerationPayload(request asyncTaskRequest) map[string]interface{
 		}
 	}
 	return payload
+}
+
+func asyncSeedreamImageGenerationPayload(request asyncTaskRequest) map[string]interface{} {
+	payload := map[string]interface{}{
+		"model":           request.Model,
+		"prompt":          request.Input.Prompt,
+		"response_format": "url",
+	}
+	if responseFormat := asyncParamString(request.Parameters, "response_format"); responseFormat != "" {
+		payload["response_format"] = responseFormat
+	}
+	if image, ok := asyncSeedreamImageValue(request.Parameters); ok {
+		payload["image"] = image
+	}
+	if size := asyncSeedreamImageSize(request.Parameters); size != "" {
+		payload["size"] = size
+	}
+	for _, field := range []string{
+		"seed",
+		"guidance_scale",
+		"sequential_image_generation",
+		"sequential_image_generation_options",
+		"tools",
+		"stream",
+		"output_format",
+		"watermark",
+		"optimize_prompt_options",
+	} {
+		if value, ok := request.Parameters[field]; ok && asyncShouldForwardJSONParam(value) {
+			payload[field] = value
+		}
+	}
+	if _, ok := payload["sequential_image_generation_options"]; !ok {
+		if count := asyncParamIntValue(request.Parameters, "n", 0); count > 1 {
+			payload["sequential_image_generation"] = "auto"
+			payload["sequential_image_generation_options"] = map[string]interface{}{"max_images": count}
+		}
+	}
+	return payload
+}
+
+func isAsyncSeedreamImageModel(modelName string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(modelName)), "seedream")
+}
+
+func asyncSeedreamImageValue(parameters map[string]interface{}) (interface{}, bool) {
+	if parameters == nil {
+		return nil, false
+	}
+	if value, ok := parameters["image"]; ok && asyncShouldForwardJSONParam(value) {
+		return value, true
+	}
+	urls := asyncStringSliceParam(parameters["image_urls"])
+	urls = append(urls, asyncStringSliceParam(parameters["input_urls"])...)
+	if imageURL := asyncParamString(parameters, "image_url"); imageURL != "" {
+		urls = append(urls, imageURL)
+	}
+	urls = dedupeAsyncStrings(urls)
+	if len(urls) == 1 {
+		return urls[0], true
+	}
+	if len(urls) > 1 {
+		result := make([]interface{}, 0, len(urls))
+		for _, url := range urls {
+			result = append(result, url)
+		}
+		return result, true
+	}
+	return nil, false
+}
+
+func asyncSeedreamImageSize(parameters map[string]interface{}) string {
+	if size := asyncParamString(parameters, "size"); size != "" {
+		return size
+	}
+	return asyncParamString(parameters, "resolution")
+}
+
+func asyncImageSpecCount(parameters map[string]interface{}) int {
+	if count := asyncParamIntValue(parameters, "n", 0); count > 0 {
+		return count
+	}
+	if options, ok := parameters["sequential_image_generation_options"].(map[string]interface{}); ok {
+		if count := asyncParamIntValue(options, "max_images", 0); count > 0 {
+			return count
+		}
+	}
+	return 1
+}
+
+func asyncShouldForwardJSONParam(value interface{}) bool {
+	if value == nil {
+		return false
+	}
+	if text, ok := value.(string); ok {
+		return strings.TrimSpace(text) != ""
+	}
+	return true
 }
 
 func asyncImageOutputMimeType(parameters map[string]interface{}) string {
@@ -2002,13 +2132,22 @@ func pollAsyncOpenAIVideoTask(parentCtx context.Context, channel *model.Channel,
 
 func asyncOpenAIVideoPayload(request asyncTaskRequest) map[string]interface{} {
 	payload := map[string]interface{}{
-		"model":        request.Model,
-		"prompt":       asyncVideoPrompt(request),
-		"seconds":      asyncOpenAIVideoSeconds(request.Parameters),
-		"aspect_ratio": asyncOpenAIVideoAspectRatio(request.Parameters),
+		"model":          request.Model,
+		"prompt":         asyncVideoPrompt(request),
+		"seconds":        asyncOpenAIVideoSeconds(request.Parameters),
+		"size":           asyncOpenAIVideoSize(request.Parameters),
+		"generate_audio": asyncParamBoolValue(request.Parameters, "generate_audio", true),
 	}
-	if reference := asyncOpenAIVideoInputReference(request.Parameters); reference != "" {
-		payload["input_reference"] = reference
+	if content := asyncOpenAIVideoContent(request); len(content) > 0 {
+		payload["content"] = content
+	}
+	if references := asyncOpenAIVideoInputReferences(request); len(references) > 0 {
+		payload["input_references"] = references
+	}
+	for _, field := range []string{"return_last_frame", "watermark"} {
+		if value, ok := request.Parameters[field]; ok {
+			payload[field] = value
+		}
 	}
 	return payload
 }
@@ -2021,14 +2160,14 @@ func asyncVideoPrompt(request asyncTaskRequest) string {
 	return prompt
 }
 
-func asyncOpenAIVideoSeconds(parameters map[string]interface{}) string {
-	if value := asyncParamString(parameters, "seconds"); value != "" {
-		return value
+func asyncOpenAIVideoSeconds(parameters map[string]interface{}) int {
+	if seconds := asyncParamIntValue(parameters, "seconds", 0); seconds > 0 {
+		return seconds
 	}
 	if duration := asyncParamIntValue(parameters, "duration", 0); duration > 0 {
-		return strconv.Itoa(duration)
+		return duration
 	}
-	return "5"
+	return 5
 }
 
 func asyncOpenAIVideoAspectRatio(parameters map[string]interface{}) string {
@@ -2051,17 +2190,183 @@ func asyncOpenAIVideoAspectRatio(parameters map[string]interface{}) string {
 	}
 }
 
-func asyncOpenAIVideoInputReference(parameters map[string]interface{}) string {
-	for _, key := range []string{"input_reference", "image", "image_url"} {
-		if value := asyncParamString(parameters, key); value != "" {
-			return value
+func asyncOpenAIVideoSize(parameters map[string]interface{}) string {
+	if size := asyncParamString(parameters, "size"); size != "" {
+		return size
+	}
+	return asyncOpenAIVideoSizeFromResolutionRatio(
+		asyncParamString(parameters, "resolution"),
+		asyncOpenAIVideoAspectRatio(parameters),
+	)
+}
+
+func asyncOpenAIVideoSizeFromResolutionRatio(resolution string, ratio string) string {
+	resolution = strings.ToLower(strings.TrimSpace(resolution))
+	ratio = strings.TrimSpace(ratio)
+	if ratio == "" {
+		ratio = "16:9"
+	}
+	switch resolution {
+	case "1080p", "1080":
+		switch ratio {
+		case "9:16":
+			return "1080x1920"
+		case "1:1":
+			return "1080x1080"
+		default:
+			return "1920x1080"
+		}
+	case "480p", "480":
+		switch ratio {
+		case "9:16":
+			return "480x854"
+		case "1:1":
+			return "480x480"
+		default:
+			return "854x480"
 		}
 	}
-	_, imageURLs, _, _ := asyncKieSeedanceContentParts(parameters["content"])
-	if len(imageURLs) > 0 {
-		return imageURLs[0]
+	switch ratio {
+	case "9:16":
+		return "720x1280"
+	case "1:1":
+		return "1024x1024"
+	default:
+		return "1280x720"
 	}
-	return ""
+}
+
+func asyncOpenAIVideoContent(request asyncTaskRequest) []interface{} {
+	items, ok := request.Parameters["content"].([]interface{})
+	if !ok || len(items) == 0 || !isSeedance15ProModel(request.Model) {
+		return nil
+	}
+	return items
+}
+
+func asyncOpenAIVideoInputReferences(request asyncTaskRequest) []interface{} {
+	parameters := request.Parameters
+	references := asyncOpenAIVideoReferencesParam(parameters["input_references"])
+	if reference := asyncParamString(parameters, "input_reference"); reference != "" {
+		references = append(references, asyncOpenAIVideoReferenceFromURL(reference))
+	}
+	for _, url := range asyncOpenAIVideoStringInputs(parameters, []string{"image", "image_url", "images", "image_urls", "input_urls", "image_input"}) {
+		references = append(references, asyncOpenAIVideoImageReference(url))
+	}
+	for _, url := range asyncOpenAIVideoStringInputs(parameters, []string{"video", "video_url", "video_urls", "reference_video_url"}) {
+		references = append(references, asyncOpenAIVideoVideoReference(url))
+	}
+	for _, url := range asyncOpenAIVideoStringInputs(parameters, []string{"audio", "audio_url", "audio_urls"}) {
+		references = append(references, asyncOpenAIVideoAudioReference(url))
+	}
+	if !isSeedance15ProModel(request.Model) {
+		_, imageURLs, videoURLs, audioURLs := asyncKieSeedanceContentParts(parameters["content"])
+		for _, url := range imageURLs {
+			references = append(references, asyncOpenAIVideoImageReference(url))
+		}
+		for _, url := range videoURLs {
+			references = append(references, asyncOpenAIVideoVideoReference(url))
+		}
+		for _, url := range audioURLs {
+			references = append(references, asyncOpenAIVideoAudioReference(url))
+		}
+	}
+	return dedupeAsyncOpenAIVideoReferences(references)
+}
+
+func asyncOpenAIVideoReferencesParam(raw interface{}) []interface{} {
+	switch typed := raw.(type) {
+	case nil:
+		return nil
+	case []interface{}:
+		references := make([]interface{}, 0, len(typed))
+		for _, item := range typed {
+			references = append(references, asyncOpenAIVideoReferenceFromRaw(item)...)
+		}
+		return references
+	case []string:
+		references := make([]interface{}, 0, len(typed))
+		for _, item := range typed {
+			if item = strings.TrimSpace(item); item != "" {
+				references = append(references, asyncOpenAIVideoReferenceFromURL(item))
+			}
+		}
+		return references
+	case []map[string]interface{}:
+		references := make([]interface{}, 0, len(typed))
+		for _, item := range typed {
+			references = append(references, item)
+		}
+		return references
+	default:
+		return asyncOpenAIVideoReferenceFromRaw(typed)
+	}
+}
+
+func asyncOpenAIVideoReferenceFromRaw(raw interface{}) []interface{} {
+	switch typed := raw.(type) {
+	case nil:
+		return nil
+	case map[string]interface{}:
+		return []interface{}{typed}
+	case string:
+		if value := strings.TrimSpace(typed); value != "" {
+			return []interface{}{asyncOpenAIVideoReferenceFromURL(value)}
+		}
+	default:
+		if value := strings.TrimSpace(fmt.Sprint(typed)); value != "" {
+			return []interface{}{asyncOpenAIVideoReferenceFromURL(value)}
+		}
+	}
+	return nil
+}
+
+func asyncOpenAIVideoStringInputs(parameters map[string]interface{}, keys []string) []string {
+	urls := make([]string, 0)
+	for _, key := range keys {
+		urls = append(urls, asyncStringSliceParam(parameters[key])...)
+	}
+	return dedupeAsyncStrings(urls)
+}
+
+func asyncOpenAIVideoReferenceFromURL(value string) map[string]interface{} {
+	if asyncLooksLikeAudioReference(value) {
+		return asyncOpenAIVideoAudioReference(value)
+	}
+	if asyncLooksLikeVideoReference(value) {
+		return asyncOpenAIVideoVideoReference(value)
+	}
+	return asyncOpenAIVideoImageReference(value)
+}
+
+func asyncOpenAIVideoImageReference(value string) map[string]interface{} {
+	return map[string]interface{}{"type": "image_url", "image_url": strings.TrimSpace(value)}
+}
+
+func asyncOpenAIVideoVideoReference(value string) map[string]interface{} {
+	return map[string]interface{}{"type": "video_url", "url": strings.TrimSpace(value)}
+}
+
+func asyncOpenAIVideoAudioReference(value string) map[string]interface{} {
+	return map[string]interface{}{"type": "audio_url", "audio_url": map[string]interface{}{"url": strings.TrimSpace(value)}}
+}
+
+func dedupeAsyncOpenAIVideoReferences(references []interface{}) []interface{} {
+	result := make([]interface{}, 0, len(references))
+	seen := map[string]bool{}
+	for _, reference := range references {
+		keyBytes, err := common.Marshal(reference)
+		if err != nil {
+			continue
+		}
+		key := string(keyBytes)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, reference)
+	}
+	return result
 }
 
 func asyncVideoSpecResolution(parameters map[string]interface{}) string {
@@ -2104,6 +2409,7 @@ func isSeedance15ProModel(modelName string) bool {
 	normalized = strings.ReplaceAll(normalized, " ", "")
 	return strings.Contains(normalized, "seedance-1.5") ||
 		strings.Contains(normalized, "seedance1.5") ||
+		strings.Contains(normalized, "seedance-1-5") ||
 		strings.Contains(normalized, "seedance-15") ||
 		strings.Contains(normalized, "seedance15")
 }
@@ -2114,7 +2420,15 @@ func asyncVideoHasImageInput(parameters map[string]interface{}) bool {
 			return true
 		}
 	}
+	for _, key := range []string{"images", "image_urls", "input_urls", "image_input"} {
+		if len(asyncStringSliceParam(parameters[key])) > 0 {
+			return true
+		}
+	}
 	if reference := asyncParamString(parameters, "input_reference"); reference != "" && !asyncLooksLikeVideoReference(reference) {
+		return true
+	}
+	if asyncOpenAIVideoReferencesContainType(parameters["input_references"], "image_url") {
 		return true
 	}
 	_, imageURLs, _, _ := asyncKieSeedanceContentParts(parameters["content"])
@@ -2127,7 +2441,13 @@ func asyncVideoHasVideoInput(parameters map[string]interface{}) bool {
 			return true
 		}
 	}
+	if len(asyncStringSliceParam(parameters["video_urls"])) > 0 {
+		return true
+	}
 	if reference := asyncParamString(parameters, "input_reference"); reference != "" && asyncLooksLikeVideoReference(reference) {
+		return true
+	}
+	if asyncOpenAIVideoReferencesContainType(parameters["input_references"], "video_url") {
 		return true
 	}
 	_, _, videoURLs, _ := asyncKieSeedanceContentParts(parameters["content"])
@@ -2141,6 +2461,57 @@ func asyncLooksLikeVideoReference(value string) bool {
 		strings.Contains(value, ".mov") ||
 		strings.Contains(value, ".webm") ||
 		strings.Contains(value, ".m4v")
+}
+
+func asyncLooksLikeAudioReference(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(value, "audio") ||
+		strings.Contains(value, ".mp3") ||
+		strings.Contains(value, ".wav") ||
+		strings.Contains(value, ".m4a") ||
+		strings.Contains(value, ".aac") ||
+		strings.Contains(value, ".flac")
+}
+
+func asyncOpenAIVideoReferencesContainType(raw interface{}, targetType string) bool {
+	targetType = strings.ToLower(strings.TrimSpace(targetType))
+	for _, reference := range asyncOpenAIVideoReferencesParam(raw) {
+		if asyncOpenAIVideoReferenceType(reference) == targetType {
+			return true
+		}
+	}
+	return false
+}
+
+func asyncOpenAIVideoReferenceType(raw interface{}) string {
+	switch typed := raw.(type) {
+	case map[string]interface{}:
+		if rawType, ok := typed["type"]; ok && rawType != nil {
+			if value := strings.ToLower(strings.TrimSpace(fmt.Sprint(rawType))); value != "" {
+				return value
+			}
+		}
+		if url := asyncKieNestedURL(typed["audio_url"]); url != "" || asyncLooksLikeAudioReference(asyncKieNestedURL(typed["url"])) {
+			return "audio_url"
+		}
+		if url := asyncKieNestedURL(typed["video_url"]); url != "" || asyncLooksLikeVideoReference(asyncKieNestedURL(typed["url"])) {
+			return "video_url"
+		}
+		if url := asyncKieNestedURL(typed["image_url"]); url != "" {
+			return "image_url"
+		}
+	case string:
+		if asyncLooksLikeAudioReference(typed) {
+			return "audio_url"
+		}
+		if asyncLooksLikeVideoReference(typed) {
+			return "video_url"
+		}
+		if strings.TrimSpace(typed) != "" {
+			return "image_url"
+		}
+	}
+	return ""
 }
 
 func asyncOpenAIVideoTaskSucceeded(status string) bool {
@@ -2325,7 +2696,7 @@ func asyncKieImagePayload(request asyncTaskRequest) map[string]interface{} {
 		if len(imageURLs) > 0 {
 			input["image_input"] = imageURLs
 		}
-		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+		if resolution := asyncKieImageResolution(request.Parameters); resolution != "" {
 			input["resolution"] = resolution
 		}
 	case asyncTaskKieNanoBanana2Model:
@@ -2333,18 +2704,18 @@ func asyncKieImagePayload(request asyncTaskRequest) map[string]interface{} {
 		if len(imageURLs) > 0 {
 			input["image_input"] = imageURLs
 		}
-		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+		if resolution := asyncKieImageResolution(request.Parameters); resolution != "" {
 			input["resolution"] = resolution
 		}
 	case asyncTaskKieGPTImage2TextModel:
-		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+		if resolution := asyncKieImageResolution(request.Parameters); resolution != "" {
 			input["resolution"] = resolution
 		}
 	case asyncTaskKieGPTImage2EditModel:
 		if len(imageURLs) > 0 {
 			input["input_urls"] = imageURLs
 		}
-		if resolution := asyncParamString(request.Parameters, "resolution"); resolution != "" {
+		if resolution := asyncKieImageResolution(request.Parameters); resolution != "" {
 			input["resolution"] = resolution
 		}
 	}
@@ -2352,6 +2723,20 @@ func asyncKieImagePayload(request asyncTaskRequest) map[string]interface{} {
 	return map[string]interface{}{
 		"model": modelName,
 		"input": input,
+	}
+}
+
+func asyncKieImageResolution(parameters map[string]interface{}) string {
+	resolution := strings.TrimSpace(asyncParamString(parameters, "resolution"))
+	switch strings.ToLower(resolution) {
+	case "1k":
+		return "1K"
+	case "2k":
+		return "2K"
+	case "4k":
+		return "4K"
+	default:
+		return resolution
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,6 +82,33 @@ func insertTask(t *testing.T, task *Task) {
 	task.CreatedAt = time.Now().Unix()
 	task.UpdatedAt = time.Now().Unix()
 	require.NoError(t, DB.Create(task).Error)
+}
+
+func TestLegacyTaskPollingQueriesExcludeOpenAIAsyncTasks(t *testing.T) {
+	truncateTables(t)
+	now := time.Now().Unix()
+	insertTask(t, &Task{
+		TaskID:     "legacy-video",
+		Platform:   constant.TaskPlatform("legacy-video"),
+		Status:     TaskStatusInProgress,
+		Progress:   "50%",
+		SubmitTime: now - 600,
+	})
+	insertTask(t, &Task{
+		TaskID:     "openai-async-image",
+		Platform:   constant.TaskPlatformOpenAIAsync,
+		Status:     TaskStatusInProgress,
+		Progress:   "50%",
+		SubmitTime: now - 600,
+	})
+
+	unfinished := GetAllUnFinishSyncTasks(10)
+	require.Len(t, unfinished, 1)
+	require.Equal(t, "legacy-video", unfinished[0].TaskID)
+
+	timedOut := GetTimedOutUnfinishedTasks(now-300, 10)
+	require.Len(t, timedOut, 1)
+	require.Equal(t, "legacy-video", timedOut[0].TaskID)
 }
 
 // ---------------------------------------------------------------------------
