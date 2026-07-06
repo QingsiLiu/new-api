@@ -181,7 +181,7 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
     <>
       <div
         className={cn(
-          'border-border pointer-events-none absolute inset-0 border',
+          'pointer-events-none absolute inset-0',
           props.compact
             ? 'bg-background/35 opacity-80'
             : 'bg-card/35 opacity-100'
@@ -221,8 +221,8 @@ function StartStepItem(props: {
       )}
       <span
         className={cn(
-          'border-border bg-muted relative z-10 flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)] border',
-          props.step.completed && 'border-success/30 bg-success/10'
+          'bg-muted relative z-10 flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)]',
+          props.step.completed && 'bg-success/10'
         )}
       >
         <StatusIcon
@@ -638,7 +638,7 @@ export function OverviewDashboard() {
                     </div>
                   </div>
 
-                  <ol className='border-border rounded-[var(--radius-card)] border bg-transparent p-2'>
+                  <ol className='rounded-[var(--radius-card)] bg-transparent p-2'>
                     {startSteps.map((step, index) => (
                       <StartStepItem
                         key={step.title}
