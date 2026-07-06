@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -472,7 +473,7 @@ func SSORedirect(c *gin.Context) {
 	}
 	redisKey := "sso_code:" + code
 	payload := fmt.Sprintf("%d:%s", user.Id, user.GetAccessToken())
-	if err := common.RedisSet(redisKey, payload, 60); err != nil {
+	if err := common.RedisSet(redisKey, payload, 60*time.Second); err != nil {
 		common.ApiError(c, err)
 		return
 	}

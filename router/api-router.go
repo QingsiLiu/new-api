@@ -79,8 +79,8 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.GET("/groups", controller.GetUserGroups)
 			// SSO: seamless cross-domain login to Studio (OptionalAuth)
 			userRoute.GET("/sso", middleware.TryUserAuth(), controller.SSORedirect)
-			// SSO exchange: service-to-service (TokenAuth)
-			userRoute.POST("/sso/exchange", middleware.TokenAuth(), controller.SSOExchange)
+			// SSO exchange: service-to-service admin auth for trusted Studio backend.
+			userRoute.POST("/sso/exchange", middleware.AdminAuth(), controller.SSOExchange)
 
 			selfRoute := userRoute.Group("/")
 			selfRoute.Use(middleware.UserAuth())
