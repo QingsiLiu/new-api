@@ -64,7 +64,7 @@ function isDisabledApiKeyRow(apiKey: ApiKey) {
 
 function ApiKeysMobileSkeleton() {
   return (
-    <div className='divide-border border-border overflow-hidden rounded-[var(--radius-surface)] border'>
+    <div className='divide-border overflow-hidden rounded-[var(--radius-card)]'>
       {Array.from({ length: 5 }).map((_, index) => (
         <div
           key={index}
@@ -99,7 +99,7 @@ function ApiKeysMobileList({
 
   if (!rows.length) {
     return (
-      <div className='border-border rounded-[var(--radius-surface)] border p-8'>
+      <div className='rounded-[var(--radius-card)] p-8'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -118,7 +118,7 @@ function ApiKeysMobileList({
   }
 
   return (
-    <div className='divide-border border-border overflow-hidden rounded-[var(--radius-surface)] border'>
+    <div className='divide-border overflow-hidden rounded-[var(--radius-card)]'>
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]

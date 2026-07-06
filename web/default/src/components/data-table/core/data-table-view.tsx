@@ -59,7 +59,7 @@ export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   return (
     <div
       className={cn(
-        'bg-card overflow-hidden rounded-[var(--radius-surface)] shadow-none',
+        'bg-card overflow-hidden rounded-[var(--radius-card)] shadow-none',
         props.containerClassName
       )}
       {...props.containerProps}
@@ -136,7 +136,7 @@ function SplitHeaderTableView<TData>({
       <div
         data-slot='table-container'
         className={cn(
-          'border-border min-h-0 flex-1 overflow-auto rounded-[var(--radius-surface)] border',
+          'min-h-0 flex-1 overflow-auto rounded-[var(--radius-card)]',
           '**:data-[slot=table-header]:[--table-header-bg:var(--card)]',
           '**:data-[slot=table-header]:bg-(--table-header-bg)',
           props.splitHeaderScrollClassName,

@@ -107,7 +107,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
     return (
       <Drawer open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <div
-          className={cn('bg-card/50 rounded-lg border p-2.5', props.className)}
+          className={cn('bg-card/50 rounded-[var(--radius-card)] p-2.5', props.className)}
         >
           <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
 
