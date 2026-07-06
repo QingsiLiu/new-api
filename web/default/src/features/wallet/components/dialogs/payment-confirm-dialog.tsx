@@ -66,7 +66,7 @@ export function PaymentConfirmDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
         <AlertDialogHeader>
-          <AlertDialogTitle className='text-xl font-semibold'>
+          <AlertDialogTitle className='text-lg font-semibold'>
             {t('Confirm Payment')}
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -79,7 +79,7 @@ export function PaymentConfirmDialog({
             <span className='text-muted-foreground text-sm'>
               {t('Topup Amount')}
             </span>
-            <span className='text-lg font-semibold'>
+            <span className='text-base font-semibold'>
               {formatLocalCurrencyAmount(topupAmount, {
                 digitsLarge: 2,
                 digitsSmall: 2,
@@ -96,7 +96,7 @@ export function PaymentConfirmDialog({
               <Skeleton className='h-6 w-24' />
             ) : (
               <div className='flex items-baseline gap-2'>
-                <span className='text-2xl font-semibold'>
+                <span className='text-xl font-semibold'>
                   {formatCurrency(paymentAmount)}
                 </span>
                 {hasDiscount && (

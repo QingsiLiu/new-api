@@ -286,7 +286,7 @@ export function RechargeFormCard({
                     placeholder={`Minimum ${minTopup}`}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
-                  <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
+                  <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md px-3 lg:min-w-52'>
                     <span className='text-muted-foreground truncate text-xs'>
                       {t('Amount to pay:')}
                     </span>

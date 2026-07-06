@@ -267,7 +267,7 @@ export function SubscriptionPlansCard({
         contentClassName='space-y-4 sm:space-y-5'
       >
         {/* My subscriptions & billing preference */}
-        <div className='rounded-xl border p-3 sm:p-4'>
+        <div className='rounded-[var(--radius-card)] p-3 sm:p-4'>
           <div className='flex flex-wrap items-center justify-between gap-2.5 sm:gap-3'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className='text-sm font-medium'>
@@ -414,7 +414,7 @@ export function SubscriptionPlansCard({
                   return (
                     <div
                       key={subscription?.id}
-                      className='bg-background rounded-md border p-3 text-xs'
+                      className='bg-background rounded-md p-3 text-xs'
                     >
                       <div className='flex items-center justify-between'>
                         <div className='flex items-center gap-2'>
@@ -576,7 +576,7 @@ export function SubscriptionPlansCard({
                     </div>
 
                     <div className='py-2'>
-                      <span className='text-primary text-2xl font-bold'>
+                      <span className='text-primary text-xl font-bold'>
                         {price}
                       </span>
                     </div>

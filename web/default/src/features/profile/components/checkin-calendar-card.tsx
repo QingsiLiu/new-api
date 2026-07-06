@@ -335,7 +335,7 @@ export function CheckinCalendarCard({
             {/* Stats */}
             <div className='grid grid-cols-3 gap-px border-b'>
               <div className='bg-card p-3 text-center sm:p-5'>
-                <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
+                <div className='text-xl font-semibold tracking-tight tabular-nums'>
                   {checkinData?.stats?.total_checkins || 0}
                 </div>
                 <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
@@ -343,7 +343,7 @@ export function CheckinCalendarCard({
                 </div>
               </div>
               <div className='bg-card p-3 text-center sm:p-5'>
-                <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
+                <div className='text-xl font-semibold tracking-tight tabular-nums'>
                   {formatQuotaWithCurrency(monthlyQuota, { digitsLarge: 0 })}
                 </div>
                 <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
@@ -351,7 +351,7 @@ export function CheckinCalendarCard({
                 </div>
               </div>
               <div className='bg-card p-3 text-center sm:p-5'>
-                <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
+                <div className='text-xl font-semibold tracking-tight tabular-nums'>
                   {formatQuotaWithCurrency(
                     checkinData?.stats?.total_quota || 0,
                     {

@@ -101,7 +101,7 @@ export function ProfileSecurityCard({
               key={item.title}
               type='button'
               onClick={item.action}
-              className={`flex items-center gap-3 rounded-lg border p-3 text-left md:flex-col md:gap-2 md:p-4 md:text-center ${
+              className={`flex items-center gap-3 rounded-[var(--radius-surface)] p-3 text-left md:flex-col md:gap-2 md:p-4 md:text-center ${
                 item.variant === 'destructive' ? 'border-destructive/30' : ''
               }`}
             >

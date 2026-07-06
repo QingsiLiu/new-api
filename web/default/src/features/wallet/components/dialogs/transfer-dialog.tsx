@@ -65,7 +65,7 @@ export function TransferDialog({
       title={t('Transfer Rewards')}
       description={t('Move affiliate rewards to your main balance')}
       contentClassName='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'
-      titleClassName='text-xl font-semibold'
+      titleClassName='text-lg font-semibold'
       footerClassName='grid grid-cols-2 gap-2 sm:flex'
       contentHeight='auto'
       bodyClassName='space-y-4'
@@ -90,7 +90,7 @@ export function TransferDialog({
           <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
             {t('Available Rewards')}
           </Label>
-          <div className='text-2xl font-semibold'>
+          <div className='text-xl font-semibold'>
             {formatCNYAmount(availableCNY)}
           </div>
         </div>
