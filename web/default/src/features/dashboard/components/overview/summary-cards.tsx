@@ -254,7 +254,7 @@ export function SummaryCards() {
             {items.map((it) => (
               <StaggerItem
                 key={it.key}
-                className='border-border bg-card rounded-[var(--radius-card)] border p-3'
+                className='bg-card rounded-[var(--radius-card)] p-3'
               >
                 <StatCard
                   title={it.title}
