@@ -605,8 +605,8 @@ export function OverviewDashboard() {
           <CardStaggerItem className='editorial-panel h-full overflow-hidden rounded-[var(--radius-card)]'>
             <div className='relative h-full overflow-hidden p-4 sm:p-5'>
               <SetupGuideBackdrop />
-              <div className='relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]'>
-                <div className='flex min-w-0 flex-col gap-5'>
+              <div className='relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]'>
+                <div className='flex min-w-0 flex-col gap-4'>
                   <div className='flex flex-wrap items-start justify-between gap-3'>
                     <div className='flex max-w-2xl flex-col gap-1'>
                       <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wider uppercase'>
