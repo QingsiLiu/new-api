@@ -215,8 +215,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
       <Command
         className={cn(
           isMobile
-            ? 'h-full flex-1 rounded-lg border-0 bg-transparent'
-            : 'rounded-lg'
+            ? 'h-full flex-1 rounded-[var(--radius-surface)] border-0 bg-transparent'
+            : 'rounded-[var(--radius-surface)]'
         )}
         filter={() => 1}
         shouldFilter={false}
@@ -258,7 +258,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
                       value={model.value}
                       onSelect={handleModelChange}
                       className={cn(
-                        'mb-0.5 flex items-center justify-between rounded-lg px-2 py-1.5 text-xs',
+                        'mb-0.5 flex items-center justify-between rounded-[var(--radius-pill)] px-2 py-1.5 text-xs',
                         'transition-all duration-200',
                         'hover:bg-accent',
                         'data-[selected=true]:bg-accent'
@@ -328,7 +328,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
               }
             />
             <PopoverContent
-              className='bg-popover z-40 w-[90vw] max-w-[20em] rounded-lg border p-0 !shadow-none sm:w-[20em]'
+              className='bg-popover z-40 w-[90vw] max-w-[20em] rounded-[var(--radius-surface)] border p-0 shadow-none sm:w-[20em]'
               align='start'
               side='bottom'
               sideOffset={4}
@@ -373,8 +373,8 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
       <Command
         className={cn(
           isMobile
-            ? 'h-full flex-1 rounded-lg border-0 bg-transparent'
-            : 'rounded-lg'
+            ? 'h-full flex-1 rounded-[var(--radius-surface)] border-0 bg-transparent'
+            : 'rounded-[var(--radius-surface)]'
         )}
         filter={(value, search) => {
           const group = groups.find((g) => g.value === value)
@@ -407,7 +407,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                 value={group.value}
                 onSelect={handleGroupChange}
                 className={cn(
-                  'mb-0.5 flex items-center justify-between rounded-lg px-2 py-2 text-xs',
+                  'mb-0.5 flex items-center justify-between rounded-[var(--radius-pill)] px-2 py-2 text-xs',
                   'transition-all duration-200',
                   'hover:bg-accent',
                   'data-[selected=true]:bg-accent'
@@ -468,7 +468,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                       variant='outline'
                       onClick={() => handleGroupChange(group.value)}
                       className={cn(
-                        'flex h-auto w-full items-center justify-between rounded-lg p-4 text-left whitespace-normal',
+                        'flex h-auto w-full items-center justify-between rounded-[var(--radius-pill)] p-4 text-left whitespace-normal',
                         'border-border hover:bg-accent',
                         selectedGroup === group.value
                           ? 'bg-accent border-primary/20'
@@ -522,7 +522,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
               }
             />
             <PopoverContent
-              className='bg-popover z-50 w-[90vw] max-w-[14em] rounded-lg border p-0 !shadow-none sm:w-[14em]'
+              className='bg-popover z-50 w-[90vw] max-w-[14em] rounded-[var(--radius-surface)] border p-0 shadow-none sm:w-[14em]'
               align='start'
               side='bottom'
               sideOffset={4}

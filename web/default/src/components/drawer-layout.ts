@@ -80,7 +80,7 @@ export function SideDrawerSectionHeader(props: {
           'span',
           {
             className:
-              'bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md',
+              'bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)]',
           },
           props.icon
         )

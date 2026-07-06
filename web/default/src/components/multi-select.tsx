@@ -247,7 +247,7 @@ export function MultiSelect(props: MultiSelectProps) {
                   </ComboboxChip>
                 ))}
                 {hiddenCount > 0 && (
-                  <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap'>
+                  <span className='bg-muted text-muted-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center rounded-[var(--radius-pill)] px-2 text-xs font-medium whitespace-nowrap'>
                     {t('+{{count}} more', { count: hiddenCount })}
                   </span>
                 )}

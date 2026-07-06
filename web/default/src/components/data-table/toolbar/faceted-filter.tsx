@@ -94,7 +94,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
             <Separator orientation='vertical' className='mx-2 h-4' />
             <Badge
               variant='secondary'
-              className='rounded-sm px-1 font-normal lg:hidden'
+              className='rounded-[var(--radius-pill)] px-2 font-normal lg:hidden'
             >
               {selectedValues.size}
             </Badge>
@@ -102,7 +102,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
               {selectedValues.size > 2 ? (
                 <Badge
                   variant='secondary'
-                  className='rounded-sm px-1 font-normal'
+                  className='rounded-[var(--radius-pill)] px-2 font-normal'
                 >
                   {selectedValues.size} {t('selected')}
                 </Badge>
@@ -113,7 +113,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
                     <Badge
                       variant='secondary'
                       key={option.value}
-                      className='rounded-sm px-1 font-normal'
+                      className='rounded-[var(--radius-pill)] px-2 font-normal'
                     >
                       {t(option.label)}
                     </Badge>
@@ -138,7 +138,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
                   >
                     <div
                       className={cn(
-                        'flex size-4 items-center justify-center rounded-[calc(var(--radius)*0.45)] bg-muted transition-colors',
+                        'flex size-4 items-center justify-center rounded-[var(--radius-control)] bg-muted transition-colors',
                         isSelected
                           ? 'bg-primary text-primary-foreground'
                           : 'opacity-50 [&_svg]:invisible'

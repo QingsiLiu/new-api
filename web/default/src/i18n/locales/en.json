@@ -3070,6 +3070,8 @@
     "preset.anthropic": "Anthropic",
     "preset.default": "Default",
     "preset.geili-editorial": "Geili Editorial",
+    "preset.geili-minimal": "Geili Minimal",
+    "preset.geili-modern": "Geili Modern",
     "preset.forest-whisper": "Forest Whisper",
     "preset.lake-view": "Lake View",
     "preset.lavender-dream": "Lavender Dream",

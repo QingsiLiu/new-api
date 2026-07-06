@@ -73,7 +73,7 @@ export function TagInput({
   return (
     <div
       className={cn(
-        'border-input focus-within:border-ring focus-within:ring-ring/50 flex min-h-9 w-full flex-wrap items-center gap-2 rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-within:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+        'border-input focus-within:border-ring focus-within:ring-ring/50 flex min-h-9 w-full flex-wrap items-center gap-2 rounded-[var(--radius-surface)] border bg-transparent px-3 py-2 text-base shadow-none transition-[color,box-shadow] outline-none focus-within:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
         className
       )}
       onClick={() => inputRef.current?.focus()}
@@ -91,7 +91,7 @@ export function TagInput({
                 e.stopPropagation()
                 removeTag(tag)
               }}
-              className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0'
+              className='hover:bg-secondary-foreground/20 size-auto rounded-full p-0'
             >
               <X className='h-3 w-3' aria-hidden='true' />
             </Button>

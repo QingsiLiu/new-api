@@ -214,7 +214,7 @@ export function JsonCodeEditor({
   return (
     <div
       className={cn(
-        'border-input bg-background focus-within:border-ring focus-within:ring-ring/50 overflow-hidden rounded-lg border transition-colors focus-within:ring-3',
+        'border-input bg-background focus-within:border-ring focus-within:ring-ring/50 overflow-hidden rounded-[var(--radius-surface)] border shadow-none transition-colors focus-within:ring-3',
         className
       )}
       {...rootProps}

@@ -35,6 +35,24 @@ describe('geili-minimal geometry contract', () => {
       source.includes('group-data-checked:shadow-[var(--shadow-card)]'),
       false
     )
+    assert.ok(
+      source.includes("customization.preset !== 'geili-minimal'"),
+      'geili-minimal should hide the user radius axis'
+    )
+  })
+
+  test('theme preset labels are translated instead of leaking internal keys', () => {
+    const locales = ['zh', 'en', 'fr', 'ja', 'ru', 'vi']
+
+    for (const locale of locales) {
+      const source = readSource(`src/i18n/locales/${locale}.json`)
+      const messages = JSON.parse(source).translation as Record<string, string>
+
+      assert.ok(messages['preset.geili-minimal'])
+      assert.ok(messages['preset.geili-modern'])
+      assert.notEqual(messages['preset.geili-minimal'], 'preset.geili-minimal')
+      assert.notEqual(messages['preset.geili-modern'], 'preset.geili-modern')
+    }
   })
 
   test('usage-log badges and stat chips use semantic pill geometry', () => {
@@ -64,5 +82,31 @@ describe('geili-minimal geometry contract', () => {
     assert.equal(button.props.className.includes('rounded-full'), true)
     assert.equal(input.props.className.includes('rounded-lg'), false)
     assert.equal(input.props.className.includes('rounded-full'), true)
+  })
+
+  test('shared selectors and drawer helpers use semantic geometry', () => {
+    const forbiddenByFile: Record<string, string[]> = {
+      'src/components/data-table/toolbar/faceted-filter.tsx': [
+        'rounded-sm px-1',
+        'rounded-[calc(var(--radius)*0.45)]',
+      ],
+      'src/components/model-group-selector.tsx': [
+        'rounded-lg',
+        '!shadow-none',
+      ],
+      'src/components/drawer-layout.ts': ['rounded-md'],
+      'src/components/layout/constants.ts': ['rounded-lg', '--shadow-card'],
+      'src/components/tag-input.tsx': ['rounded-md', 'shadow-xs'],
+      'src/components/json-code-editor.tsx': ['rounded-lg'],
+      'src/components/theme-quick-switcher.tsx': ['rounded-lg', 'rounded-md'],
+    }
+
+    for (const [file, forbiddenTokens] of Object.entries(forbiddenByFile)) {
+      const source = readSource(file)
+
+      for (const token of forbiddenTokens) {
+        assert.equal(source.includes(token), false, `${file} still has ${token}`)
+      }
+    }
   })
 })
