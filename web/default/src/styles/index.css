@@ -327,7 +327,7 @@ For commercial licensing, please contact support@quantumnous.com
 @utility editorial-panel {
   background-color: var(--card);
   color: var(--card-foreground);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
 }
 
