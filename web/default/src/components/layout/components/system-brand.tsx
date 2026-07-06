@@ -64,11 +64,11 @@ export function SystemBrand(props: SystemBrandProps) {
           'hover:bg-accent focus-visible:ring-ring/35 focus-visible:ring-2'
         )}
       >
-        <div className='bg-muted/60 flex size-6 items-center justify-center overflow-hidden rounded-md'>
+        <div className='flex size-6 items-center justify-center overflow-hidden'>
           <img
             src={logo}
             alt={t('Logo')}
-            className='size-full rounded-md object-cover'
+            className='size-full object-contain'
           />
         </div>
         <span className='max-w-[12rem] truncate'>{name}</span>

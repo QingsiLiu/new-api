@@ -61,7 +61,7 @@ function DataTableRowInner<TData>({
         <TableCell
           key={cell.id}
           className={cn(
-            'max-w-full min-w-0 overflow-visible',
+            'max-w-full min-w-0 overflow-hidden',
             getColumnClassName?.(cell.column.id, 'cell')
           )}
         >

@@ -112,7 +112,6 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             label={t(statusConfig.label)}
             variant={statusConfig.variant}
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },
@@ -140,7 +139,6 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
               label={t('Unlimited')}
               variant='neutral'
               copyable={false}
-              className='-ml-1.5'
             />
           )
         }
@@ -220,7 +218,6 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         }
         return (
           <TruncatedCell
-            className='-ml-1.5'
             tooltipContent={group || '-'}
             tooltipClassName='break-all'
           >
@@ -288,7 +285,6 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
               label={t('Never')}
               variant='neutral'
               copyable={false}
-              className='-ml-1.5'
             />
           )
         }
@@ -312,7 +308,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       header: () => t('Actions'),
       cell: ({ row }) => <DataTableRowActions row={row} />,
       meta: { pinned: 'right' as const },
-      size: 88,
+      size: 112,
     },
   ]
 }

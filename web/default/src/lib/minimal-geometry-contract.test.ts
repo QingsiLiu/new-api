@@ -90,10 +90,7 @@ describe('geili-minimal geometry contract', () => {
         'rounded-sm px-1',
         'rounded-[calc(var(--radius)*0.45)]',
       ],
-      'src/components/model-group-selector.tsx': [
-        'rounded-lg',
-        '!shadow-none',
-      ],
+      'src/components/model-group-selector.tsx': ['rounded-lg', '!shadow-none'],
       'src/components/drawer-layout.ts': ['rounded-md'],
       'src/components/layout/constants.ts': ['rounded-lg', '--shadow-card'],
       'src/components/tag-input.tsx': ['rounded-md', 'shadow-xs'],
@@ -105,7 +102,11 @@ describe('geili-minimal geometry contract', () => {
       const source = readSource(file)
 
       for (const token of forbiddenTokens) {
-        assert.equal(source.includes(token), false, `${file} still has ${token}`)
+        assert.equal(
+          source.includes(token),
+          false,
+          `${file} still has ${token}`
+        )
       }
     }
   })
@@ -120,7 +121,9 @@ describe('geili-minimal geometry contract', () => {
   })
 
   test('table badge containers do not use negative offsets that clip pills', () => {
-    const badgeCell = readSource('src/components/data-table/core/badge-cell.tsx')
+    const badgeCell = readSource(
+      'src/components/data-table/core/badge-cell.tsx'
+    )
     const badgeListCell = readSource(
       'src/components/data-table/core/badge-list-cell.tsx'
     )
@@ -130,11 +133,34 @@ describe('geili-minimal geometry contract', () => {
     const channelActions = readSource(
       'src/features/channels/components/data-table-row-actions.tsx'
     )
+    const apiKeysColumns = readSource(
+      'src/features/keys/components/api-keys-columns.tsx'
+    )
+    const apiKeyActions = readSource(
+      'src/features/keys/components/data-table-row-actions.tsx'
+    )
 
     assert.equal(badgeCell.includes('-ml-1.5'), false)
     assert.equal(badgeListCell.includes('-ml-1.5'), false)
     assert.equal(channelsColumns.includes('-ml-1.5'), false)
     assert.equal(channelActions.includes('-ml-1.5'), false)
+    assert.equal(apiKeysColumns.includes('-ml-1.5'), false)
+    assert.equal(apiKeyActions.includes('-ml-1.5'), false)
+  })
+
+  test('table cells clip overflowing content instead of bleeding across columns', () => {
+    const source = readSource(
+      'src/components/data-table/core/data-table-row.tsx'
+    )
+
+    assert.ok(
+      source.includes("'max-w-full min-w-0 overflow-hidden'"),
+      'generic table cells must not let long labels or badges overlap neighboring columns'
+    )
+    assert.equal(
+      source.includes("'max-w-full min-w-0 overflow-visible'"),
+      false
+    )
   })
 
   test('channel actions column has enough width for three pill icon buttons', () => {
@@ -154,7 +180,9 @@ describe('geili-minimal geometry contract', () => {
   })
 
   test('pinned table headers use an opaque surface background', () => {
-    const source = readSource('src/components/data-table/core/column-pinning.ts')
+    const source = readSource(
+      'src/components/data-table/core/column-pinning.ts'
+    )
 
     assert.ok(
       source.includes("kind === 'header'\n      ? 'z-30 !bg-card"),
@@ -164,9 +192,7 @@ describe('geili-minimal geometry contract', () => {
   })
 
   test('theme density axis applies compact default instead of dropping it', () => {
-    const source = readSource(
-      'src/context/theme-customization-provider.tsx'
-    )
+    const source = readSource('src/context/theme-customization-provider.tsx')
 
     assert.ok(
       source.includes("scale === 'default' ? null : scale"),

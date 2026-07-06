@@ -190,7 +190,7 @@ export function DataTableRowActions<TData>({
   }
 
   return (
-    <div className='-ml-1.5 flex items-center gap-1'>
+    <div className='flex min-w-max items-center justify-end gap-1'>
       <Tooltip>
         <TooltipTrigger
           render={
@@ -202,8 +202,8 @@ export function DataTableRowActions<TData>({
               aria-label={isEnabled ? t('Disable') : t('Enable')}
               className={
                 isEnabled
-                  ? 'border-0 text-destructive hover:text-destructive'
-                  : 'border-0 text-success hover:text-success'
+                  ? 'text-destructive hover:text-destructive border-0'
+                  : 'text-success hover:text-success border-0'
               }
             />
           }

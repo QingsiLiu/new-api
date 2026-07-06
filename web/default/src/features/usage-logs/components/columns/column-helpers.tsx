@@ -106,6 +106,7 @@ export function createDurationColumn<T>(config: {
   unit?: 'seconds' | 'milliseconds'
   headerLabel: string
   warningThresholdSec?: number
+  size?: number
 }): ColumnDef<T> {
   const {
     submitTimeKey,
@@ -148,13 +149,14 @@ export function createDurationColumn<T>(config: {
           size='sm'
           copyable={false}
           className={cn(
-            'rounded-[var(--radius-pill)] font-mono',
+            'max-w-full rounded-[var(--radius-pill)] font-mono',
             durationBgMap[variant]
           )}
         />
       )
     },
     meta: { label: headerLabel },
+    size: config.size,
   }
 }
 
@@ -164,6 +166,7 @@ export function createDurationColumn<T>(config: {
 export function createChannelColumn<T>(config: {
   accessorKey?: string
   headerLabel: string
+  size?: number
 }): ColumnDef<T> {
   const { accessorKey = 'channel_id', headerLabel } = config
 
@@ -189,6 +192,7 @@ export function createChannelColumn<T>(config: {
       )
     },
     meta: { label: headerLabel },
+    size: config.size,
   }
 }
 
@@ -245,6 +249,7 @@ export function createFailReasonColumn<T>(config: {
 export function createProgressColumn<T>(config: {
   accessorKey?: string
   headerLabel: string
+  size?: number
 }): ColumnDef<T> {
   const { accessorKey = 'progress', headerLabel } = config
 
@@ -259,11 +264,12 @@ export function createProgressColumn<T>(config: {
         return <span className='text-muted-foreground/60 text-xs'>-</span>
       }
       return (
-        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-[var(--radius-pill)] border px-2 py-0.5 font-mono text-xs'>
+        <span className='border-border/60 bg-muted/30 inline-flex max-w-full items-center rounded-[var(--radius-pill)] border px-2 py-0.5 font-mono text-xs'>
           {progress}
         </span>
       )
     },
     meta: { label: headerLabel },
+    size: config.size,
   }
 }
