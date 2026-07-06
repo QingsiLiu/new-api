@@ -26,14 +26,11 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          'bg-primary/12 text-primary [a]:hover:bg-primary/18',
-        secondary:
-          'bg-muted text-foreground [a]:hover:bg-muted/80',
+        default: 'bg-primary/12 text-primary [a]:hover:bg-primary/18',
+        secondary: 'bg-muted text-foreground [a]:hover:bg-muted/80',
         destructive:
           'bg-destructive/12 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/18 dark:focus-visible:ring-destructive/35 [a]:hover:bg-destructive/18',
-        outline:
-          'bg-muted/60 text-foreground [a]:hover:bg-muted',
+        outline: 'bg-muted/60 text-foreground [a]:hover:bg-muted',
         ghost: 'text-muted-foreground hover:bg-accent hover:text-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
       },
@@ -54,7 +51,7 @@ function Badge({
     defaultTagName: 'span',
     props: mergeProps<'span'>(
       {
-        className: cn(badgeVariants({ variant }), className),
+        className: cn(badgeVariants({ variant }), className, 'rounded-full'),
       },
       props
     ),

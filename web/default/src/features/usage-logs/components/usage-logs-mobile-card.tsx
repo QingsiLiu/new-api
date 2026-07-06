@@ -39,10 +39,8 @@ import { getLogTypeConfig } from '../lib/utils'
 import type { LogCategory } from '../types'
 
 const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]:
-    'border-destructive/20 bg-destructive/5',
-  [LOG_TYPE_ENUM.REFUND]:
-    'border-info/20 bg-info/5',
+  [LOG_TYPE_ENUM.ERROR]: 'border-destructive/20 bg-destructive/5',
+  [LOG_TYPE_ENUM.REFUND]: 'border-info/20 bg-info/5',
 }
 
 interface UsageLogsMobileListProps<TData> {
@@ -55,15 +53,15 @@ interface UsageLogsMobileListProps<TData> {
 
 function UsageLogsMobileSkeleton() {
   return (
-    <div className='border-border/50 bg-card overflow-hidden rounded-lg border'>
+    <div className='border-border/50 bg-card overflow-hidden rounded-[var(--radius-surface)] border'>
       {[1, 2, 3].map((i) => (
         <div
           key={i}
           className='border-border/40 space-y-2.5 border-b p-3 last:border-b-0'
         >
           <div className='flex items-center justify-between gap-3'>
-            <Skeleton className='h-5 w-40 rounded-md' />
-            <Skeleton className='h-5 w-16 rounded-md' />
+            <Skeleton className='h-5 w-40 rounded-[var(--radius-pill)]' />
+            <Skeleton className='h-5 w-16 rounded-[var(--radius-pill)]' />
           </div>
           <div className='grid grid-cols-2 gap-x-4 gap-y-2'>
             {[1, 2, 3, 4, 5, 6].map((j) => (
@@ -125,7 +123,10 @@ function SummaryField<TData>({
 
   return (
     <div
-      className={cn('bg-muted/20 min-w-0 rounded-md px-2 py-1.5', className)}
+      className={cn(
+        'bg-muted/20 min-w-0 rounded-[var(--radius-surface)] px-2 py-1.5',
+        className
+      )}
     >
       <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
         {label}
@@ -197,7 +198,7 @@ function CommonLogsCard<TData>({
       </div>
 
       <div className='grid grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-1.5'>
-        <div className='bg-muted/20 min-w-0 rounded-md px-2 py-1.5'>
+        <div className='bg-muted/20 min-w-0 rounded-[var(--radius-surface)] px-2 py-1.5'>
           <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
             {t('Time')}
           </div>

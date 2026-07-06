@@ -147,7 +147,10 @@ export function createDurationColumn<T>(config: {
           variant={variant}
           size='sm'
           copyable={false}
-          className={cn('rounded-md font-mono', durationBgMap[variant])}
+          className={cn(
+            'rounded-[var(--radius-pill)] font-mono',
+            durationBgMap[variant]
+          )}
         />
       )
     },
@@ -256,7 +259,7 @@ export function createProgressColumn<T>(config: {
         return <span className='text-muted-foreground/60 text-xs'>-</span>
       }
       return (
-        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-xs'>
+        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-[var(--radius-pill)] border px-2 py-0.5 font-mono text-xs'>
           {progress}
         </span>
       )

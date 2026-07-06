@@ -26,8 +26,9 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
       type={type}
       data-slot='input'
       className={cn(
-        'file:text-foreground placeholder:text-muted-foreground focus-visible:ring-ring/35 disabled:bg-muted/50 aria-invalid:ring-destructive/25 dark:aria-invalid:ring-destructive/35 h-8 w-full min-w-0 rounded-full border border-transparent bg-muted/40 px-5 py-1 text-base transition-[background-color,box-shadow,color] duration-150 ease-[var(--motion-standard)] outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:bg-background focus-visible:ring-2 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-2 md:text-sm',
-        className
+        'file:text-foreground placeholder:text-muted-foreground focus-visible:ring-ring/35 disabled:bg-muted/50 aria-invalid:ring-destructive/25 dark:aria-invalid:ring-destructive/35 bg-muted/40 focus-visible:bg-background h-8 w-full min-w-0 rounded-full border border-transparent px-5 py-1 text-base transition-[background-color,box-shadow,color] duration-150 ease-[var(--motion-standard)] outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-2 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-2 md:text-sm',
+        className,
+        'rounded-full'
       )}
       {...props}
     />

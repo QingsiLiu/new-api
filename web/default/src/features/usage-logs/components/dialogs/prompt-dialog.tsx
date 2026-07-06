@@ -55,7 +55,7 @@ export function PromptDialog({
           {/* Original Prompt */}
           <div className='space-y-2'>
             <Label className='text-sm font-semibold'>{t('Prompt')}</Label>
-            <div className='bg-muted/50 relative rounded-md border p-3'>
+            <div className='bg-muted/50 relative rounded-[var(--radius-surface)] border p-3'>
               <Button
                 variant='ghost'
                 size='sm'
@@ -64,7 +64,7 @@ export function PromptDialog({
                 title={t('Copy to clipboard')}
               >
                 {copiedText === prompt ? (
-                  <Check className='size-4 text-success' />
+                  <Check className='text-success size-4' />
                 ) : (
                   <Copy className='size-4' />
                 )}
@@ -81,7 +81,7 @@ export function PromptDialog({
               <Label className='text-sm font-semibold'>
                 {t('Prompt (EN)')}
               </Label>
-              <div className='bg-muted/50 relative rounded-md border p-3'>
+              <div className='bg-muted/50 relative rounded-[var(--radius-surface)] border p-3'>
                 <Button
                   variant='ghost'
                   size='sm'
@@ -90,7 +90,7 @@ export function PromptDialog({
                   title={t('Copy to clipboard')}
                 >
                   {copiedText === promptEn ? (
-                    <Check className='size-4 text-success' />
+                    <Check className='text-success size-4' />
                   ) : (
                     <Copy className='size-4' />
                   )}

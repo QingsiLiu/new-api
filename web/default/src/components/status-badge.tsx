@@ -189,11 +189,7 @@ export function StatusBadge({
       className={cn(
         'inline-flex w-fit max-w-full min-w-0 shrink items-center font-medium tracking-normal whitespace-nowrap transition-colors',
         isBadge
-          ? cn(
-              'rounded-[var(--radius-pill)]',
-              badgeSurfaceMap[computedVariant],
-              sizeMap[size ?? 'sm']
-            )
+          ? cn(badgeSurfaceMap[computedVariant], sizeMap[size ?? 'sm'])
           : cn(
               textSizeMap[size ?? 'sm'],
               type === 'underline' && 'border-b border-current pb-px'
@@ -202,7 +198,8 @@ export function StatusBadge({
         pulse && 'animate-pulse',
         copyable &&
           'cursor-copy hover:brightness-95 active:scale-95 dark:hover:brightness-110',
-        className
+        className,
+        isBadge && 'rounded-[var(--radius-pill)]'
       )}
       onClick={handleClick}
       title={title}

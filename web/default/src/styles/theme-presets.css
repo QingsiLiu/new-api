@@ -965,6 +965,16 @@ For commercial licensing, please contact support@quantumnous.com
   --radius: 1rem;
 }
 
+/* Geili Minimal has a fixed geometric contract. Keep legacy/feature
+ * rounded-* utilities on the 6.08px surface scale even when a saved radius
+ * preference exists; semantic card/pill/control tokens stay explicit. */
+[data-theme-preset='geili-minimal'][data-theme-radius] {
+  --radius: 0.38rem;
+}
+.dark [data-theme-preset='geili-minimal'][data-theme-radius] {
+  --radius: 0.38rem;
+}
+
 /* ── Density scale ────────────────────────────────────────────────────── */
 /* `sm` = compact UI; `lg` = comfortable; `xl` = extra readable. Default keeps Tailwind defaults. */
 [data-theme-scale='sm'] {

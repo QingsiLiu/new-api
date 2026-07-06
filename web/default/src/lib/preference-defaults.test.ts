@@ -8,8 +8,8 @@ import {
 const densityValues = new Set(['default', 'sm', 'lg', 'xl'])
 
 describe('resolveVersionedPreferenceDefault', () => {
-  test('uses a fresh theme defaults version for geili-modern migration', () => {
-    assert.equal(THEME_DEFAULTS_VERSION, 'geili-modern-v2')
+  test('uses a fresh theme defaults version for geili-minimal migration', () => {
+    assert.equal(THEME_DEFAULTS_VERSION, 'geili-minimal-v1')
   })
 
   test('moves a stale legacy default cookie to the new default', () => {

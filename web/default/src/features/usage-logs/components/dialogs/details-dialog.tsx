@@ -125,7 +125,7 @@ function DetailSection(props: {
       </Label>
       <div
         className={cn(
-          'min-w-0 space-y-1 overflow-hidden rounded-md border p-2.5 max-sm:p-2',
+          'min-w-0 space-y-1 overflow-hidden rounded-[var(--radius-surface)] border p-2.5 max-sm:p-2',
           isDanger
             ? 'border-destructive/25 bg-destructive/10 dark:border-destructive/30 dark:bg-destructive/15'
             : 'bg-muted/30'
@@ -619,10 +619,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 label={t('IP Address')}
                 value={
                   <span className='flex items-center gap-1'>
-                    <Globe
-                      className='size-3 text-warning'
-                      aria-hidden='true'
-                    />
+                    <Globe className='text-warning size-3' aria-hidden='true' />
                     {props.log.ip}
                   </span>
                 }
@@ -680,7 +677,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   aria-label={t('Copy to clipboard')}
                 >
                   {copiedText === conversionLabel ? (
-                    <Check className='size-3 text-success' />
+                    <Check className='text-success size-3' />
                   ) : (
                     <Copy className='size-3' />
                   )}
@@ -773,7 +770,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 />
               ))}
               {showLegacyTopupWarning && (
-                <div className='flex items-start gap-1.5 text-xs text-warning'>
+                <div className='text-warning flex items-start gap-1.5 text-xs'>
                   <Info
                     className='mt-0.5 size-3.5 shrink-0'
                     aria-hidden='true'
@@ -972,7 +969,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
           {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
           {isTieredBilling && other?.expr_b64 && (
-            <div className='bg-muted/30 min-w-0 overflow-hidden rounded-md border px-3 max-sm:px-2'>
+            <div className='bg-muted/30 min-w-0 overflow-hidden rounded-[var(--radius-surface)] border px-3 max-sm:px-2'>
               <DynamicPricingBreakdown
                 billingExpr={decodeBillingExprB64(other.expr_b64)}
                 matchedTierLabel={other.matched_tier}
@@ -991,9 +988,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 value={
                   <span className='flex items-center gap-1'>
                     {other.admin_info.local_count_tokens ? (
-                      <Monitor className='size-3 text-info' />
+                      <Monitor className='text-info size-3' />
                     ) : (
-                      <Cloud className='size-3 text-success' />
+                      <Cloud className='text-success size-3' />
                     )}
                     <span className='text-xs'>
                       {other.admin_info.local_count_tokens
@@ -1129,7 +1126,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           {details && (
             <div className='space-y-1.5'>
               <Label className='text-xs font-semibold'>{t('Content')}</Label>
-              <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>
+              <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-[var(--radius-surface)] border p-2.5'>
                 <Button
                   variant='ghost'
                   size='sm'
@@ -1139,7 +1136,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   aria-label={t('Copy to clipboard')}
                 >
                   {copiedText === details ? (
-                    <Check className='size-3 text-success' />
+                    <Check className='text-success size-3' />
                   ) : (
                     <Copy className='size-3' />
                   )}

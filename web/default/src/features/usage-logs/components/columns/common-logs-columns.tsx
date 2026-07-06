@@ -349,7 +349,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {affinity && (
                       <button
                         type='button'
-                        className='absolute -top-1 -right-1 leading-none text-warning'
+                        className='text-warning absolute -top-1 -right-1 leading-none'
                         onClick={(e) => {
                           e.stopPropagation()
                           setAffinityTarget({
@@ -498,7 +498,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   copyText={sensitiveVisible ? tokenName : undefined}
                   size='sm'
                   showDot={false}
-                  className='border-border/60 bg-muted/30 text-foreground h-6 max-w-full gap-1.5 overflow-hidden rounded-md border px-2 py-0.5 [font-family:var(--font-body)]'
+                  className='border-border/60 bg-muted/30 text-foreground h-6 max-w-full gap-1.5 overflow-hidden rounded-[var(--radius-pill)] border px-2 py-0.5 [font-family:var(--font-body)]'
                 />
               </TooltipTrigger>
               {sensitiveVisible && tokenName.length > 16 && (
@@ -573,7 +573,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 variant={timeVariant as StatusBadgeProps['variant']}
                 size='sm'
                 copyable={false}
-                className={cn('rounded-md font-mono', timingBgMap[timeVariant])}
+                className={cn(
+                  'rounded-[var(--radius-pill)] font-mono',
+                  timingBgMap[timeVariant]
+                )}
               />
               {log.is_stream &&
                 (frt != null && frt > 0 ? (
@@ -584,7 +587,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     showDot={false}
                     copyable={false}
                     className={cn(
-                      'rounded-md font-mono',
+                      'rounded-[var(--radius-pill)] font-mono',
                       timingBgMap[frtVariant]
                     )}
                   />
@@ -595,7 +598,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     size='sm'
                     showDot={false}
                     copyable={false}
-                    className={cn('rounded-md font-mono', timingBgMap.neutral)}
+                    className={cn(
+                      'rounded-[var(--radius-pill)] font-mono',
+                      timingBgMap.neutral
+                    )}
                   />
                 ))}
             </div>
@@ -618,7 +624,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger
-                        render={<CircleAlert className='size-3 text-destructive' />}
+                        render={
+                          <CircleAlert className='text-destructive size-3' />
+                        }
                       ></TooltipTrigger>
                       <TooltipContent>
                         <div className='space-y-0.5 text-xs'>
@@ -732,7 +740,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
+            <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-[var(--radius-pill)] border px-2.5 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
               {quotaDisplay.prefix && (
                 <span className='mr-1'>{quotaDisplay.prefix}</span>
               )}

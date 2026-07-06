@@ -70,7 +70,7 @@ export function ConfigDrawer() {
   const { resetDir } = useDirection()
   const { resetTheme } = useTheme()
   const { resetLayout } = useLayout()
-  const { resetCustomization } = useThemeCustomization()
+  const { customization, resetCustomization } = useThemeCustomization()
 
   const handleReset = () => {
     setOpen(true)
@@ -106,7 +106,7 @@ export function ConfigDrawer() {
           <ThemeConfig />
           <PresetConfig />
           <FontConfig />
-          <RadiusConfig />
+          {customization.preset !== 'geili-minimal' && <RadiusConfig />}
           <ScaleConfig />
           <SidebarConfig />
           <LayoutConfig />
@@ -175,7 +175,7 @@ function RadioGroupItem(props: {
       <div
         className={cn(
           'ring-border relative rounded-full ring-[1px]',
-          'group-data-checked:ring-primary group-data-checked:shadow-[var(--shadow-card)]',
+          'group-data-checked:ring-primary group-data-checked:shadow-none',
           'group-focus-visible:ring-2'
         )}
         role='img'
@@ -267,7 +267,7 @@ function PresetConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-full ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-primary group-data-checked:shadow-none',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
@@ -354,7 +354,7 @@ function FontConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-full ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-primary group-data-checked:shadow-none',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
@@ -430,7 +430,7 @@ function RadiusConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-full ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-primary group-data-checked:shadow-none',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
@@ -515,7 +515,7 @@ function ScaleConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-full ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-primary group-data-checked:shadow-none',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}
@@ -656,7 +656,7 @@ function ContentLayoutConfig() {
             <div
               className={cn(
                 'ring-border relative h-12 rounded-full ring-[1px] transition',
-                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-data-checked:ring-primary group-data-checked:shadow-none',
                 'group-focus-visible:ring-2',
                 'group-hover:ring-primary/60'
               )}

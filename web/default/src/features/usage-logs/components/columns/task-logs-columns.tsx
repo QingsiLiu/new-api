@@ -176,7 +176,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               label={taskId}
               autoColor={taskId}
               size='sm'
-              className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+              className='border-border/60 bg-muted/30 max-w-full truncate rounded-[var(--radius-pill)] border px-2 py-0.5 font-mono'
             />
             <span className='text-muted-foreground/60 truncate text-[11px]'>
               {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
@@ -270,7 +270,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full error message')}
             >
-              <span className='truncate leading-snug text-destructive group-hover:underline'>
+              <span className='text-destructive truncate leading-snug group-hover:underline'>
                 {failReason}
               </span>
             </button>
