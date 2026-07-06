@@ -272,15 +272,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 @utility editorial-stat-value {
   font-family: var(--font-sans);
-  font-size: clamp(1.875rem, 4vw, 3.5rem);
-  line-height: 0.98;
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  line-height: 1.05;
   font-weight: 600;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   font-variation-settings:
     'SOFT' 50,
     'WONK' 0,
-    'opsz' 72,
+    'opsz' 48,
     'wght' 600;
 }
 
@@ -888,14 +888,14 @@ For commercial licensing, please contact support@quantumnous.com
  *   Shadows: none anywhere — depth comes from surface contrast only
  * ────────────────────────────────────────────────────────────────────── */
 
-/* Cards: flat, #F5F5F5 surface, hairline border, no shadow */
+/* Cards: flat, #F5F5F5 surface, borderless, no shadow — depth from surface contrast */
 [data-theme-preset='geili-minimal'] [data-slot='card'] {
   border-radius: var(--radius-card);
-  border: 1px solid var(--border);
+  border: none;
   box-shadow: none !important;
 }
 .dark [data-theme-preset='geili-minimal'] [data-slot='card'] {
-  border-color: var(--border);
+  border: none;
   box-shadow: none !important;
 }
 
