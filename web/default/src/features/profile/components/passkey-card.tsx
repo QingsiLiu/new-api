@@ -222,7 +222,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
           <div className='space-y-6'>
             <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
               <div className='flex items-start gap-4'>
-                <div className='bg-muted rounded-md p-2'>
+                <div className='bg-muted rounded-[var(--radius-surface)] p-2'>
                   <KeyRound className='h-5 w-5' />
                 </div>
                 <div className='space-y-1'>
@@ -326,7 +326,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
             )}
 
             {showUnsupportedNotice && (
-              <div className='bg-muted/60 text-muted-foreground flex items-start gap-3 rounded-md p-4 text-sm'>
+              <div className='bg-muted/60 text-muted-foreground flex items-start gap-3 rounded-[var(--radius-surface)] p-4 text-sm'>
                 <ShieldAlert className='mt-0.5 h-4 w-4 flex-shrink-0 text-warning' />
                 <div>
                   <p className='text-foreground font-medium'>

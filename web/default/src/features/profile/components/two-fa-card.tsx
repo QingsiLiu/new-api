@@ -80,7 +80,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
             {/* Status Section */}
             <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
               <div className='flex items-start gap-4'>
-                <div className='bg-muted rounded-md p-2'>
+                <div className='bg-muted rounded-[var(--radius-surface)] p-2'>
                   <Shield className='h-5 w-5' />
                 </div>
                 <div className='space-y-1'>

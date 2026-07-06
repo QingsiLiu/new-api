@@ -206,7 +206,7 @@ export function SidebarModulesCard() {
     <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
       <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
         <div className='flex items-center gap-3'>
-          <div className='bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9'>
+          <div className='bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)] sm:h-9 sm:w-9'>
             <LayoutDashboard className='h-4 w-4' />
           </div>
           <div className='min-w-0'>
@@ -225,7 +225,7 @@ export function SidebarModulesCard() {
           return (
             <div
               key={section.key}
-              className='bg-background/60 rounded-xl border p-3'
+              className='bg-background/60 rounded-[var(--radius-surface)] p-3'
             >
               <div className='flex items-start justify-between gap-3'>
                 <div className='min-w-0'>
@@ -243,7 +243,7 @@ export function SidebarModulesCard() {
                 {section.modules.map((mod) => (
                   <div
                     key={mod.key}
-                    className={`flex min-h-16 items-center justify-between rounded-lg border p-3 ${
+                    className={`flex min-h-16 items-center justify-between rounded-[var(--radius-surface)] p-3 ${
                       sectionEnabled ? '' : 'opacity-50'
                     }`}
                   >

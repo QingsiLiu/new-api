@@ -48,7 +48,7 @@ export function ProfileSettingsCard({
   if (loading) {
     return (
       <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
-        <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
+        <CardHeader className='p-3 !pb-3 sm:p-5 sm:!pb-5'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
@@ -70,10 +70,10 @@ export function ProfileSettingsCard({
       disableHoverEffect
     >
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className='grid w-full grid-cols-2 items-stretch gap-1 rounded-xl p-1 group-data-horizontal/tabs:h-10'>
+        <TabsList className='grid w-full grid-cols-2 items-stretch gap-1 rounded-[var(--radius-pill)] p-1 group-data-horizontal/tabs:h-10'>
           <TabsTrigger
             value='bindings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
+            className='h-full gap-2 rounded-[var(--radius-pill)] px-3 py-0 leading-none'
           >
             <Link2 className='h-4 w-4' />
             <span className='hidden sm:inline'>{t('Account Bindings')}</span>
@@ -81,7 +81,7 @@ export function ProfileSettingsCard({
           </TabsTrigger>
           <TabsTrigger
             value='settings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
+            className='h-full gap-2 rounded-[var(--radius-pill)] px-3 py-0 leading-none'
           >
             <Settings className='h-4 w-4' />
             <span className='hidden sm:inline'>

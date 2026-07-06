@@ -106,7 +106,7 @@ export function ProfileSecurityCard({
               }`}
             >
               <div
-                className={`rounded-md p-2 ${
+                className={`rounded-[var(--radius-surface)] p-2 ${
                   item.variant === 'destructive'
                     ? 'bg-destructive/10 text-destructive'
                     : 'bg-muted'

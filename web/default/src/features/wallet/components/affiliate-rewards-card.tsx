@@ -63,7 +63,7 @@ export function AffiliateRewardsCard({
     <Card data-card-hover='false' className='bg-muted/20 py-0'>
       <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg'>
+          <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)]'>
             <Share2 className='text-muted-foreground size-4' />
           </div>
           <div className='min-w-0'>
