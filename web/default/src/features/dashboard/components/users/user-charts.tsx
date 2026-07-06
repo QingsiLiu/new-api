@@ -225,7 +225,7 @@ export function UserCharts() {
           return (
             <div
               key={chart.value}
-              className='overflow-hidden rounded-[var(--radius-surface)] border'
+              className='overflow-hidden rounded-[var(--radius-card)]'
             >
               <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
                 <Users className='text-muted-foreground/60 size-4' />
