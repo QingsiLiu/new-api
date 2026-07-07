@@ -853,6 +853,7 @@ func TestAsyncPricingEstimateMatchesSpecPricedTaskQuotaWithoutSideEffects(t *tes
 	estimateRequest.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(estimateRecorder, estimateRequest)
 	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
+	require.Contains(t, estimateRecorder.Body.String(), `"quota":36000`)
 
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
@@ -954,9 +955,10 @@ func TestAsyncPricingEstimateAndChargePreferModelPricingConfig(t *testing.T) {
 	require.Equal(t, http.StatusOK, estimateRecorder.Code, estimateRecorder.Body.String())
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, 36000, estimate.Quota)
 	require.Equal(t, 0.36, estimate.AmountCNY)
 	require.Equal(t, "CNY", estimate.Currency)
-	require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
+	require.Contains(t, estimateRecorder.Body.String(), `"quota":36000`)
 
 	createRecorder := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
@@ -1148,9 +1150,10 @@ func TestAsyncPricingEstimateUsesMultipartImageResolution(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &estimate))
+	require.Equal(t, 49000, estimate.Quota)
 	require.Equal(t, 0.49, estimate.AmountCNY)
 	require.Equal(t, "CNY", estimate.Currency)
-	require.NotContains(t, recorder.Body.String(), `"quota"`)
+	require.Contains(t, recorder.Body.String(), `"quota":49000`)
 }
 
 func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
@@ -1279,9 +1282,10 @@ func TestAsyncImageRealSpecPricesEstimateMatchesTaskCharge(t *testing.T) {
 
 			var estimate asyncTaskPricingEstimateResponse
 			require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+			require.Equal(t, tt.wantQuota, estimate.Quota)
 			require.Equal(t, common.QuotaToPublicCNY(tt.wantQuota), estimate.AmountCNY)
 			require.Equal(t, "CNY", estimate.Currency)
-			require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
+			require.Contains(t, estimateRecorder.Body.String(), fmt.Sprintf(`"quota":%d`, tt.wantQuota))
 
 			createRecorder := httptest.NewRecorder()
 			createRequest := httptest.NewRequest(http.MethodPost, "/v1/images/tasks", strings.NewReader(payload))
@@ -1589,9 +1593,10 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
+	require.Equal(t, 521650, estimate.Quota)
 	require.Equal(t, 5.2165, estimate.AmountCNY)
 	require.Equal(t, "CNY", estimate.Currency)
-	require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
+	require.Contains(t, estimateRecorder.Body.String(), `"quota":521650`)
 	require.Equal(t, 1.0433, estimate.Breakdown.SpecUnitCNY)
 	require.Equal(t, 5.2165, estimate.Breakdown.SpecTotalCNY)
 

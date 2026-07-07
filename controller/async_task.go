@@ -112,7 +112,7 @@ type asyncTaskPricingEstimateResponse struct {
 	Kind      string                            `json:"kind"`
 	Action    string                            `json:"action"`
 	Model     string                            `json:"model"`
-	Quota     int                               `json:"-"`
+	Quota     int                               `json:"quota"`
 	AmountCNY float64                           `json:"amount_cny"`
 	Currency  string                            `json:"currency"`
 	Unit      string                            `json:"unit"`
