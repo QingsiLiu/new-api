@@ -21,7 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+function Table({ className, style, ...props }: React.ComponentProps<'table'>) {
   return (
     <div
       data-slot='table-container'
@@ -30,9 +30,11 @@ function Table({ className, ...props }: React.ComponentProps<'table'>) {
       <table
         data-slot='table'
         className={cn(
-          'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-xs [&_th_*]:text-xs',
+          'caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-xs [&_th_*]:text-xs',
+          !style && 'w-full',
           className
         )}
+        style={style}
         {...props}
       />
     </div>
