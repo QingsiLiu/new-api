@@ -152,11 +152,14 @@ For commercial licensing, please contact support@quantumnous.com
     border-bottom: none;
   }
 
-  [data-slot='table-cell'] {
+  [data-theme-preset]:not([data-theme-preset='geili-minimal'])
+    [data-slot='table-cell'] {
     border-bottom: 1px solid var(--border);
   }
 
-  [data-slot='table-row']:last-child [data-slot='table-cell'] {
+  [data-theme-preset]:not([data-theme-preset='geili-minimal'])
+    [data-slot='table-row']:last-child
+    [data-slot='table-cell'] {
     border-bottom: none;
   }
 
@@ -851,10 +854,13 @@ For commercial licensing, please contact support@quantumnous.com
   border-bottom: 1px solid var(--border);
   background: transparent;
 }
-[data-slot='table-cell'] {
+/* Non-minimal presets: cell dividers via border. geili-minimal uses an inset
+ * row-gradient divider instead (see the geili-minimal table section below), so
+ * these full-width cell borders are scoped out for it. */
+[data-theme-preset]:not([data-theme-preset='geili-minimal']) [data-slot='table-cell'] {
   border-top: 1px solid var(--border);
 }
-[data-slot='table-row']:last-child [data-slot='table-cell'] {
+[data-theme-preset]:not([data-theme-preset='geili-minimal']) [data-slot='table-row']:last-child [data-slot='table-cell'] {
   border-top: 1px solid var(--border);
   border-bottom: none;
 }
