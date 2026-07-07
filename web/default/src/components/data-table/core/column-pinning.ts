@@ -61,7 +61,7 @@ function getPinnedColumnClassName(
       : 'border-l border-border/70',
     kind === 'header'
       ? 'z-30 !bg-card'
-      : 'z-10 bg-card group-hover:bg-muted/50 group-data-[state=selected]:bg-muted',
+      : 'z-20 bg-card group-hover:bg-muted/50 group-data-[state=selected]:bg-muted',
     pinnedColumn.className,
     kind === 'header'
       ? pinnedColumn.headerClassName

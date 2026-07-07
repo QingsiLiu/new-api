@@ -235,6 +235,8 @@ export function useDeploymentsColumns(opts: {
       header: () => t('Actions'),
       enableHiding: false,
       enableSorting: false,
+      size: 120,
+      meta: { pinned: 'right' as const },
       cell: ({ row }) => {
         const id = row.original.id
         const currentName =

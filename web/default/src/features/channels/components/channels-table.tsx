@@ -402,7 +402,7 @@ export function ChannelsTable() {
       }
       getColumnClassName={(columnId) =>
         columnId === 'actions'
-          ? 'px-3'
+          ? 'px-2'
           : columnId === 'balance'
             ? 'px-4'
             : undefined
