@@ -956,10 +956,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 /* Table wrapper: 6.08px radius, 1px hairline, no shadow */
-[data-theme-preset='geili-minimal'] .data-table-card,
-[data-theme-preset='geili-minimal']
-  [data-slot='sidebar-inset']
-  [data-slot='card'] {
+[data-theme-preset='geili-minimal'] .data-table-card {
   border-radius: var(--radius-surface);
   box-shadow: none !important;
 }
