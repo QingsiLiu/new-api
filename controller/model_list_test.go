@@ -332,6 +332,39 @@ func TestPricingIncludesAliasFromExactAndRuleMetadata(t *testing.T) {
 	require.Equal(t, "Prefix Display", pricingByName["prefix-alias-model-v2"].Alias)
 }
 
+func TestPricingIncludesImageSpecPricingConfig(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     1,
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "sk-test",
+		Status: common.ChannelStatusEnabled,
+		Name:   "image-spec-channel",
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "image-spec-pricing-model",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	pricingConfig := `{"mode":"image_spec","unit":"per_image","resolutions":{"1k":{"cny_per_image":0.12},"2k":{"cny_per_image":0.18},"4k":{"cny_per_image":0.29}},"default_cny_per_image":0.12}`
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:     "image-spec-pricing-model",
+		Modal:         model.ModelModalImage,
+		PricingMode:   model.PricingModeImageSpec,
+		PricingConfig: pricingConfig,
+		Status:        1,
+		SyncOfficial:  1,
+	}).Error)
+	model.InvalidatePricingCache()
+
+	pricingByName := pricingByModelName(model.GetPricing())
+	pricing, ok := pricingByName["image-spec-pricing-model"]
+	require.True(t, ok)
+	require.Equal(t, model.PricingModeImageSpec, pricing.PricingMode)
+	require.JSONEq(t, pricingConfig, pricing.PricingConfig)
+}
+
 func TestSeedInitialModelAliasesOnlyFillsEmptyExistingAliases(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.Create(&[]model.Model{

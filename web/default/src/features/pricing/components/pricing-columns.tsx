@@ -42,6 +42,10 @@ import {
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
+import {
+  getImageSpecPriceDisplayItems,
+  isImageSpecPricingModel,
+} from '../lib/spec-pricing'
 import type { PricingModel, TokenUnit } from '../types'
 
 // ----------------------------------------------------------------------------
@@ -156,6 +160,38 @@ export function usePricingColumns(
       ),
       cell: ({ row }) => {
         const model = row.original
+        if (isImageSpecPricingModel(model)) {
+          const imageSpecPriceItems = getImageSpecPriceDisplayItems(model)
+          if (imageSpecPriceItems.length === 0) {
+            return (
+              <span className='text-muted-foreground text-xs'>
+                {t('Image spec')}
+              </span>
+            )
+          }
+
+          return (
+            <div className='max-w-full min-w-0'>
+              <span className='font-mono text-sm tabular-nums'>
+                {imageSpecPriceItems.map((item, index) => (
+                  <span key={item.label}>
+                    {index > 0 && (
+                      <span className='text-muted-foreground/40 mx-1'>/</span>
+                    )}
+                    <span className='text-muted-foreground/70 mr-1 font-sans text-[11px]'>
+                      {item.label === 'Default' ? t('Default') : item.label}
+                    </span>
+                    {stripTrailingZeros(item.formatted)}
+                  </span>
+                ))}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {t('Image')}
+              </div>
+            </div>
+          )
+        }
+
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
@@ -279,6 +315,10 @@ export function usePricingColumns(
       header: t('Cached'),
       cell: ({ row }) => {
         const model = row.original
+        if (isImageSpecPricingModel(model)) {
+          return <span className='text-muted-foreground/30 text-xs'>—</span>
+        }
+
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,

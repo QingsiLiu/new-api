@@ -31,6 +31,10 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  getImageSpecPriceDisplayItems,
+  isImageSpecPricingModel,
+} from '../lib/spec-pricing'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 
@@ -65,6 +69,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
+  const isImageSpecPricing = isImageSpecPricingModel(props.model)
+  const imageSpecPriceItems = isImageSpecPricing
+    ? getImageSpecPriceDisplayItems(props.model)
+    : []
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -131,7 +139,30 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </div>
             )}
             <div className='mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs sm:mt-1 sm:gap-x-3'>
-              {dynamicSummary ? (
+              {isImageSpecPricing ? (
+                imageSpecPriceItems.length > 0 ? (
+                  <>
+                    {imageSpecPriceItems.map((item) => (
+                      <span
+                        key={item.label}
+                        className='text-muted-foreground whitespace-nowrap'
+                      >
+                        {item.label === 'Default' ? t('Default') : item.label}{' '}
+                        <span className='text-foreground font-mono font-semibold'>
+                          {item.formatted}
+                        </span>
+                      </span>
+                    ))}
+                    <span className='text-muted-foreground/50 whitespace-nowrap'>
+                      / {t('Image')}
+                    </span>
+                  </>
+                ) : (
+                  <span className='text-muted-foreground text-xs'>
+                    {t('Image spec')}
+                  </span>
+                )
+              ) : dynamicSummary ? (
                 dynamicSummary.isSpecialExpression ? (
                   <span className='min-w-0'>
                     <span className='text-warning'>
@@ -261,7 +292,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </span>
           )}
           <span className='text-muted-foreground text-xs font-medium'>
-            {isTokenBased ? t('Token-based') : t('Per Request')}
+            {isImageSpecPricing
+              ? t('Image spec')
+              : isTokenBased
+                ? t('Token-based')
+                : t('Per Request')}
           </span>
           {isDynamicPricing && (
             <StatusBadge

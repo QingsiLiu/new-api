@@ -55,6 +55,10 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  /** Migrated pricing mode from models.pricing_mode, e.g. image_spec. */
+  pricing_mode?: string
+  /** Raw migrated pricing_config JSON for spec-priced image/video models. */
+  pricing_config?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
