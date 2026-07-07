@@ -163,7 +163,8 @@ For commercial licensing, please contact support@quantumnous.com
     border-bottom: none;
   }
 
-  [data-slot='table-head'] {
+  [data-theme-preset]:not([data-theme-preset='geili-minimal'])
+    [data-slot='table-head'] {
     border-bottom: 1px solid var(--border);
   }
 
@@ -851,8 +852,11 @@ For commercial licensing, please contact support@quantumnous.com
   background: transparent;
 }
 [data-slot='table-head'] {
-  border-bottom: 1px solid var(--border);
   background: transparent;
+}
+[data-theme-preset]:not([data-theme-preset='geili-minimal'])
+  [data-slot='table-head'] {
+  border-bottom: 1px solid var(--border);
 }
 /* Non-minimal presets: cell dividers via border. geili-minimal uses an inset
  * row-gradient divider instead (see the geili-minimal table section below), so
@@ -985,6 +989,23 @@ For commercial licensing, please contact support@quantumnous.com
  * line pinned to the bottom, transparent for the first/last 1.5rem so the line
  * is inset from both table edges. */
 [data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-row']:not(:last-child) {
+  background-image: linear-gradient(
+    to right,
+    transparent 0,
+    transparent 1.5rem,
+    var(--border) 1.5rem,
+    var(--border) calc(100% - 1.5rem),
+    transparent calc(100% - 1.5rem),
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 1px;
+}
+
+/* Header divider: same inset gradient so the line under the header row is also
+ * inset 1.5rem from both edges, matching the body row dividers. */
+[data-theme-preset='geili-minimal'] [data-slot='table-header'] [data-slot='table-row'] {
   background-image: linear-gradient(
     to right,
     transparent 0,
