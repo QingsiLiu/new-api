@@ -973,22 +973,47 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 /* Row dividers with horizontal inset.
- * Each body row's first cell hosts an absolutely-positioned line that spans the
- * full table width minus 1.5rem on each side. Using the first cell + a wide line
- * keeps a single continuous divider that is inset from both edges and is not
- * affected by per-cell hover background. */
-[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-row'] {
+ * Draw the 1px line on each body cell's bottom via box-shadow (not affected by
+ * row transforms). First/last cells already carry 1.5rem side padding, and we
+ * use inset box-shadow positioned so the visible line starts/ends within that
+ * padding — producing a divider inset 1.5rem from both table edges. */
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-cell'] {
+  box-shadow: 0 1px 0 0 var(--border);
+}
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-row']:last-child [data-slot='table-cell'] {
+  box-shadow: none;
+}
+/* First cell: cover the line under the left 1.5rem padding with the surface color */
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-cell']:first-child {
   position: relative;
 }
-[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-row']:not(:last-child)::after {
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-cell']:first-child::after {
   content: '';
   position: absolute;
-  left: 1.5rem;
-  right: 1.5rem;
-  bottom: 0;
+  left: 0;
+  bottom: -1px;
+  width: 1.5rem;
   height: 1px;
-  background: var(--border);
+  background: var(--card);
   pointer-events: none;
+}
+/* Last cell: cover the line under the right 1.5rem padding */
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-cell']:last-child {
+  position: relative;
+}
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-cell']:last-child::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: 1.5rem;
+  height: 1px;
+  background: var(--card);
+  pointer-events: none;
+}
+/* Keep the cover in sync with the row hover background */
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-row']:hover [data-slot='table-cell']::after {
+  background: color-mix(in oklch, var(--muted) 50%, var(--card));
 }
 
 /* Reset glass utilities for minimal */
