@@ -416,6 +416,15 @@ func ResolveImageSpecQuota(modelName string, size string, resolution string, qua
 	return ResolveImageSpecQuotaFromPricing(asyncSpecPricing, modelName, size, resolution, quality, n)
 }
 
+func ResolveImageSpecKey(size string, resolution string) string {
+	for _, candidate := range []string{size, resolution} {
+		if specKey := normalizeImageResolution(candidate); specKey != "" {
+			return specKey
+		}
+	}
+	return ""
+}
+
 func ResolveImageSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string, size string, resolution string, quality string, n int) AsyncSpecQuotaResult {
 	modelName = strings.TrimSpace(modelName)
 	if n <= 0 {
@@ -426,8 +435,8 @@ func ResolveImageSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 		return AsyncSpecQuotaResult{Kind: "image", Model: modelName, QuotaPerCNY: effectiveQuotaPerCNY()}
 	}
 	resolutionCandidates := []string{
-		normalizeImageResolution(size),
-		normalizeImageResolution(resolution),
+		ResolveImageSpecKey(size, ""),
+		ResolveImageSpecKey(resolution, ""),
 	}
 	qualityKey := normalizeQuality(quality)
 	unitCNY, matchedSpecKey, matched := resolveImageUnitCNY(spec, resolutionCandidates, qualityKey)
