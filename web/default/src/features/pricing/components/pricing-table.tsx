@@ -26,6 +26,7 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import type { PricingGroupDisplayMap } from '../lib/group-display'
 import type { PricingModel, TokenUnit } from '../types'
 import { usePricingColumns } from './pricing-columns'
 
@@ -36,6 +37,7 @@ export interface PricingTableProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  groupDisplay?: PricingGroupDisplayMap
   onModelClick?: (modelName: string) => void
 }
 
@@ -61,6 +63,7 @@ export function PricingTable(props: PricingTableProps) {
     priceRate,
     usdExchangeRate,
     showRechargePrice,
+    groupDisplay: props.groupDisplay,
   })
 
   const { table } = useDataTable({

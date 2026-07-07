@@ -47,6 +47,7 @@ export type PricingModel = {
   audio_ratio?: number | null
   audio_completion_ratio?: number | null
   enable_groups: string[]
+  group_display?: Record<string, string>
   tags?: string
   supported_endpoint_types?: string[]
   key?: string
@@ -101,10 +102,17 @@ export type PricingData = {
   data: PricingModel[]
   vendors: PricingVendor[]
   group_ratio: Record<string, number>
-  usable_group: Record<string, { desc: string; ratio: number }>
+  group_display?: Record<string, string>
+  usable_group: PricingUsableGroupMap
+  usable_group_display?: Record<string, string>
   supported_endpoint: Record<string, string>
   auto_groups: string[]
 }
+
+export type PricingUsableGroupMap = Record<
+  string,
+  string | { desc?: string; ratio?: number; display_name?: string }
+>
 
 export type TokenUnit = 'M' | 'K'
 export type PriceType =

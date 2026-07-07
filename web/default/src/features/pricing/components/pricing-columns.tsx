@@ -36,6 +36,10 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
+import {
+  getPricingGroupDisplayName,
+  type PricingGroupDisplayMap,
+} from '../lib/group-display'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
   formatPrice,
@@ -57,6 +61,7 @@ export interface PricingColumnsOptions {
   priceRate?: number
   usdExchangeRate?: number
   showRechargePrice?: boolean
+  groupDisplay?: PricingGroupDisplayMap
 }
 
 export function usePricingColumns(
@@ -469,10 +474,16 @@ export function usePricingColumns(
       header: t('Groups'),
       cell: ({ row }) => {
         const groups = row.original.enable_groups || []
+        const displayMap = row.original.group_display ?? options.groupDisplay
         return (
           <BadgeListCell
             items={groups.map((group) => (
-              <GroupBadge key={group} group={group} size='sm' />
+              <GroupBadge
+                key={group}
+                group={group}
+                label={getPricingGroupDisplayName(group, displayMap)}
+                size='sm'
+              />
             ))}
             tooltipClassName='max-w-[280px] p-2'
           />
