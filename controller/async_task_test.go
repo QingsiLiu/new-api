@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -28,6 +29,50 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+type asyncArchiveUploadCall struct {
+	Key         string
+	Content     []byte
+	ContentType string
+}
+
+var asyncArchivePNGBytes = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+
+func withAsyncOutputArchiveUploaderForTest(t *testing.T, upload func(context.Context, asyncOutputArchiveObject) (string, error)) *[]asyncArchiveUploadCall {
+	t.Helper()
+	calls := []asyncArchiveUploadCall{}
+	previous := asyncOutputArchiveUploadForTest
+	asyncOutputArchiveUploadForTest = func(ctx context.Context, object asyncOutputArchiveObject) (string, error) {
+		content, err := io.ReadAll(object.Body)
+		require.NoError(t, err)
+		calls = append(calls, asyncArchiveUploadCall{
+			Key:         object.Key,
+			Content:     content,
+			ContentType: object.ContentType,
+		})
+		if upload != nil {
+			object.Body = bytes.NewReader(content)
+			return upload(ctx, object)
+		}
+		return "https://geiliapi.sfo3.cdn.digitaloceanspaces.com/" + object.Key, nil
+	}
+	t.Cleanup(func() {
+		asyncOutputArchiveUploadForTest = previous
+	})
+	return &calls
+}
+
+func enableAsyncOutputArchiveForTest(t *testing.T) {
+	t.Helper()
+	t.Setenv("GEILI_ASYNC_OUTPUT_ARCHIVE_ENABLED", "true")
+	t.Setenv("GEILI_SPACES_ENDPOINT", "https://geiliapi.sfo3.digitaloceanspaces.com")
+	t.Setenv("GEILI_SPACES_REGION", "sfo3")
+	t.Setenv("GEILI_SPACES_BUCKET", "geiliapi")
+	t.Setenv("GEILI_SPACES_ACCESS_KEY", "test-access-key")
+	t.Setenv("GEILI_SPACES_SECRET_KEY", "test-secret-key")
+	t.Setenv("GEILI_SPACES_PUBLIC_BASE_URL", "https://geiliapi.sfo3.cdn.digitaloceanspaces.com")
+	t.Setenv("GEILI_SPACES_PREFIX", "image")
+}
 
 func TestAsyncTaskHTTPClientDefaultsToFiveMinutes(t *testing.T) {
 	if os.Getenv("ASYNC_TASK_HTTP_TIMEOUT_SECONDS") != "" {
@@ -144,6 +189,199 @@ func TestAsyncImageGenerationWrapsSynchronousOpenAIChannel(t *testing.T) {
 	engine.ServeHTTP(contentRecorder, contentRequest)
 	require.Equal(t, http.StatusOK, contentRecorder.Code, contentRecorder.Body.String())
 	require.Equal(t, "img-bytes", contentRecorder.Body.String())
+}
+
+func TestAsyncImageGenerationArchivesURLBeforeReturningTaskResponse(t *testing.T) {
+	enableAsyncOutputArchiveForTest(t)
+	uploadCalls := withAsyncOutputArchiveUploaderForTest(t, nil)
+	upstreamDomain := "upstream-provider.test"
+	upstreamImageURL := "https://" + upstreamDomain + "/result.png"
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.String() {
+		case "https://api.example/v1/images/generations":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":[{"url":"` + upstreamImageURL + `"}]}`)),
+				Request:    req,
+			}, nil
+		case upstreamImageURL:
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"image/png"}},
+				Body:       io.NopCloser(bytes.NewReader(asyncArchivePNGBytes)),
+				Request:    req,
+			}, nil
+		default:
+			return nil, fmt.Errorf("unexpected request %s", req.URL.String())
+		}
+	})})
+	defer restoreClient()
+
+	engine, token := setupAsyncTaskRouterTest(t, "https://api.example", "gpt-image-2")
+	created := createAsyncTaskForTest(t, engine, token, "draw a studio", "archive-url")
+	require.NotEmpty(t, created.ID)
+
+	var task model.Task
+	require.Eventually(t, func() bool {
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+
+	statusRecorder := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+created.ID, nil)
+	statusRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(statusRecorder, statusRequest)
+	require.Equal(t, http.StatusOK, statusRecorder.Code, statusRecorder.Body.String())
+	statusBody := statusRecorder.Body.String()
+	require.Contains(t, statusBody, `"status":"succeeded"`)
+
+	require.NotContains(t, statusBody, upstreamDomain)
+	require.Contains(t, statusBody, `"url":"https://geiliapi.sfo3.cdn.digitaloceanspaces.com/image/gpt-image-2/`)
+	require.Len(t, *uploadCalls, 1)
+	require.Equal(t, asyncArchivePNGBytes, (*uploadCalls)[0].Content)
+	require.Equal(t, "image/png", (*uploadCalls)[0].ContentType)
+	require.Contains(t, (*uploadCalls)[0].Key, "/"+created.ID+"-0.png")
+
+	require.NotContains(t, string(task.Data), upstreamDomain)
+	require.Contains(t, task.PrivateData.ResultURL, "https://geiliapi.sfo3.cdn.digitaloceanspaces.com/image/gpt-image-2/")
+}
+
+func TestAsyncImageGenerationArchivesBase64OutputAsURL(t *testing.T) {
+	enableAsyncOutputArchiveForTest(t)
+	uploadCalls := withAsyncOutputArchiveUploaderForTest(t, nil)
+	encoded := "iVBORw0KGgo="
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		require.Equal(t, "https://api.example/v1/images/generations", req.URL.String())
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"` + encoded + `"}]}`)),
+			Request:    req,
+		}, nil
+	})})
+	defer restoreClient()
+
+	engine, token := setupAsyncTaskRouterTest(t, "https://api.example", "gpt-image-2")
+	created := createAsyncTaskForTest(t, engine, token, "draw a studio", "archive-base64")
+	require.NotEmpty(t, created.ID)
+
+	var task model.Task
+	require.Eventually(t, func() bool {
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var status asyncTaskResponse
+	statusRecorder := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+created.ID, nil)
+	statusRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(statusRecorder, statusRequest)
+	require.Equal(t, http.StatusOK, statusRecorder.Code, statusRecorder.Body.String())
+	require.NoError(t, common.Unmarshal(statusRecorder.Body.Bytes(), &status))
+	require.Equal(t, asyncTaskStatusSucceeded, status.Status)
+	require.Len(t, status.Outputs, 1)
+
+	require.NotEmpty(t, status.Outputs[0].URL)
+	require.Contains(t, status.Outputs[0].URL, "https://geiliapi.sfo3.cdn.digitaloceanspaces.com/image/gpt-image-2/")
+	require.Len(t, *uploadCalls, 1)
+	require.Equal(t, asyncArchivePNGBytes, (*uploadCalls)[0].Content)
+	require.Equal(t, "image/png", (*uploadCalls)[0].ContentType)
+
+	require.NotContains(t, string(task.Data), encoded)
+}
+
+func TestAsyncImageArchiveFailureFailsTaskWithoutLeakingUpstreamURL(t *testing.T) {
+	enableAsyncOutputArchiveForTest(t)
+	upstreamDomain := "upstream-provider.test"
+	upstreamImageURL := "https://" + upstreamDomain + "/result.png"
+	withAsyncOutputArchiveUploaderForTest(t, func(context.Context, asyncOutputArchiveObject) (string, error) {
+		return "", errors.New("spaces upload failed")
+	})
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.String() {
+		case "https://api.example/v1/images/generations":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":[{"url":"` + upstreamImageURL + `"}]}`)),
+				Request:    req,
+			}, nil
+		case upstreamImageURL:
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"image/png"}},
+				Body:       io.NopCloser(bytes.NewReader(asyncArchivePNGBytes)),
+				Request:    req,
+			}, nil
+		default:
+			return nil, fmt.Errorf("unexpected request %s", req.URL.String())
+		}
+	})})
+	defer restoreClient()
+
+	engine, token := setupAsyncTaskRouterTest(t, "https://api.example", "gpt-image-2")
+	created := createAsyncTaskForTest(t, engine, token, "draw a studio", "archive-failure")
+
+	var task model.Task
+	require.Eventually(t, func() bool {
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusFailure
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var statusBody string
+	statusRecorder := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/async/tasks/"+created.ID, nil)
+	statusRequest.Header.Set("Authorization", "Bearer "+token)
+	engine.ServeHTTP(statusRecorder, statusRequest)
+	require.Equal(t, http.StatusOK, statusRecorder.Code, statusRecorder.Body.String())
+	statusBody = statusRecorder.Body.String()
+	require.Contains(t, statusBody, `"status":"failed"`)
+
+	require.NotContains(t, statusBody, upstreamDomain)
+	require.Contains(t, statusBody, "failed to archive async image output")
+	require.NotContains(t, string(task.Data), upstreamDomain)
+	require.Empty(t, task.PrivateData.ResultURL)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+}
+
+func TestAsyncImageArchiveRejectsContentDisguisedAsImage(t *testing.T) {
+	enableAsyncOutputArchiveForTest(t)
+	uploadCalls := withAsyncOutputArchiveUploaderForTest(t, nil)
+	upstreamImageURL := "https://upstream-provider.test/result.png"
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.String() {
+		case "https://api.example/v1/images/generations":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":[{"url":"` + upstreamImageURL + `"}]}`)),
+				Request:    req,
+			}, nil
+		case upstreamImageURL:
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"image/png"}},
+				Body:       io.NopCloser(strings.NewReader("<html>not an image</html>")),
+				Request:    req,
+			}, nil
+		default:
+			return nil, fmt.Errorf("unexpected request %s", req.URL.String())
+		}
+	})})
+	defer restoreClient()
+
+	engine, token := setupAsyncTaskRouterTest(t, "https://api.example", "gpt-image-2")
+	created := createAsyncTaskForTest(t, engine, token, "draw a studio", "archive-invalid-content")
+
+	var task model.Task
+	require.Eventually(t, func() bool {
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusFailure
+	}, 2*time.Second, 20*time.Millisecond)
+	require.Empty(t, *uploadCalls)
 }
 
 func TestAsyncImageEditForwardsReferenceFiles(t *testing.T) {
