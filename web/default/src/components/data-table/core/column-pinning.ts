@@ -61,7 +61,10 @@ function getPinnedColumnClassName(
       : 'border-l border-border/70',
     kind === 'header'
       ? 'z-30 !bg-card'
-      : 'z-20 bg-card group-hover:bg-muted/50 group-data-[state=selected]:bg-muted',
+      : // Pinned cells sit above scrolled content, so their hover/selected
+        // backgrounds must be OPAQUE — a translucent bg-muted/50 lets the
+        // content scrolling underneath show through the sticky column.
+        'z-20 bg-card group-hover:[background-color:color-mix(in_oklch,var(--muted)_50%,var(--card))] group-data-[state=selected]:bg-muted',
     pinnedColumn.className,
     kind === 'header'
       ? pinnedColumn.headerClassName

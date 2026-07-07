@@ -401,11 +401,8 @@ export function ChannelsTable() {
           : undefined
       }
       getColumnClassName={(columnId) =>
-        columnId === 'actions'
-          ? 'px-2'
-          : columnId === 'balance'
-            ? 'px-4'
-            : undefined
+        // actions px-2 comes from DataTablePage's unified default
+        columnId === 'balance' ? 'px-4' : undefined
       }
       bulkActions={<DataTableBulkActions table={table} />}
     />

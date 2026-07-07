@@ -17,10 +17,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
-import { Eye, Info, Pencil, Settings2, Timer, Trash2 } from 'lucide-react'
+import {
+  Eye,
+  Info,
+  MoreHorizontal,
+  Pencil,
+  Settings2,
+  Timer,
+  Trash2,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { getDeploymentStatusConfig } from '../constants'
@@ -235,7 +256,9 @@ export function useDeploymentsColumns(opts: {
       header: () => t('Actions'),
       enableHiding: false,
       enableSorting: false,
-      size: 120,
+      // High-frequency "View logs" stays inline; everything else lives in
+      // the overflow menu. 2 controls => 88px (matches keys page).
+      size: 88,
       meta: { pinned: 'right' as const },
       cell: ({ row }) => {
         const id = row.original.id
@@ -246,60 +269,78 @@ export function useDeploymentsColumns(opts: {
           ''
 
         return (
-          <div className='-ml-2.5 flex items-center gap-1'>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onViewLogs(id)}
-              title={t('View logs')}
-            >
-              <Eye className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onViewDetails(id)}
-              title={t('View details')}
-            >
-              <Info className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onUpdateConfig(id)}
-              title={t('Update configuration')}
-            >
-              <Settings2 className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onExtend(id)}
-              title={t('Extend deployment')}
-            >
-              <Timer className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onRename(id, String(currentName))}
-              title={t('Rename deployment')}
-            >
-              <Pencil className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onDelete(row.original)}
-              title={t('Delete')}
-            >
-              <Trash2 className='h-4 w-4 text-destructive' />
-            </Button>
+          <div className='-ml-2 flex items-center gap-1'>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    size='icon-sm'
+                    onClick={() => opts.onViewLogs(id)}
+                    aria-label={t('View logs')}
+                    className='border-0'
+                  />
+                }
+              >
+                <Eye className='size-4' />
+              </TooltipTrigger>
+              <TooltipContent>{t('View logs')}</TooltipContent>
+            </Tooltip>
+
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    className='data-popup-open:bg-muted flex h-8 w-8 border-0 p-0'
+                  />
+                }
+              >
+                <MoreHorizontal className='h-4 w-4' />
+                <span className='sr-only'>{t('Open menu')}</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' className='w-[200px]'>
+                <DropdownMenuItem onClick={() => opts.onViewDetails(id)}>
+                  {t('View details')}
+                  <DropdownMenuShortcut>
+                    <Info size={16} />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => opts.onUpdateConfig(id)}>
+                  {t('Update configuration')}
+                  <DropdownMenuShortcut>
+                    <Settings2 size={16} />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => opts.onExtend(id)}>
+                  {t('Extend deployment')}
+                  <DropdownMenuShortcut>
+                    <Timer size={16} />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => opts.onRename(id, String(currentName))}
+                >
+                  {t('Rename deployment')}
+                  <DropdownMenuShortcut>
+                    <Pencil size={16} />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => opts.onDelete(row.original)}
+                  className='text-destructive focus:text-destructive'
+                >
+                  {t('Delete')}
+                  <DropdownMenuShortcut>
+                    <Trash2 size={16} />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )
       },
-      size: 180,
-      meta: { pinned: 'right' as const },
     },
   ]
 }

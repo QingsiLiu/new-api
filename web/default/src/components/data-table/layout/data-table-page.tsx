@@ -347,7 +347,14 @@ function renderDesktop<TData>(
         fixedHeight && 'bg-card',
         props.tableHeaderClassName
       )}
-      getColumnClassName={props.getColumnClassName}
+      getColumnClassName={(columnId, kind) =>
+        cn(
+          // Unified actions column: tight padding so the icon buttons line up
+          // with the header label across every list page.
+          columnId === 'actions' && 'px-2',
+          props.getColumnClassName?.(columnId, kind)
+        )
+      }
       pinnedColumns={props.pinnedColumns}
       containerClassName={cn(
         fixedHeight && 'min-h-0 flex-1',

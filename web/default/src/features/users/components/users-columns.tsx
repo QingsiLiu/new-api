@@ -372,7 +372,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       id: 'actions',
       header: () => t('Actions'),
       cell: ({ row }) => <DataTableRowActions row={row} />,
-      size: 100,
+      size: 64,
       enableSorting: false,
       enableHiding: false,
       meta: { pinned: 'right' as const },

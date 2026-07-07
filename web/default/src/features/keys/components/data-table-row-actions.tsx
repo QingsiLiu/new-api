@@ -190,7 +190,7 @@ export function DataTableRowActions<TData>({
   }
 
   return (
-    <div className='flex min-w-max items-center justify-end gap-1'>
+    <div className='-ml-2 flex items-center gap-1'>
       <Tooltip>
         <TooltipTrigger
           render={
