@@ -244,4 +244,15 @@ describe('geili-minimal geometry contract', () => {
       false
     )
   })
+
+  test('theme drawer reset defaults to compact floating full-width layout', () => {
+    const layoutSource = readSource('src/context/layout-provider.tsx')
+    const themeSource = readSource('src/lib/theme-customization.ts')
+
+    assert.ok(layoutSource.includes("const DEFAULT_VARIANT = 'floating'"))
+    assert.ok(layoutSource.includes("const DEFAULT_COLLAPSIBLE = 'icon'"))
+    assert.ok(layoutSource.includes("legacyDefault: 'sidebar'"))
+    assert.ok(themeSource.includes("scale: 'sm'"))
+    assert.ok(themeSource.includes("contentLayout: 'full'"))
+  })
 })
