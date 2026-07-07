@@ -1020,7 +1020,42 @@ For commercial licensing, please contact support@quantumnous.com
   background-size: 100% 1px;
 }
 
-/* Reset glass utilities for minimal */
+/* Card-internal horizontal section dividers (Tailwind .border-t / .border-b):
+ * inset the line 1.5rem from both edges so it doesn't touch the card border.
+ * Only horizontal borders are targeted — vertical column separators
+ * (.border-l / .border-r) are left intact. The original border is made
+ * transparent (keeps layout height) and the visible line is painted as an
+ * inset gradient. */
+[data-theme-preset='geili-minimal'] [data-slot='card'] .border-t {
+  border-top-color: transparent;
+  background-image: linear-gradient(
+    to right,
+    transparent 0,
+    transparent 1.5rem,
+    var(--border) 1.5rem,
+    var(--border) calc(100% - 1.5rem),
+    transparent calc(100% - 1.5rem),
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-position: left top;
+  background-size: 100% 1px;
+}
+[data-theme-preset='geili-minimal'] [data-slot='card'] .border-b {
+  border-bottom-color: transparent;
+  background-image: linear-gradient(
+    to right,
+    transparent 0,
+    transparent 1.5rem,
+    var(--border) 1.5rem,
+    var(--border) calc(100% - 1.5rem),
+    transparent calc(100% - 1.5rem),
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 1px;
+}
 [data-theme-preset='geili-minimal'] .glass-1,
 [data-theme-preset='geili-minimal'] .glass-2,
 [data-theme-preset='geili-minimal'] .glass-3,
