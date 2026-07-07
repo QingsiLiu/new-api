@@ -2,6 +2,8 @@ package model
 
 import (
 	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
 )
 
 // 简化的供应商映射规则
@@ -73,22 +75,54 @@ var defaultVendorIcons = map[string]string{
 	"Azure":      "AzureAI",
 }
 
+var defaultChannelVendorRules = map[int]string{
+	constant.ChannelTypeOpenAI:            "OpenAI",
+	constant.ChannelTypeOpenAIMax:         "OpenAI",
+	constant.ChannelTypeCodex:             "OpenAI",
+	constant.ChannelTypeSora:              "OpenAI",
+	constant.ChannelTypeAzure:             "微软",
+	constant.ChannelTypeAnthropic:         "Anthropic",
+	constant.ChannelTypeGemini:            "Google",
+	constant.ChannelTypeVertexAi:          "Google",
+	constant.ChannelTypeMoonshot:          "Moonshot",
+	constant.ChannelTypeZhipu:             "智谱",
+	constant.ChannelTypeZhipu_v4:          "智谱",
+	constant.ChannelTypeAli:               "阿里巴巴",
+	constant.ChannelTypeDeepSeek:          "DeepSeek",
+	constant.ChannelTypeMiniMax:           "MiniMax",
+	constant.ChannelTypeBaidu:             "百度",
+	constant.ChannelTypeBaiduV2:           "百度",
+	constant.ChannelTypeXunfei:            "讯飞",
+	constant.ChannelTypeTencent:           "腾讯",
+	constant.ChannelTypeCohere:            "Cohere",
+	constant.ChannelType360:               "360",
+	constant.ChannelTypeLingYiWanWu:       "零一万物",
+	constant.ChannelTypeJina:              "Jina",
+	constant.ChannelTypeMistral:           "Mistral",
+	constant.ChannelTypeXai:               "xAI",
+	constant.ChannelTypeVolcEngine:        "字节跳动",
+	constant.ChannelTypeDoubaoVideo:       "字节跳动",
+	constant.ChannelTypeKling:             "快手",
+	constant.ChannelTypeJimeng:            "即梦",
+	constant.ChannelTypeJimengOpenAIVideo: "即梦",
+	constant.ChannelTypeVidu:              "Vidu",
+}
+
 // initDefaultVendorMapping 简化的默认供应商映射
 func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vendor, enableAbilities []AbilityWithChannel) {
+	channelVendorByModel := defaultChannelVendorByModel(enableAbilities)
 	for _, ability := range enableAbilities {
 		modelName := ability.Model
 		if _, exists := metaMap[modelName]; exists {
 			continue
 		}
 
-		// 匹配供应商
 		vendorID := 0
-		modelLower := strings.ToLower(modelName)
-		for _, rule := range defaultVendorRules {
-			if strings.Contains(modelLower, rule.Pattern) {
-				vendorID = getOrCreateVendor(rule.Vendor, vendorMap)
-				break
-			}
+		if vendorName := channelVendorByModel[modelName]; vendorName != "" {
+			vendorID = getOrCreateVendor(vendorName, vendorMap)
+		}
+		if vendorID == 0 {
+			vendorID = inferDefaultVendorIDFromModelName(modelName, vendorMap)
 		}
 
 		// 创建模型元数据
@@ -99,6 +133,38 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 			NameRule:  NameRuleExact,
 		}
 	}
+}
+
+func defaultChannelVendorByModel(enableAbilities []AbilityWithChannel) map[string]string {
+	vendorByModel := make(map[string]string)
+	conflictedModels := make(map[string]struct{})
+	for _, ability := range enableAbilities {
+		modelName := ability.Model
+		if _, conflicted := conflictedModels[modelName]; conflicted {
+			continue
+		}
+		vendorName := defaultChannelVendorRules[ability.ChannelType]
+		if vendorName == "" {
+			continue
+		}
+		if existing, exists := vendorByModel[modelName]; exists && existing != vendorName {
+			delete(vendorByModel, modelName)
+			conflictedModels[modelName] = struct{}{}
+			continue
+		}
+		vendorByModel[modelName] = vendorName
+	}
+	return vendorByModel
+}
+
+func inferDefaultVendorIDFromModelName(modelName string, vendorMap map[int]*Vendor) int {
+	modelLower := strings.ToLower(modelName)
+	for _, rule := range defaultVendorRules {
+		if strings.Contains(modelLower, rule.Pattern) {
+			return getOrCreateVendor(rule.Vendor, vendorMap)
+		}
+	}
+	return 0
 }
 
 // 查找或创建供应商

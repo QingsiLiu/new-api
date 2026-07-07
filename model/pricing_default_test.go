@@ -1,6 +1,34 @@
 package model
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/constant"
+)
+
+func TestDefaultVendorMappingPrefersChannelVendorBeforeNameFallback(t *testing.T) {
+	const modelName = "spark-compatible-proxy-model"
+	vendorMap := map[int]*Vendor{
+		1: {Id: 1, Name: "OpenAI"},
+		2: {Id: 2, Name: "讯飞"},
+	}
+	metaMap := map[string]*Model{}
+
+	initDefaultVendorMapping(metaMap, vendorMap, []AbilityWithChannel{
+		{
+			Ability:     Ability{Model: modelName, Enabled: true},
+			ChannelType: constant.ChannelTypeOpenAI,
+		},
+	})
+
+	meta, ok := metaMap[modelName]
+	if !ok {
+		t.Fatalf("expected metadata for %s", modelName)
+	}
+	if meta.VendorID != 1 {
+		t.Fatalf("expected %s to map to OpenAI vendor 1 from channel type, got vendor %d", modelName, meta.VendorID)
+	}
+}
 
 func TestDefaultVendorMappingPrefersOpenAIForCodexSparkOpenAIModel(t *testing.T) {
 	const modelName = "gpt-5.3-codex-spark-openai-compact"
