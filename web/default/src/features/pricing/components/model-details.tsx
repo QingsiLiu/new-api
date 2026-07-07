@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, Code2, HeartPulse, Info, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,11 @@ import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  getDefaultImageSpecPrice,
+  getImageSpecPriceRows,
+  isImageSpecPricingModel,
+} from '../lib/spec-pricing'
 import type {
   Modality,
   ModelCapability,
@@ -79,6 +85,14 @@ function SectionTitle(props: { children: React.ReactNode }) {
       {props.children}
     </h2>
   )
+}
+
+function formatSpecPrice(value: number) {
+  return formatBillingCurrencyFromUSD(value, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
 }
 
 const CAPABILITY_LABEL_KEYS: Record<ModelCapability, string> = {
@@ -139,6 +153,67 @@ function CompactModalities(props: { input: Modality[]; output: Modality[] }) {
         <ModalityIcons modalities={props.output} />
       </div>
     </div>
+  )
+}
+
+function ImageSpecPriceSection(props: { model: PricingModel }) {
+  const { t } = useTranslation()
+  const rows = getImageSpecPriceRows(props.model)
+  const defaultPrice = getDefaultImageSpecPrice(props.model)
+
+  if (rows.length === 0 && defaultPrice == null) return null
+
+  return (
+    <section>
+      <SectionTitle>{t('Image spec')}</SectionTitle>
+      {defaultPrice != null && (
+        <div className='mb-3 flex items-baseline justify-between gap-4'>
+          <span className='text-muted-foreground text-sm'>
+            {t('Default')}
+          </span>
+          <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+            {formatSpecPrice(defaultPrice)}
+            <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+              / {t('Image')}
+            </span>
+          </span>
+        </div>
+      )}
+      {rows.length > 0 && (
+        <StaticDataTable
+          className='rounded-lg'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={rows}
+          getRowKey={(row) => row.resolution}
+          columns={[
+            {
+              id: 'resolution',
+              header: t('Resolution'),
+              className:
+                'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase',
+              cellClassName: 'py-2.5 font-medium',
+              cell: (row) => row.resolution,
+            },
+            {
+              id: 'price',
+              header: t('Price'),
+              className:
+                'text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase',
+              cellClassName: 'py-2.5 text-right font-mono tabular-nums',
+              cell: (row) => (
+                <>
+                  {formatSpecPrice(row.cnyPerImage)}
+                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                    / {t('Image')}
+                  </span>
+                </>
+              ),
+            },
+          ]}
+        />
+      )}
+    </section>
   )
 }
 
@@ -418,6 +493,10 @@ function PriceSection(props: {
         props.model.audio_completion_ratio != null,
     },
   ]
+
+  if (isImageSpecPricingModel(props.model)) {
+    return <ImageSpecPriceSection model={props.model} />
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
@@ -699,6 +778,63 @@ function GroupPricingSection(props: {
 
   const thClass =
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
+
+  if (isImageSpecPricingModel(props.model)) {
+    const imageRows = getImageSpecPriceRows(props.model)
+    const tierLabels = imageRows.map((row) => row.resolution).join(' / ')
+
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={availableGroups}
+          getRowKey={(group) => group}
+          columns={[
+            {
+              id: 'group',
+              header: t('Group'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (group) => <GroupBadge group={group} size='sm' />,
+            },
+            {
+              id: 'resolution',
+              header: t('Resolution'),
+              className: thClass,
+              cellClassName: 'text-muted-foreground py-2.5 font-mono',
+              cell: () => tierLabels || t('Default'),
+            },
+            {
+              id: 'price',
+              header: t('Price'),
+              className: `${thClass} text-right`,
+              cellClassName: 'py-2.5 text-right font-mono tabular-nums',
+              cell: () => (
+                <div className='space-y-1'>
+                  {imageRows.length > 0 ? (
+                    imageRows.map((row) => (
+                      <div key={row.resolution}>
+                        <span className='text-muted-foreground/60 mr-2'>
+                          {row.resolution}
+                        </span>
+                        {formatSpecPrice(row.cnyPerImage)}
+                      </div>
+                    ))
+                  ) : (
+                    formatSpecPrice(getDefaultImageSpecPrice(props.model) ?? 0)
+                  )}
+                </div>
+              ),
+            },
+          ]}
+        />
+      </section>
+    )
+  }
 
   if (isDynamicPricingModel(props.model)) {
     const dynamicTiers = getDynamicPricingTiers(props.model)
