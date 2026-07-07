@@ -1318,6 +1318,11 @@ func executeAsyncTaskInBackground(taskID string, channelID int, execution asyncT
 		completeAsyncTaskFailure(task, execution.Request, safeAsyncTaskError(err))
 		return
 	}
+	outputs, err = archiveAsyncTaskImageOutputs(context.Background(), task, execution.Request, outputs)
+	if err != nil {
+		completeAsyncTaskFailure(task, execution.Request, safeAsyncTaskError(err))
+		return
+	}
 	completeAsyncTaskSuccess(task, execution.Request, outputs)
 }
 
