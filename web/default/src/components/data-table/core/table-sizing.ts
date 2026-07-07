@@ -26,5 +26,17 @@ export function getTableSizeStyle<TData>(
     .getVisibleLeafColumns()
     .reduce((total, column) => total + column.getSize(), 0)
 
-  return { minWidth: width, tableLayout: 'fixed', width: '100%' }
+  // Grow to fill the container when the columns are narrower than the viewport
+  // (via `width: 100%`), but never stretch individual fixed columns beyond
+  // their defined size — the last column (usually pinned actions) otherwise
+  // absorbs all the slack and shows a large empty gap on the right.
+  // `min-width` keeps horizontal scroll when columns are wider than the
+  // container; `max-width` caps the table at the columns' total intrinsic width
+  // so the extra space stays OUTSIDE the table instead of inflating a column.
+  return {
+    minWidth: width,
+    maxWidth: width,
+    tableLayout: 'fixed',
+    width: '100%',
+  }
 }
