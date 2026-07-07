@@ -972,6 +972,25 @@ For commercial licensing, please contact support@quantumnous.com
   padding-right: 1.5rem !important;
 }
 
+/* Row dividers with horizontal inset.
+ * Each body row's first cell hosts an absolutely-positioned line that spans the
+ * full table width minus 1.5rem on each side. Using the first cell + a wide line
+ * keeps a single continuous divider that is inset from both edges and is not
+ * affected by per-cell hover background. */
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-row'] {
+  position: relative;
+}
+[data-theme-preset='geili-minimal'] [data-slot='table-body'] [data-slot='table-row']:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 1.5rem;
+  right: 1.5rem;
+  bottom: 0;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
 /* Reset glass utilities for minimal */
 [data-theme-preset='geili-minimal'] .glass-1,
 [data-theme-preset='geili-minimal'] .glass-2,
