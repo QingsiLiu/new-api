@@ -165,6 +165,11 @@ export const CHANNEL_OPTIONS = [
     label: '即梦视频（OpenAI Video）',
   },
   {
+    value: 60,
+    color: 'blue',
+    label: 'Ls.API Seedance',
+  },
+  {
     value: 52,
     color: 'purple',
     label: 'Vidu',

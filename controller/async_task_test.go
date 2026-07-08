@@ -1751,6 +1751,360 @@ func TestAsyncOpenAIVideoPayloadPreservesSeedance15ContentRoles(t *testing.T) {
 	require.Equal(t, "last_frame", lastFrame["role"])
 }
 
+func TestAsyncLsSeedanceVideoTaskSubmitsAndPollsTextVideo(t *testing.T) {
+	createCalled := make(chan struct{}, 1)
+	pollCalled := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/seedance/v1/video/generate":
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "dreamina-seedance-2-0-260128", payload["model"])
+			require.Equal(t, float64(6), payload["duration"])
+			require.Equal(t, "480p", payload["resolution"])
+			require.Equal(t, "16:9", payload["ratio"])
+			require.Equal(t, false, payload["generate_audio"])
+			require.Equal(t, false, payload["watermark"])
+			require.Equal(t, true, payload["return_last_frame"])
+			content := payload["content"].([]interface{})
+			require.Equal(t, []interface{}{
+				map[string]interface{}{"type": "text", "text": "A cinematic product shot"},
+			}, content)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"task":{"id":"ls-task-1","status":"pending","model":"dreamina-seedance-2-0-260128","outputs":[]}}`))
+			createCalled <- struct{}{}
+		case "/seedance/v1/video/tasks/ls-task-1":
+			require.Equal(t, http.MethodGet, r.Method)
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":"success","data":{"task_id":"ls-task-1","status":"SUCCESS","progress":"100%","result_url":"https://cdn.example.test/ls-task-1.mp4","data":{"task":{"usage":{"total_tokens":40594}}}}}`))
+			pollCalled <- struct{}{}
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(
+		t,
+		upstream.URL,
+		"seedance-2.0",
+		constant.ChannelTypeLsSeedance,
+		`{"seedance-2.0":"dreamina-seedance-2-0-260128"}`,
+	)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(`{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-2.0",
+		"input":{"prompt":"A cinematic product shot"},
+		"parameters":{
+			"duration":6,
+			"resolution":"480p",
+			"ratio":"16:9",
+			"generate_audio":false,
+			"watermark":false,
+			"return_last_frame":true
+		}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&stored).Error)
+	require.Equal(t, "seedance-2.0", stored.Properties.OriginModelName)
+	require.Equal(t, "dreamina-seedance-2-0-260128", stored.Properties.UpstreamModelName)
+	require.Equal(t, "ls-task-1", stored.PrivateData.UpstreamTaskID)
+	require.Equal(t, "https://cdn.example.test/ls-task-1.mp4", stored.PrivateData.ResultURL)
+	var data asyncTaskData
+	require.NoError(t, stored.GetData(&data))
+	require.Len(t, data.Outputs, 1)
+	require.Equal(t, "video/mp4", data.Outputs[0].MimeType)
+	require.Equal(t, "https://cdn.example.test/ls-task-1.mp4", data.Outputs[0].URL)
+	select {
+	case <-createCalled:
+	default:
+		t.Fatal("Ls.API create endpoint was not called")
+	}
+	select {
+	case <-pollCalled:
+	default:
+		t.Fatal("Ls.API poll endpoint was not called")
+	}
+}
+
+func TestAsyncLsSeedanceVideoTaskUploadsImageAssetsBeforeGenerate(t *testing.T) {
+	var generatePayload map[string]interface{}
+	assetGetCount := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/seedance/v1/asset-groups":
+			require.Equal(t, http.MethodPost, r.Method)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"group-ls-1","name":"geili-async-ref"}`))
+		case "/seedance/v1/assets":
+			require.Equal(t, http.MethodPost, r.Method)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "group-ls-1", payload["group_id"])
+			require.Equal(t, "https://example.com/ref.png", payload["url"])
+			require.Equal(t, "Image", payload["asset_type"])
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"asset-ls-1","status":"processing"}`))
+		case "/seedance/v1/assets/get":
+			assetGetCount++
+			require.Equal(t, http.MethodPost, r.Method)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			require.Equal(t, "asset-ls-1", payload["asset_id"])
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"asset-ls-1","status":"completed","asset_type":"Image","group_id":"group-ls-1"}`))
+		case "/seedance/v1/video/generate":
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			require.NoError(t, common.Unmarshal(body, &generatePayload))
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"task":{"id":"ls-image-task-1","status":"pending","outputs":[]}}`))
+		case "/seedance/v1/video/tasks/ls-image-task-1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":"success","data":{"task_id":"ls-image-task-1","status":"SUCCESS","progress":"100%","result_url":"https://cdn.example.test/ls-image-task-1.mp4"}}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(
+		t,
+		upstream.URL,
+		"seedance-2.0-fast",
+		constant.ChannelTypeLsSeedance,
+		`{"seedance-2.0-fast":"dreamina-seedance-2-0-fast-260128"}`,
+	)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0-fast":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(`{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-2.0-fast",
+		"input":{"prompt":"reference image video"},
+		"parameters":{
+			"image":"https://example.com/ref.png",
+			"audio_url":"https://example.com/music.mp3",
+			"duration":4,
+			"resolution":"480p",
+			"ratio":"16:9"
+		}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusSuccess
+	}, 2*time.Second, 20*time.Millisecond)
+	require.Equal(t, 1, assetGetCount)
+	require.Equal(t, "dreamina-seedance-2-0-fast-260128", generatePayload["model"])
+	content := generatePayload["content"].([]interface{})
+	require.Equal(t, []interface{}{
+		map[string]interface{}{"type": "text", "text": "reference image video"},
+		map[string]interface{}{"type": "image_url", "role": "reference_image", "image_url": map[string]interface{}{"url": "asset://asset-ls-1"}},
+		map[string]interface{}{"type": "audio_url", "role": "reference_audio", "audio_url": map[string]interface{}{"url": "https://example.com/music.mp3"}},
+	}, content)
+}
+
+func TestAsyncLsSeedanceVideoTaskKeepsExistingAssetReference(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/seedance/v1/asset-groups", "/seedance/v1/assets", "/seedance/v1/assets/get":
+			t.Fatalf("asset:// references should not be uploaded again: %s", r.URL.Path)
+		case "/seedance/v1/video/generate":
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, common.Unmarshal(body, &payload))
+			content := payload["content"].([]interface{})
+			require.Equal(t, map[string]interface{}{"type": "image_url", "role": "reference_image", "image_url": map[string]interface{}{"url": "asset://asset-existing"}}, content[1])
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"task":{"id":"ls-asset-task-1","status":"pending","outputs":[]}}`))
+		case "/seedance/v1/video/tasks/ls-asset-task-1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":"success","data":{"status":"SUCCESS","result_url":"https://cdn.example.test/asset.mp4"}}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "seedance-2.0", constant.ChannelTypeLsSeedance, `{"seedance-2.0":"dreamina-seedance-2-0-260128"}`)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(`{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-2.0",
+		"input":{"prompt":"existing asset"},
+		"parameters":{"image":"asset://asset-existing","duration":4,"resolution":"480p","ratio":"16:9"}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
+func TestAsyncLsSeedanceVideoTaskAssetUploadFailureRefundsQuota(t *testing.T) {
+	generateCalled := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/seedance/v1/asset-groups":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"group-ls-fail","name":"geili-async-ref"}`))
+		case "/seedance/v1/assets":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"","status":"failed","message":"asset rejected"}`))
+		case "/seedance/v1/video/generate":
+			generateCalled = true
+			t.Fatalf("video generation should not be submitted after asset upload failure")
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "seedance-2.0-fast", constant.ChannelTypeLsSeedance, `{"seedance-2.0-fast":"dreamina-seedance-2-0-fast-260128"}`)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0-fast":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(`{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-2.0-fast",
+		"input":{"prompt":"asset upload failure"},
+		"parameters":{"image":"https://example.com/ref.png","duration":4,"resolution":"480p","ratio":"16:9"}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusFailure
+	}, 2*time.Second, 20*time.Millisecond)
+	require.False(t, generateCalled)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	var refundLogs []model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error)
+	require.Len(t, refundLogs, 1)
+}
+
+func TestAsyncLsSeedanceVideoTaskFailureRefundsQuota(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/seedance/v1/video/generate":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"task":{"id":"ls-failed-1","status":"pending","outputs":[]}}`))
+		case "/seedance/v1/video/tasks/ls-failed-1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":"success","data":{"task_id":"ls-failed-1","status":"FAILURE","progress":"100%","fail_reason":"prompt rejected"}}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.String())
+		}
+	}))
+	defer upstream.Close()
+
+	engine, token := setupAsyncTaskProductRouterTest(t, upstream.URL, "seedance-2.0", constant.ChannelTypeLsSeedance, `{"seedance-2.0":"dreamina-seedance-2-0-260128"}`)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0":0.01}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(`{
+		"kind":"video",
+		"action":"generate",
+		"model":"seedance-2.0",
+		"input":{"prompt":"blocked"},
+		"parameters":{"duration":4,"resolution":"480p","ratio":"16:9"}
+	}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var created asyncTaskResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
+	require.Eventually(t, func() bool {
+		var task model.Task
+		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
+		return err == nil && task.Status == model.TaskStatusFailure
+	}, 2*time.Second, 20*time.Millisecond)
+
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	var refundLogs []model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error)
+	require.Len(t, refundLogs, 1)
+}
+
+func TestAsyncLsSeedanceVideoPayloadOmitsDurationWhenUnset(t *testing.T) {
+	payload, err := asyncLsSeedanceVideoPayload(context.Background(), nil, &model.Channel{Key: "sk-upstream"}, asyncTaskRequest{
+		Model: "dreamina-seedance-2-0-260128",
+		Input: asyncTaskInput{Prompt: "default duration"},
+		Parameters: map[string]interface{}{
+			"resolution": "480p",
+			"ratio":      "16:9",
+		},
+	})
+	require.NoError(t, err)
+	require.NotContains(t, payload, "duration")
+	require.Equal(t, "480p", payload["resolution"])
+	require.Equal(t, "16:9", payload["ratio"])
+}
+
 func TestAsyncVideoMatrixSpecPricingUsesVideoInputReferencesMode(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	withAsyncSpecPricingForTest(t, `{

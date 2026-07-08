@@ -1534,6 +1534,8 @@ func executeAsyncVideoTask(task *model.Task, channel *model.Channel, execution a
 		return executeAsyncKieSeedanceVideoTask(ctx, task, channel, execution.Request)
 	case constant.ChannelTypeJimengOpenAIVideo:
 		return executeAsyncOpenAIVideoTask(ctx, task, channel, execution.Request)
+	case constant.ChannelTypeLsSeedance:
+		return executeAsyncLsSeedanceVideoTask(ctx, task, channel, execution.Request)
 	default:
 		return nil, fmt.Errorf("unsupported video async channel type %s", constant.GetChannelTypeName(channel.Type))
 	}

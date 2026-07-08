@@ -157,6 +157,19 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other: 'Uses OpenAI Video-compatible /v1/videos endpoints for Jimeng/Seedance video models.',
     },
   },
+  60: {
+    id: 60,
+    name: CHANNEL_TYPES[60],
+    icon: 'jimeng',
+    defaultBaseUrl: 'http://api.callxyq.xyz',
+    hints: {
+      key: 'Ls.API Key',
+      models: 'seedance-2.0,seedance-2.0-fast',
+      baseUrl: 'Default: http://api.callxyq.xyz',
+      other:
+        'Maps Geili Seedance video tasks to Ls.API /seedance/v1 endpoints. Use model_mapping for dreamina-seedance upstream IDs.',
+    },
+  },
 }
 
 /**
