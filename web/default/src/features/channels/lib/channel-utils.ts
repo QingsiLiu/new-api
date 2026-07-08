@@ -96,6 +96,7 @@ export function getChannelTypeIcon(type: number): string {
     50: 'Kling', // Kling
     51: 'Jimeng', // Jimeng
     59: 'Jimeng', // Jimeng Video (OpenAI Video)
+    60: 'Jimeng', // Ls.API Seedance
     52: 'Vidu', // Vidu
     36: 'Suno', // SunoAPI
     55: 'OpenAI', // Sora

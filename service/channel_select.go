@@ -2,12 +2,14 @@ package service
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +18,14 @@ type RetryParam struct {
 	TokenGroup   string
 	ModelName    string
 	Retry        *int
+	AsyncSpec    *AsyncSpecRouteConstraint
 	resetNextTry bool
+}
+
+type AsyncSpecRouteConstraint struct {
+	Kind       string
+	Model      string
+	Resolution string
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -85,6 +94,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	selectionFilter := asyncSpecRouteSelectionFilter(param.AsyncSpec)
 
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
@@ -115,7 +125,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannelWithSelectionFilter(autoGroup, param.ModelName, priorityRetry, selectionFilter)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,10 +163,60 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannelWithSelectionFilter(param.TokenGroup, param.ModelName, param.GetRetry(), selectionFilter)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+func asyncSpecRouteSelectionFilter(constraint *AsyncSpecRouteConstraint) model.ChannelSelectionFilter {
+	if constraint == nil {
+		return nil
+	}
+	kind := strings.ToLower(strings.TrimSpace(constraint.Kind))
+	modelName := strings.TrimSpace(constraint.Model)
+	resolution := operation_setting.ResolveImageSpecKey(strings.TrimSpace(constraint.Resolution), "")
+	if kind == "" || modelName == "" {
+		return nil
+	}
+	return func(channel *model.Channel) model.ChannelSelectionFilterResult {
+		if channel == nil {
+			return model.ChannelSelectionFilterResult{}
+		}
+		settings := channel.GetSetting()
+		applies := false
+		for _, route := range settings.AsyncSpecRoutes {
+			if strings.ToLower(strings.TrimSpace(route.Kind)) != kind {
+				continue
+			}
+			if !asyncSpecRouteContainsModel(route.Models, modelName) {
+				continue
+			}
+			applies = true
+			if resolution != "" && asyncSpecRouteContainsResolution(route.Resolutions, resolution) {
+				return model.ChannelSelectionFilterResult{Applies: true, Match: true}
+			}
+		}
+		return model.ChannelSelectionFilterResult{Applies: applies, Match: false}
+	}
+}
+
+func asyncSpecRouteContainsModel(models []string, modelName string) bool {
+	for _, candidate := range models {
+		if strings.EqualFold(strings.TrimSpace(candidate), modelName) {
+			return true
+		}
+	}
+	return false
+}
+
+func asyncSpecRouteContainsResolution(resolutions []string, resolution string) bool {
+	for _, candidate := range resolutions {
+		if operation_setting.ResolveImageSpecKey(strings.TrimSpace(candidate), "") == resolution {
+			return true
+		}
+	}
+	return false
 }
