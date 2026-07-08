@@ -872,6 +872,25 @@ For commercial licensing, please contact support@quantumnous.com
   background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 
+/* Pinned (sticky) cells must stay OPAQUE in every state, otherwise the columns
+ * scrolling underneath show through on hover/selection. The translucent hover
+ * tint above (specificity 0,3,0) out-specifies the `bg-card` utility on pinned
+ * cells, so we re-assert an opaque background here with higher specificity
+ * (the extra `.data-table-pinned-cell` class → 0,4,0 on the hover selector).
+ * The hover tint is re-created opaquely by mixing it over --card. */
+[data-slot='table-cell'].data-table-pinned-cell,
+[data-slot='table-head'].data-table-pinned-cell {
+  background-color: var(--card);
+}
+[data-slot='table-row']:hover
+  [data-slot='table-cell'].data-table-pinned-cell {
+  background: color-mix(in srgb, var(--foreground) 3%, var(--card));
+}
+[data-slot='table-row'][data-state='selected']
+  [data-slot='table-cell'].data-table-pinned-cell {
+  background-color: var(--muted);
+}
+
 /* DS-FIX: card无描边，靠阴影浮起 */
 [data-slot='card'] {
   border: none;

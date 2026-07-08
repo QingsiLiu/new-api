@@ -59,12 +59,16 @@ function getPinnedColumnClassName(
     pinnedColumn.side === 'left'
       ? 'border-r border-border/70'
       : 'border-l border-border/70',
+    // `data-table-pinned-cell` is the hook for the opaque-background CSS in
+    // index.css. A sticky cell sits ABOVE horizontally-scrolled content, so it
+    // must stay fully opaque in every state — but the global rule
+    // `[data-slot=table-row]:hover [data-slot=table-cell]` (specificity 0,3,0)
+    // paints a translucent hover tint on EVERY cell and out-specifies plain
+    // utility classes like `bg-card`. The CSS rule keyed off this marker class
+    // wins on specificity and restores an opaque background.
     kind === 'header'
-      ? 'z-30 !bg-card'
-      : // Pinned cells sit above scrolled content, so their hover/selected
-        // backgrounds must be OPAQUE — a translucent bg-muted/50 lets the
-        // content scrolling underneath show through the sticky column.
-        'z-20 bg-card group-hover:[background-color:color-mix(in_oklch,var(--muted)_50%,var(--card))] group-data-[state=selected]:bg-muted',
+      ? 'data-table-pinned-cell z-30 !bg-card'
+      : 'data-table-pinned-cell z-20 bg-card',
     pinnedColumn.className,
     kind === 'header'
       ? pinnedColumn.headerClassName

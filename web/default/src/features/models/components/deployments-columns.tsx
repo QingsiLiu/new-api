@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type * as React from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import {
   Eye,
@@ -33,7 +34,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -256,9 +256,10 @@ export function useDeploymentsColumns(opts: {
       header: () => t('Actions'),
       enableHiding: false,
       enableSorting: false,
-      // High-frequency "View logs" stays inline; everything else lives in
-      // the overflow menu. 2 controls => 88px (matches keys page).
-      size: 88,
+      // Common actions inline (logs / details / extend / delete); the
+      // occasional ones (update config, rename) live in the overflow menu.
+      // 4 icon buttons + menu => ~184px.
+      size: 184,
       meta: { pinned: 'right' as const },
       cell: ({ row }) => {
         const id = row.original.id
@@ -268,24 +269,59 @@ export function useDeploymentsColumns(opts: {
           row.original.name ||
           ''
 
+        const inlineActions: {
+          label: string
+          icon: React.ReactNode
+          onClick: () => void
+          destructive?: boolean
+        }[] = [
+          {
+            label: t('View logs'),
+            icon: <Eye className='size-4' />,
+            onClick: () => opts.onViewLogs(id),
+          },
+          {
+            label: t('View details'),
+            icon: <Info className='size-4' />,
+            onClick: () => opts.onViewDetails(id),
+          },
+          {
+            label: t('Extend deployment'),
+            icon: <Timer className='size-4' />,
+            onClick: () => opts.onExtend(id),
+          },
+          {
+            label: t('Delete'),
+            icon: <Trash2 className='size-4' />,
+            onClick: () => opts.onDelete(row.original),
+            destructive: true,
+          },
+        ]
+
         return (
           <div className='-ml-2 flex items-center gap-1'>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='icon-sm'
-                    onClick={() => opts.onViewLogs(id)}
-                    aria-label={t('View logs')}
-                    className='border-0'
-                  />
-                }
-              >
-                <Eye className='size-4' />
-              </TooltipTrigger>
-              <TooltipContent>{t('View logs')}</TooltipContent>
-            </Tooltip>
+            {inlineActions.map((action) => (
+              <Tooltip key={action.label}>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant='ghost'
+                      size='icon-sm'
+                      onClick={action.onClick}
+                      aria-label={action.label}
+                      className={
+                        action.destructive
+                          ? 'text-destructive hover:text-destructive border-0'
+                          : 'border-0'
+                      }
+                    />
+                  }
+                >
+                  {action.icon}
+                </TooltipTrigger>
+                <TooltipContent>{action.label}</TooltipContent>
+              </Tooltip>
+            ))}
 
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger
@@ -300,22 +336,10 @@ export function useDeploymentsColumns(opts: {
                 <span className='sr-only'>{t('Open menu')}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' className='w-[200px]'>
-                <DropdownMenuItem onClick={() => opts.onViewDetails(id)}>
-                  {t('View details')}
-                  <DropdownMenuShortcut>
-                    <Info size={16} />
-                  </DropdownMenuShortcut>
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => opts.onUpdateConfig(id)}>
                   {t('Update configuration')}
                   <DropdownMenuShortcut>
                     <Settings2 size={16} />
-                  </DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => opts.onExtend(id)}>
-                  {t('Extend deployment')}
-                  <DropdownMenuShortcut>
-                    <Timer size={16} />
                   </DropdownMenuShortcut>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -324,16 +348,6 @@ export function useDeploymentsColumns(opts: {
                   {t('Rename deployment')}
                   <DropdownMenuShortcut>
                     <Pencil size={16} />
-                  </DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => opts.onDelete(row.original)}
-                  className='text-destructive focus:text-destructive'
-                >
-                  {t('Delete')}
-                  <DropdownMenuShortcut>
-                    <Trash2 size={16} />
                   </DropdownMenuShortcut>
                 </DropdownMenuItem>
               </DropdownMenuContent>
