@@ -78,7 +78,7 @@ export function useDeploymentsColumns(opts: {
       accessorFn: (row) =>
         row.container_name || row.deployment_name || row.name || '',
       header: t('Name'),
-      meta: { mobileTitle: true },
+      meta: { mobileTitle: true, flex: true },
       cell: ({ getValue }) => {
         const name = String(getValue() || '-') || '-'
         return (

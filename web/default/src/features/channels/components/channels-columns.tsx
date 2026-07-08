@@ -477,7 +477,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     {
       accessorKey: 'name',
       header: t('Name'),
-      meta: { mobileTitle: true },
+      meta: { mobileTitle: true, flex: true },
       cell: ({ row }) => {
         const isTagRow = isTagAggregateRow(row.original)
         const name = row.getValue('name') as string

@@ -121,7 +121,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       },
       enableHiding: false,
       size: 220,
-      meta: { mobileTitle: true },
+      meta: { mobileTitle: true, flex: true },
     },
     {
       accessorKey: 'status',

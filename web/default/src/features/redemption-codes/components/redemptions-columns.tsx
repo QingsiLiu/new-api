@@ -73,7 +73,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       accessorKey: 'name',
       header: t('Name'),
-      meta: { mobileTitle: true },
+      meta: { mobileTitle: true, flex: true },
       cell: ({ row }) => (
         <span className='font-medium'>{row.getValue('name')}</span>
       ),

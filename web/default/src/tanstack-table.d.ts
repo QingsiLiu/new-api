@@ -24,6 +24,11 @@ declare module '@tanstack/react-table' {
     description?: string
     className?: string
     pinned?: 'left' | 'right'
+    // Absorb the table's leftover horizontal space. When a container is wider
+    // than the sum of column sizes, the flex column stretches to fill the gap
+    // (instead of the slack inflating the last/pinned column and leaving a
+    // right-side blank). `column.getSize()` becomes this column's MIN width.
+    flex?: boolean
     // Mobile card list layout hints (used by MobileCardList)
     mobileTitle?: boolean // card title area (left, larger text)
     mobileBadge?: boolean // status badge alongside title (right)

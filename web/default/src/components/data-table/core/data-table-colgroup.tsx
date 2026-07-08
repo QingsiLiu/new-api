@@ -27,14 +27,22 @@ export function DataTableColgroup<TData>({
 
   return (
     <colgroup>
-      {columns.map((column) => (
-        <col
-          key={column.id}
-          style={{
-            width: `${column.getSize()}px`,
-          }}
-        />
-      ))}
+      {columns.map((column) => {
+        // A `flex` column has no fixed width: under table-layout:fixed the
+        // browser distributes the table's leftover width to auto-width cols,
+        // so it stretches to fill the container. Its size becomes a min width.
+        const isFlex = column.columnDef.meta?.flex
+        return (
+          <col
+            key={column.id}
+            style={
+              isFlex
+                ? { minWidth: `${column.getSize()}px` }
+                : { width: `${column.getSize()}px` }
+            }
+          />
+        )
+      })}
     </colgroup>
   )
 }

@@ -45,7 +45,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.title,
         id: 'title',
         header: t('Plan'),
-        meta: { mobileTitle: true },
+        meta: { mobileTitle: true, flex: true },
         cell: ({ row }) => {
           const plan = row.original.plan
           return (

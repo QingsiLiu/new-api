@@ -49,7 +49,14 @@ export function DataTableHeader<TData>({
               key={header.id}
               colSpan={header.colSpan}
               className={getColumnClassName?.(header.column.id, 'header')}
-              style={applyHeaderSize ? { width: header.getSize() } : undefined}
+              style={
+                // A flex column must stay auto-width so it can absorb the
+                // table's slack — pinning an explicit width here (under
+                // table-layout: fixed) would freeze it at its base size.
+                applyHeaderSize && !header.column.columnDef.meta?.flex
+                  ? { width: header.getSize() }
+                  : undefined
+              }
             >
               {renderHeaderContent(header)}
             </TableHead>

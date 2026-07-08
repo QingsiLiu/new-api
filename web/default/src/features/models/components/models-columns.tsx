@@ -134,7 +134,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'model_name',
       header: t('Model Name'),
-      meta: { mobileTitle: true },
+      meta: { mobileTitle: true, flex: true },
       cell: ({ row }) => {
         const name = row.getValue('model_name') as string
         return (

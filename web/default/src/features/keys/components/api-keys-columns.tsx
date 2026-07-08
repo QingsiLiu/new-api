@@ -99,7 +99,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         <span className='font-medium'>{row.getValue('name')}</span>
       ),
       size: 180,
-      meta: { mobileTitle: true },
+      meta: { mobileTitle: true, flex: true },
     },
     {
       accessorKey: 'status',
