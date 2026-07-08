@@ -229,7 +229,7 @@ func CreateAsyncTask(c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": gin.H{"message": "async task queue is full", "code": "queued_limit_exceeded"}})
 		return
 	}
-	channel, err := selectAsyncTaskChannel(c, request.Model)
+	channel, err := selectAsyncTaskChannel(c, request)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{"message": err.Error()}})
 		return
@@ -328,7 +328,7 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "unsupported async task kind"}})
 		return
 	}
-	channel, err := selectAsyncTaskChannel(c, request.Model)
+	channel, err := selectAsyncTaskChannel(c, request)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{"message": err.Error()}})
 		return
@@ -754,7 +754,8 @@ func asyncTaskCreateErrorStatus(err error) int {
 	return http.StatusBadRequest
 }
 
-func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, error) {
+func selectAsyncTaskChannel(c *gin.Context, request asyncTaskRequest) (*model.Channel, error) {
+	modelName := request.Model
 	if strings.TrimSpace(modelName) == "" {
 		return nil, errors.New("model is required")
 	}
@@ -767,6 +768,7 @@ func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, e
 		ModelName:  modelName,
 		TokenGroup: group,
 		Retry:      common.GetPointer(0),
+		AsyncSpec:  asyncTaskRouteConstraint(request),
 	})
 	if err != nil {
 		return nil, err
@@ -775,6 +777,23 @@ func selectAsyncTaskChannel(c *gin.Context, modelName string) (*model.Channel, e
 		return nil, fmt.Errorf("no available channel for model %s", modelName)
 	}
 	return channel, nil
+}
+
+func asyncTaskRouteConstraint(request asyncTaskRequest) *service.AsyncSpecRouteConstraint {
+	if request.Kind != asyncTaskKindImage {
+		return nil
+	}
+	size := asyncParamString(request.Parameters, "size")
+	resolution := asyncParamString(request.Parameters, "resolution")
+	specKey := operation_setting.ResolveImageSpecKey(size, resolution)
+	if specKey == "" && strings.EqualFold(strings.TrimSpace(request.Model), "gpt-image-2") {
+		specKey = "1k"
+	}
+	return &service.AsyncSpecRouteConstraint{
+		Kind:       asyncTaskKindImage,
+		Model:      request.Model,
+		Resolution: specKey,
+	}
 }
 
 func prepareAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel *model.Channel) (*relaycommon.RelayInfo, error) {
