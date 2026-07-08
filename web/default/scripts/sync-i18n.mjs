@@ -41,6 +41,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Baidu V2',
   'ChatGPT',
   'ChatGPT Subscription (Codex)',
+  'CC Switch',
   'Claude',
   'Client ID',
   'Client Secret',
@@ -52,8 +53,12 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'FastGPT',
   'Gemini',
   'Gemini Image 4K',
+  'Geili Editorial',
+  'Geili Minimal',
+  'Geili Modern',
   'GitHub',
   'Jimeng',
+  'Jimeng Video (OpenAI Video)',
   'JustSong',
   'LingYiWanWu',
   'LinuxDO',
@@ -78,6 +83,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Passkey',
   'Perplexity',
   'QuantumNous',
+  'Quota/CNY {{quota}}',
   'Quota:',
   'Replicate',
   'SiliconFlow',
@@ -106,11 +112,15 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Zhipu V4',
   '"default": "us-central1", "claude-3-5-sonnet-20240620": "europe-west1"',
   'edit_this',
+  'endpoint_type',
   'footer.columns.related.links.midjourney',
   'footer.columns.related.links.newApiKeyTool',
   'my-status',
   'new-api-key-tool',
   'price_xxx',
+  'resolution,ratio,mode,cny_per_second',
+  'stderr',
+  'stdout',
   'whsec_xxx',
 ])
 
@@ -317,4 +327,3 @@ main().catch((err) => {
   console.error(err)
   process.exitCode = 1
 })
-
