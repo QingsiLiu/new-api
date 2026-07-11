@@ -28,6 +28,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import {
   ENDPOINT_TYPES,
   FILTER_ALL,
@@ -36,8 +37,11 @@ import {
   getQuotaTypeLabels,
 } from '../constants'
 import { parseTags } from '../lib/filters'
+import {
+  getPricingGroupDisplayName,
+  type PricingGroupDisplayMap,
+} from '../lib/group-display'
 import type { PricingModel, PricingVendor } from '../types'
-import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 
 type FilterOption = {
   value: string
@@ -68,6 +72,7 @@ export interface PricingSidebarProps {
   vendors: PricingVendor[]
   groups: string[]
   groupRatios?: Record<string, number>
+  groupDisplay?: PricingGroupDisplayMap
   tags: string[]
   models: PricingModel[]
   hasActiveFilters: boolean
@@ -187,7 +192,10 @@ export function PricingSidebar(props: PricingSidebarProps) {
     },
     ...props.groups.map((group) => ({
       value: group,
-      label: getDisplayName(group),
+      label: getPricingGroupDisplayName(group, {
+        [group]: getDisplayName(group),
+        ...(props.groupDisplay ?? {}),
+      }),
       suffix: formatGroupRatio(props.groupRatios?.[group]),
     })),
   ]

@@ -36,6 +36,8 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
+	PricingMode            string                  `json:"pricing_mode,omitempty"`
+	PricingConfig          string                  `json:"pricing_config,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
 }
 
@@ -305,6 +307,8 @@ func updatePricing() {
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			pricing.PricingMode = meta.PricingMode
+			pricing.PricingConfig = meta.PricingConfig
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {

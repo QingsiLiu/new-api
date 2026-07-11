@@ -47,6 +47,7 @@ export type PricingModel = {
   audio_ratio?: number | null
   audio_completion_ratio?: number | null
   enable_groups: string[]
+  group_display?: Record<string, string>
   tags?: string
   supported_endpoint_types?: string[]
   key?: string
@@ -55,6 +56,10 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  /** Migrated pricing mode from models.pricing_mode, e.g. image_spec. */
+  pricing_mode?: string
+  /** Raw migrated pricing_config JSON for spec-priced image/video models. */
+  pricing_config?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
@@ -97,10 +102,17 @@ export type PricingData = {
   data: PricingModel[]
   vendors: PricingVendor[]
   group_ratio: Record<string, number>
-  usable_group: Record<string, { desc: string; ratio: number }>
+  group_display?: Record<string, string>
+  usable_group: PricingUsableGroupMap
+  usable_group_display?: Record<string, string>
   supported_endpoint: Record<string, string>
   auto_groups: string[]
 }
+
+export type PricingUsableGroupMap = Record<
+  string,
+  string | { desc?: string; ratio?: number; display_name?: string }
+>
 
 export type TokenUnit = 'M' | 'K'
 export type PriceType =
