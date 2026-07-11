@@ -224,7 +224,9 @@ describe('geili-minimal geometry contract', () => {
     )
 
     assert.ok(
-      source.includes("kind === 'header'\n      ? 'z-30 !bg-card"),
+      source.includes(
+        "kind === 'header'\n      ? 'data-table-pinned-cell z-30 !bg-card"
+      ),
       'sticky header cells must mask the columns beneath them'
     )
     assert.equal(source.includes('[background-color:'), false)
