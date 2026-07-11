@@ -46,6 +46,31 @@ function isOptionalJsonObject(value: string | undefined): boolean {
   }
 }
 
+function isOptionalAsyncSpecRoutes(value: string | undefined): boolean {
+  try {
+    const parsed = parseOptionalJson(value)
+    if (parsed === undefined) return true
+    if (!Array.isArray(parsed)) return false
+    return parsed.every((route) => {
+      if (!isJsonObjectValue(route)) return false
+      const kind = route.kind
+      const models = route.models
+      const resolutions = route.resolutions
+      return (
+        typeof kind === 'string' &&
+        Array.isArray(models) &&
+        models.length > 0 &&
+        models.every((item) => typeof item === 'string' && item.trim()) &&
+        Array.isArray(resolutions) &&
+        resolutions.length > 0 &&
+        resolutions.every((item) => typeof item === 'string' && item.trim())
+      )
+    })
+  } catch {
+    return false
+  }
+}
+
 function isOptionalModelMapping(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -182,6 +207,13 @@ export const channelFormSchema = z
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    async_spec_routes: z
+      .string()
+      .optional()
+      .refine(
+        isOptionalAsyncSpecRoutes,
+        'Async spec routes must be a JSON array with kind, models, and resolutions'
+      ),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -300,6 +332,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  async_spec_routes: '',
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -336,6 +369,7 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    async_spec_routes: '',
   }
 
   if (channel.setting) {
@@ -348,6 +382,9 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        async_spec_routes: Array.isArray(parsed.async_spec_routes)
+          ? JSON.stringify(parsed.async_spec_routes, null, 2)
+          : '',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -450,13 +487,17 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj = {
+  const settingObj: Record<string, unknown> = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+  }
+  const parsedRoutes = parseOptionalJson(formData.async_spec_routes)
+  if (Array.isArray(parsedRoutes) && parsedRoutes.length > 0) {
+    settingObj.async_spec_routes = parsedRoutes
   }
   return JSON.stringify(settingObj)
 }

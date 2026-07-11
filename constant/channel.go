@@ -57,6 +57,7 @@ const (
 	ChannelTypeCodex             = 57
 	ChannelTypeKie               = 58
 	ChannelTypeJimengOpenAIVideo = 59
+	ChannelTypeLsSeedance        = 60
 	ChannelTypeDummy             // this one is only for count, do not add any channel after this
 
 )
@@ -122,6 +123,7 @@ var ChannelBaseURLs = []string{
 	"https://chatgpt.com",                       //57
 	"https://api.kie.ai",                        //58
 	"https://zz1cc.cc.cd",                       //59
+	"http://api.callxyq.xyz",                    //60
 }
 
 var ChannelTypeNames = map[int]string{
@@ -181,6 +183,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeCodex:             "ChatGPT Subscription (Codex)",
 	ChannelTypeKie:               "KIE",
 	ChannelTypeJimengOpenAIVideo: "JimengOpenAIVideo",
+	ChannelTypeLsSeedance:        "Ls.API Seedance",
 }
 
 func GetChannelTypeName(channelType int) string {

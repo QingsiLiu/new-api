@@ -160,7 +160,7 @@ export function Pricing() {
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-20 pb-8 sm:px-6 sm:pt-24 sm:pb-10 xl:px-8'>
           <header className='mx-auto mb-7 max-w-4xl border-b pt-6 pb-7 text-center sm:mb-10 sm:pt-10'>
             <p className='text-muted-foreground mb-4 text-xs font-medium'>
-              {t('Pricing Index')}
+              {t('Pricing')}
             </p>
             <h1 className='editorial-display text-5xl sm:text-6xl lg:text-7xl'>
               {t('Model Square')}

@@ -27,13 +27,17 @@ func TestThemeAwarePathRewritesConsolePathsForDefaultFrontend(t *testing.T) {
 	}
 }
 
-func TestThemeAwarePathKeepsClassicConsolePaths(t *testing.T) {
+func TestSetThemeIgnoresRetiredClassicFrontend(t *testing.T) {
+	SetTheme("default")
 	SetTheme("classic")
 	t.Cleanup(func() {
 		SetTheme("default")
 	})
 
-	if got := ThemeAwarePath("/console/topup"); got != "/console/topup" {
-		t.Fatalf("ThemeAwarePath classic = %q, want /console/topup", got)
+	if got := GetTheme(); got != "default" {
+		t.Fatalf("GetTheme() = %q, want default", got)
+	}
+	if got := ThemeAwarePath("/console/topup"); got != "/wallet" {
+		t.Fatalf("ThemeAwarePath retired classic = %q, want /wallet", got)
 	}
 }

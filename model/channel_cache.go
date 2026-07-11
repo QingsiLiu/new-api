@@ -18,6 +18,13 @@ var group2model2channels map[string]map[string][]int // enabled channel
 var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
 
+type ChannelSelectionFilterResult struct {
+	Applies bool
+	Match   bool
+}
+
+type ChannelSelectionFilter func(*Channel) ChannelSelectionFilterResult
+
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		return
@@ -85,9 +92,16 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+	return GetRandomSatisfiedChannelWithSelectionFilter(group, model, retry, nil)
+}
+
+func GetRandomSatisfiedChannelWithSelectionFilter(group string, model string, retry int, filter ChannelSelectionFilter) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		if filter == nil {
+			return GetChannel(group, model, retry)
+		}
+		return getChannelWithSelectionFilter(group, model, retry, filter)
 	}
 
 	channelSyncLock.RLock()
@@ -102,6 +116,18 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		channels = group2model2channels[group][normalizedModel]
 	}
 
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	var err error
+	channels, err = applyChannelSelectionFilter(channels, filter, func(channelID int) (*Channel, bool) {
+		channel, ok := channelsIDM[channelID]
+		return channel, ok
+	})
+	if err != nil {
+		return nil, err
+	}
 	if len(channels) == 0 {
 		return nil, nil
 	}
@@ -179,6 +205,162 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func applyChannelSelectionFilter(channelIDs []int, filter ChannelSelectionFilter, lookup func(int) (*Channel, bool)) ([]int, error) {
+	if filter == nil {
+		return channelIDs, nil
+	}
+	hasApplicableRoute := false
+	matchedChannelIDs := make([]int, 0, len(channelIDs))
+	for _, channelID := range channelIDs {
+		channel, ok := lookup(channelID)
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelID)
+		}
+		result := filter(channel)
+		if !result.Applies {
+			continue
+		}
+		hasApplicableRoute = true
+		if result.Match {
+			matchedChannelIDs = append(matchedChannelIDs, channelID)
+		}
+	}
+	if !hasApplicableRoute {
+		return channelIDs, nil
+	}
+	return matchedChannelIDs, nil
+}
+
+func getChannelWithSelectionFilter(group string, modelName string, retry int, filter ChannelSelectionFilter) (*Channel, error) {
+	abilities, err := getAbilitiesForChannelSelection(group, modelName)
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+	abilities, channelsByID, err := applyAbilitySelectionFilter(abilities, filter)
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+
+	uniquePriorities := make(map[int64]bool)
+	for _, ability := range abilities {
+		uniquePriorities[abilityPriority(ability)] = true
+	}
+	sortedUniquePriorities := make([]int64, 0, len(uniquePriorities))
+	for priority := range uniquePriorities {
+		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	}
+	sort.Slice(sortedUniquePriorities, func(i, j int) bool {
+		return sortedUniquePriorities[i] > sortedUniquePriorities[j]
+	})
+	if retry >= len(sortedUniquePriorities) {
+		retry = len(sortedUniquePriorities) - 1
+	}
+	targetPriority := sortedUniquePriorities[retry]
+
+	targetAbilities := make([]Ability, 0)
+	weightSum := 0
+	for _, ability := range abilities {
+		if abilityPriority(ability) == targetPriority {
+			targetAbilities = append(targetAbilities, ability)
+			weightSum += int(ability.Weight) + 10
+		}
+	}
+	if len(targetAbilities) == 0 {
+		return nil, fmt.Errorf("no channel found, group: %s, model: %s, priority: %d", group, modelName, targetPriority)
+	}
+
+	weight := common.GetRandomInt(weightSum)
+	selectedChannelID := targetAbilities[0].ChannelId
+	for _, ability := range targetAbilities {
+		weight -= int(ability.Weight) + 10
+		if weight <= 0 {
+			selectedChannelID = ability.ChannelId
+			break
+		}
+	}
+	if channel, ok := channelsByID[selectedChannelID]; ok {
+		return channel, nil
+	}
+	channel := Channel{}
+	if err := DB.First(&channel, "id = ?", selectedChannelID).Error; err != nil {
+		return nil, err
+	}
+	return &channel, nil
+}
+
+func getAbilitiesForChannelSelection(group string, modelName string) ([]Ability, error) {
+	abilities := make([]Ability, 0)
+	if err := DB.Find(&abilities, commonGroupCol+" = ? and model = ? and enabled = ?", group, modelName, true).Error; err != nil {
+		return nil, err
+	}
+	if len(abilities) > 0 {
+		return abilities, nil
+	}
+	normalizedModelName := ratio_setting.FormatMatchingModelName(modelName)
+	if normalizedModelName == modelName {
+		return abilities, nil
+	}
+	if err := DB.Find(&abilities, commonGroupCol+" = ? and model = ? and enabled = ?", group, normalizedModelName, true).Error; err != nil {
+		return nil, err
+	}
+	return abilities, nil
+}
+
+func applyAbilitySelectionFilter(abilities []Ability, filter ChannelSelectionFilter) ([]Ability, map[int]*Channel, error) {
+	channelIDs := make([]int, 0, len(abilities))
+	seenChannelIDs := map[int]bool{}
+	for _, ability := range abilities {
+		if seenChannelIDs[ability.ChannelId] {
+			continue
+		}
+		seenChannelIDs[ability.ChannelId] = true
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+	channels := make([]Channel, 0, len(channelIDs))
+	if err := DB.Find(&channels, "id in ?", channelIDs).Error; err != nil {
+		return nil, nil, err
+	}
+	channelsByID := make(map[int]*Channel, len(channels))
+	for i := range channels {
+		channel := channels[i]
+		channelsByID[channel.Id] = &channel
+	}
+	filteredChannelIDs, err := applyChannelSelectionFilter(channelIDs, filter, func(channelID int) (*Channel, bool) {
+		channel, ok := channelsByID[channelID]
+		return channel, ok
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if filter == nil || len(filteredChannelIDs) == len(channelIDs) {
+		return abilities, channelsByID, nil
+	}
+	filteredSet := make(map[int]bool, len(filteredChannelIDs))
+	for _, channelID := range filteredChannelIDs {
+		filteredSet[channelID] = true
+	}
+	filteredAbilities := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		if filteredSet[ability.ChannelId] {
+			filteredAbilities = append(filteredAbilities, ability)
+		}
+	}
+	return filteredAbilities, channelsByID, nil
+}
+
+func abilityPriority(ability Ability) int64 {
+	if ability.Priority == nil {
+		return 0
+	}
+	return *ability.Priority
 }
 
 func CacheGetChannel(id int) (*Channel, error) {
