@@ -205,7 +205,6 @@ export function Pricing() {
               groups={availableGroups}
               groupDisplay={groupDisplay}
               groupRatios={groupRatio}
-              groupDisplay={groupDisplay}
               tags={availableTags}
               models={models || []}
               hasActiveFilters={hasActiveFilters}
@@ -239,7 +238,6 @@ export function Pricing() {
                 groups={availableGroups}
                 groupDisplay={groupDisplay}
                 groupRatios={groupRatio}
-                groupDisplay={groupDisplay}
                 tags={availableTags}
                 models={models || []}
                 hasActiveFilters={hasActiveFilters}

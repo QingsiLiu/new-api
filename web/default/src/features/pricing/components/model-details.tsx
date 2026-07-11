@@ -68,6 +68,7 @@ import type {
   ModelCapability,
   PriceType,
   PricingModel,
+  PricingUsableGroupMap,
   TokenUnit,
 } from '../types'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
@@ -849,7 +850,7 @@ function GroupPricingSection(props: {
   model: PricingModel
   groupRatio: Record<string, number>
   groupDisplay: Record<string, string>
-  usableGroup: Record<string, { desc: string; ratio: number }>
+  usableGroup: PricingUsableGroupMap
   autoGroups: string[]
   priceRate: number
   usdExchangeRate: number
@@ -1147,7 +1148,7 @@ export interface ModelDetailsContentProps {
   model: PricingModel
   groupRatio: Record<string, number>
   groupDisplay: Record<string, string>
-  usableGroup: Record<string, { desc: string; ratio: number }>
+  usableGroup: PricingUsableGroupMap
   endpointMap: Record<string, { path?: string; method?: string }>
   autoGroups: string[]
   priceRate: number

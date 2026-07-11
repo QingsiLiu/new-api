@@ -1816,7 +1816,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4707,9 +4707,7 @@
     "Unlimited Balance": "无限余额",
     "Enable unlimited balance for this API key": "为此 API 密钥启用无限余额",
     "0 means unlimited. The value is saved as CNY balance.": "0 表示不限。该值会按人民币余额保存。",
-    "A quiet control surface for routing, billing, keys, and model operations.": "用于路由、计费、密钥和模型运营的安静控制台。",
     "API key is loading, please try again in a moment": "API 密钥正在加载，请稍后再试",
-    "Access Console": "访问控制台",
     "Account Recovery": "账号恢复",
     "Added {{count}} models from \"{{name}}\"": "已从“{{name}}”添加 {{count}} 个模型",
     "Adjust Balance": "调整余额",
@@ -4792,7 +4790,6 @@
     "Remaining Balance ({{currency}})": "剩余余额（{{currency}}）",
     "Reset balance and used amount": "重置余额和已用金额",
     "Route Missing": "路由缺失",
-    "Secure Entry": "安全入口",
     "Send email alerts when a user falls below this balance": "当用户余额低于此值时发送邮件提醒",
     "Send reset email": "发送重置邮件",
     "Smallest CNY amount users can recharge (Epay)": "用户可充值的最小人民币金额（Epay）",
@@ -4819,6 +4816,11 @@
     "{{count}} FAQs deleted. Click \"Save Settings\" to apply.": "已删除 {{count}} 个 FAQ。点击“保存设置”以应用。",
     "{{count}} announcements deleted. Click \"Save Settings\" to apply.": "已删除 {{count}} 条公告。点击“保存设置”以应用。",
     "{{count}} groups deleted. Click \"Save Settings\" to apply.": "已删除 {{count}} 个分组。点击“保存设置”以应用。",
-    "{{count}} model(s)": "{{count}} 个模型"
+    "{{count}} model(s)": "{{count}} 个模型",
+    "Async Image Spec Routing": "异步生图规格路由",
+    "GPT-Image2 1K": "GPT-Image2 1K",
+    "GPT-Image2 2K/4K": "GPT-Image2 2K/4K",
+    "Route async image channels by public model and normalized resolution.": "按公开模型与归一化分辨率路由异步生图渠道。",
+    "Use [\"1k\"] for the 1K channel, and [\"2k\",\"4k\"] for high-resolution channels.": "1K 渠道填 [\"1k\"]，高分辨率渠道填 [\"2k\",\"4k\"]。"
   }
 }

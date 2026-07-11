@@ -101,7 +101,7 @@
     "80,443,8080": "80,443,8080",
     "A billing multiplier. Lower ratios mean lower API call costs.": "Hệ số tính phí. Tỷ lệ càng thấp thì chi phí gọi API càng thấp.",
     "A focused home for keys, balance, routing, and service health.": "Trang tổng quan tập trung cho khóa, số dư, định tuyến và trạng thái dịch vụ.",
-    "A quiet control surface for routing, billing, keys, and model operations.": "Một bề mặt điều khiển gọn gàng cho định tuyến, thanh toán, khóa và vận hành mô hình.",
+    "A quiet control surface for routing, billing, keys, and model operations.": "Bề mặt điều khiển gọn gàng cho định tuyến, thanh toán, khóa và vận hành mô hình.",
     "About": "Giới thiệu",
     "About {{days}} days left": "Còn khoảng {{days}} ngày",
     "Accept Unpriced Models": "Chấp nhận các Mô hình chưa định giá",
@@ -1816,7 +1816,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Buộc phản hồi JSON hợp lệ về cú pháp",
@@ -4707,9 +4707,7 @@
     "Unlimited Balance": "Số dư không giới hạn",
     "Enable unlimited balance for this API key": "Bật số dư không giới hạn cho khóa API này",
     "0 means unlimited. The value is saved as CNY balance.": "0 nghĩa là không giới hạn. Giá trị được lưu dưới dạng số dư CNY.",
-    "A quiet control surface for routing, billing, keys, and model operations.": "Bề mặt điều khiển gọn gàng cho định tuyến, thanh toán, khóa và vận hành mô hình.",
     "API key is loading, please try again in a moment": "Khóa API đang tải, vui lòng thử lại sau giây lát",
-    "Access Console": "Truy cập bảng điều khiển",
     "Account Recovery": "Khôi phục tài khoản",
     "Added {{count}} models from \"{{name}}\"": "Đã thêm {{count}} mô hình từ “{{name}}”",
     "Adjust Balance": "Điều chỉnh số dư",
@@ -4792,7 +4790,6 @@
     "Remaining Balance ({{currency}})": "Số dư còn lại ({{currency}})",
     "Reset balance and used amount": "Đặt lại số dư và số tiền đã dùng",
     "Route Missing": "Thiếu tuyến",
-    "Secure Entry": "Lối vào bảo mật",
     "Send email alerts when a user falls below this balance": "Gửi cảnh báo email khi số dư người dùng thấp hơn mức này",
     "Send reset email": "Gửi email đặt lại",
     "Smallest CNY amount users can recharge (Epay)": "Số tiền CNY nhỏ nhất người dùng có thể nạp (Epay)",
@@ -4819,6 +4816,11 @@
     "{{count}} FAQs deleted. Click \"Save Settings\" to apply.": "Đã xóa {{count}} FAQ. Nhấp “Lưu cài đặt” để áp dụng.",
     "{{count}} announcements deleted. Click \"Save Settings\" to apply.": "Đã xóa {{count}} thông báo. Nhấp “Lưu cài đặt” để áp dụng.",
     "{{count}} groups deleted. Click \"Save Settings\" to apply.": "Đã xóa {{count}} nhóm. Nhấp “Lưu cài đặt” để áp dụng.",
-    "{{count}} model(s)": "{{count}} mô hình"
+    "{{count}} model(s)": "{{count}} mô hình",
+    "Async Image Spec Routing": "Định tuyến thông số ảnh bất đồng bộ",
+    "GPT-Image2 1K": "GPT-Image2 1K",
+    "GPT-Image2 2K/4K": "GPT-Image2 2K/4K",
+    "Route async image channels by public model and normalized resolution.": "Định tuyến kênh ảnh bất đồng bộ theo mô hình công khai và độ phân giải chuẩn hóa.",
+    "Use [\"1k\"] for the 1K channel, and [\"2k\",\"4k\"] for high-resolution channels.": "Dùng [\"1k\"] cho kênh 1K và [\"2k\",\"4k\"] cho kênh độ phân giải cao."
   }
 }

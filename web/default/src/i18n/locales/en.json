@@ -1816,7 +1816,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4707,9 +4707,7 @@
     "Unlimited Balance": "Unlimited Balance",
     "Enable unlimited balance for this API key": "Enable unlimited balance for this API key",
     "0 means unlimited. The value is saved as CNY balance.": "0 means unlimited. The value is saved as CNY balance.",
-    "A quiet control surface for routing, billing, keys, and model operations.": "A quiet control surface for routing, billing, keys, and model operations.",
     "API key is loading, please try again in a moment": "API key is loading, please try again in a moment",
-    "Access Console": "Access Console",
     "Account Recovery": "Account Recovery",
     "Added {{count}} models from \"{{name}}\"": "Added {{count}} models from \"{{name}}\"",
     "Adjust Balance": "Adjust Balance",
@@ -4792,7 +4790,6 @@
     "Remaining Balance ({{currency}})": "Remaining Balance ({{currency}})",
     "Reset balance and used amount": "Reset balance and used amount",
     "Route Missing": "Route Missing",
-    "Secure Entry": "Secure Entry",
     "Send email alerts when a user falls below this balance": "Send email alerts when a user falls below this balance",
     "Send reset email": "Send reset email",
     "Smallest CNY amount users can recharge (Epay)": "Smallest CNY amount users can recharge (Epay)",
@@ -4819,6 +4816,11 @@
     "{{count}} FAQs deleted. Click \"Save Settings\" to apply.": "{{count}} FAQs deleted. Click \"Save Settings\" to apply.",
     "{{count}} announcements deleted. Click \"Save Settings\" to apply.": "{{count}} announcements deleted. Click \"Save Settings\" to apply.",
     "{{count}} groups deleted. Click \"Save Settings\" to apply.": "{{count}} groups deleted. Click \"Save Settings\" to apply.",
-    "{{count}} model(s)": "{{count}} model(s)"
+    "{{count}} model(s)": "{{count}} model(s)",
+    "Async Image Spec Routing": "Async Image Spec Routing",
+    "GPT-Image2 1K": "GPT-Image2 1K",
+    "GPT-Image2 2K/4K": "GPT-Image2 2K/4K",
+    "Route async image channels by public model and normalized resolution.": "Route async image channels by public model and normalized resolution.",
+    "Use [\"1k\"] for the 1K channel, and [\"2k\",\"4k\"] for high-resolution channels.": "Use [\"1k\"] for the 1K channel, and [\"2k\",\"4k\"] for high-resolution channels."
   }
 }
