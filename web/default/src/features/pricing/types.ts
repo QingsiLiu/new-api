@@ -41,6 +41,9 @@ export type PricingModel = {
   model_ratio: number
   completion_ratio: number
   model_price?: number
+  amount_cny?: number | null
+  pricing_mode?: 'ratio' | 'image_spec' | 'video_matrix' | 'free' | 'inherit'
+  spec_pricing?: unknown
   cache_ratio?: number | null
   create_cache_ratio?: number | null
   image_ratio?: number | null
@@ -56,8 +59,6 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
-  /** Migrated pricing mode from models.pricing_mode, e.g. image_spec. */
-  pricing_mode?: string
   /** Raw migrated pricing_config JSON for spec-priced image/video models. */
   pricing_config?: string
   /** Pricing version returned by backend, useful for cache busting */
@@ -107,6 +108,7 @@ export type PricingData = {
   usable_group_display?: Record<string, string>
   supported_endpoint: Record<string, string>
   auto_groups: string[]
+  auto_groups_display?: string[]
 }
 
 export type PricingUsableGroupMap = Record<

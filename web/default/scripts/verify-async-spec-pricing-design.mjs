@@ -72,6 +72,11 @@ const specPricingI18nKeys = [
   'Add image price',
   'No image prices configured',
   'CNY / image',
+  'Image generation',
+  'Video generation',
+  'Starting at',
+  'second',
+  'Default price',
 ]
 
 function read(file) {
@@ -230,6 +235,16 @@ assertNotContains(
   pricingSidebar,
   'type, and tags',
   'sidebar copy that references hidden type filters'
+)
+assertContains(
+  pricingSidebar,
+  'groupDisplay',
+  'pricing sidebar public group display mapping'
+)
+assertNotContains(
+  pricingSidebar,
+  'useGroupRegistry',
+  'authenticated group registry lookup in public pricing sidebar'
 )
 assertNotContains(
   pricingToolbar,

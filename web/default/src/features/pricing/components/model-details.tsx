@@ -53,25 +53,21 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import {
-  getPricingGroupDisplayName,
-  type PricingGroupDisplayMap,
-} from '../lib/group-display'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
-  formatImageSpecPrice,
-  getDefaultImageSpecPrice,
+  getImageSpecDefaultPriceRow,
   getImageSpecPriceRows,
-  isImageSpecPricingModel,
+  getModelSpecPricingSummary,
+  getVideoMatrixPriceRows,
+  type ModelSpecPricingSummary,
 } from '../lib/spec-pricing'
 import type {
   Modality,
   ModelCapability,
   PriceType,
   PricingModel,
-  PricingUsableGroupMap,
   TokenUnit,
 } from '../types'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
@@ -150,65 +146,6 @@ function CompactModalities(props: { input: Modality[]; output: Modality[] }) {
         <ModalityIcons modalities={props.output} />
       </div>
     </div>
-  )
-}
-
-function ImageSpecPriceSection(props: { model: PricingModel }) {
-  const { t } = useTranslation()
-  const rows = getImageSpecPriceRows(props.model)
-  const defaultPrice = getDefaultImageSpecPrice(props.model)
-
-  if (rows.length === 0 && defaultPrice == null) return null
-
-  return (
-    <section>
-      <SectionTitle>{t('Image spec')}</SectionTitle>
-      {defaultPrice != null && (
-        <div className='mb-3 flex items-baseline justify-between gap-4'>
-          <span className='text-muted-foreground text-sm'>{t('Default')}</span>
-          <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-            {formatImageSpecPrice(defaultPrice)}
-            <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
-              / {t('Image')}
-            </span>
-          </span>
-        </div>
-      )}
-      {rows.length > 0 && (
-        <StaticDataTable
-          className='rounded-lg'
-          tableClassName='text-sm'
-          headerRowClassName='hover:bg-transparent'
-          data={rows}
-          getRowKey={(row) => row.resolution}
-          columns={[
-            {
-              id: 'resolution',
-              header: t('Resolution'),
-              className:
-                'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase',
-              cellClassName: 'py-2.5 font-medium',
-              cell: (row) => row.resolution,
-            },
-            {
-              id: 'price',
-              header: t('Price'),
-              className:
-                'text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase',
-              cellClassName: 'py-2.5 text-right font-mono tabular-nums',
-              cell: (row) => (
-                <>
-                  {formatImageSpecPrice(row.cnyPerImage)}
-                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
-                    / {t('Image')}
-                  </span>
-                </>
-              ),
-            },
-          ]}
-        />
-      )}
-    </section>
   )
 }
 
@@ -431,6 +368,174 @@ function ModelHeader(props: { model: PricingModel }) {
 // Base price card (used in the Overview tab)
 // ----------------------------------------------------------------------------
 
+function SpecPricingSummaryLine(props: { summary: ModelSpecPricingSummary }) {
+  const { t } = useTranslation()
+
+  if (props.summary.mode === 'image_spec') {
+    return (
+      <div className='text-muted-foreground flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm'>
+        <span>{t(props.summary.labelKey)}</span>
+        {props.summary.entries.map((entry) => (
+          <span key={entry.label} className='font-mono tabular-nums'>
+            <span className='text-muted-foreground/70'>{entry.label}</span>{' '}
+            <span className='text-foreground font-semibold'>
+              {entry.formattedPrice}
+            </span>
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  if (props.summary.mode === 'video_matrix') {
+    return (
+      <div className='text-muted-foreground text-sm'>
+        {t(props.summary.labelKey)}
+        <span className='text-muted-foreground/40'> · </span>
+        {t('Starting at')}{' '}
+        <span className='text-foreground font-mono font-semibold tabular-nums'>
+          {props.summary.startPrice}
+        </span>
+        /{t(props.summary.unitKey)}
+      </div>
+    )
+  }
+
+  return (
+    <div className='text-success font-mono text-sm font-semibold'>
+      {t(props.summary.labelKey)} {props.summary.formattedPrice}
+    </div>
+  )
+}
+
+function ImageSpecPricingSection(props: {
+  model: PricingModel
+  summary: ModelSpecPricingSummary
+}) {
+  const { t } = useTranslation()
+  const rows = getImageSpecPriceRows(props.model)
+  const defaultRow = getImageSpecDefaultPriceRow(props.model)
+  const tableRows = defaultRow
+    ? [
+        {
+          key: '_default',
+          label: t(defaultRow.labelKey),
+          formattedPrice: defaultRow.formattedPrice,
+        },
+        ...rows.map((row) => ({
+          key: row.resolution,
+          label: row.label,
+          formattedPrice: row.formattedPrice,
+        })),
+      ]
+    : rows.map((row) => ({
+        key: row.resolution,
+        label: row.label,
+        formattedPrice: row.formattedPrice,
+      }))
+
+  return (
+    <section>
+      <SectionTitle>{t('Base Price')}</SectionTitle>
+      <div className='space-y-3'>
+        <SpecPricingSummaryLine summary={props.summary} />
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0 sm:rounded-lg sm:border'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={tableRows}
+          getRowKey={(row) => row.key}
+          columns={[
+            {
+              id: 'resolution',
+              header: t('Resolution'),
+              className:
+                'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase',
+              cellClassName: 'py-2.5',
+              cell: (row) => row.label,
+            },
+            {
+              id: 'price',
+              header: t('CNY / image'),
+              className:
+                'text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase',
+              cellClassName:
+                'py-2.5 text-right font-mono font-semibold tabular-nums',
+              cell: (row) => row.formattedPrice,
+            },
+          ]}
+        />
+      </div>
+    </section>
+  )
+}
+
+function VideoMatrixPricingSection(props: {
+  model: PricingModel
+  summary: ModelSpecPricingSummary
+}) {
+  const { t } = useTranslation()
+  const rows = getVideoMatrixPriceRows(props.model)
+  const thClass =
+    'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
+
+  return (
+    <section>
+      <SectionTitle>{t('Base Price')}</SectionTitle>
+      <div className='space-y-3'>
+        <SpecPricingSummaryLine summary={props.summary} />
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0 sm:rounded-lg sm:border'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={rows}
+          getRowKey={(row, index) =>
+            `${row.resolution}-${row.ratio}-${row.mode}-${index}`
+          }
+          columns={[
+            {
+              id: 'resolution',
+              header: t('Resolution'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (row) => row.resolution,
+            },
+            {
+              id: 'ratio',
+              header: t('Ratio'),
+              className: thClass,
+              cellClassName: 'text-muted-foreground py-2.5 font-mono',
+              cell: (row) => row.ratio,
+            },
+            {
+              id: 'mode',
+              header: t('Mode'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (row) => t(row.modeLabelKey),
+            },
+            {
+              id: 'price',
+              header: t('CNY / second'),
+              className: `${thClass} text-right`,
+              cellClassName:
+                'py-2.5 text-right font-mono font-semibold tabular-nums',
+              cell: (row) =>
+                row.supported ? (
+                  row.formattedPrice
+                ) : (
+                  <span className='text-muted-foreground font-sans text-xs font-medium'>
+                    {t(row.labelKey)}
+                  </span>
+                ),
+            },
+          ]}
+        />
+      </div>
+    </section>
+  )
+}
+
 function PriceSection(props: {
   model: PricingModel
   priceRate: number
@@ -440,6 +545,7 @@ function PriceSection(props: {
 }) {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
+  const specSummary = getModelSpecPricingSummary(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const baseGroupKey = '_base'
   const baseGroupRatioMap = { [baseGroupKey]: 1 }
@@ -489,8 +595,25 @@ function PriceSection(props: {
     },
   ]
 
-  if (isImageSpecPricingModel(props.model)) {
-    return <ImageSpecPriceSection model={props.model} />
+  if (specSummary?.mode === 'image_spec') {
+    return (
+      <ImageSpecPricingSection model={props.model} summary={specSummary} />
+    )
+  }
+
+  if (specSummary?.mode === 'video_matrix') {
+    return (
+      <VideoMatrixPricingSection model={props.model} summary={specSummary} />
+    )
+  }
+
+  if (specSummary?.mode === 'free') {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <SpecPricingSummaryLine summary={specSummary} />
+      </section>
+    )
   }
 
   if (dynamicSummary) {
@@ -656,7 +779,7 @@ function PriceSection(props: {
 function AutoGroupChain(props: {
   model: PricingModel
   autoGroups: string[]
-  groupDisplay?: PricingGroupDisplayMap
+  groupDisplay: Record<string, string>
 }) {
   const { t } = useTranslation()
   const modelEnableGroups = Array.isArray(props.model.enable_groups)
@@ -674,11 +797,7 @@ function AutoGroupChain(props: {
       <span className='text-muted-foreground/40'>→</span>
       {autoChain.map((g, idx) => (
         <span key={g} className='flex items-center gap-1'>
-          <GroupBadge
-            group={g}
-            label={getPricingGroupDisplayName(g, props.groupDisplay)}
-            size='sm'
-          />
+          <GroupBadge group={g} label={props.groupDisplay[g]} size='sm' />
           {idx < autoChain.length - 1 && (
             <span className='text-muted-foreground/40'>→</span>
           )}
@@ -729,7 +848,8 @@ function getDynamicFormattedPricesByTier(
 function GroupPricingSection(props: {
   model: PricingModel
   groupRatio: Record<string, number>
-  usableGroup: PricingUsableGroupMap
+  groupDisplay: Record<string, string>
+  usableGroup: Record<string, { desc: string; ratio: number }>
   autoGroups: string[]
   priceRate: number
   usdExchangeRate: number
@@ -772,7 +892,7 @@ function GroupPricingSection(props: {
         <AutoGroupChain
           model={props.model}
           autoGroups={props.autoGroups}
-          groupDisplay={props.model.group_display}
+          groupDisplay={props.groupDisplay}
         />
         <p className='text-muted-foreground text-sm'>
           {t(
@@ -786,76 +906,6 @@ function GroupPricingSection(props: {
   const thClass =
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
 
-  if (isImageSpecPricingModel(props.model)) {
-    const imageRows = getImageSpecPriceRows(props.model)
-    const tierLabels = imageRows.map((row) => row.resolution).join(' / ')
-
-    return (
-      <section>
-        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
-        <AutoGroupChain
-          model={props.model}
-          autoGroups={props.autoGroups}
-          groupDisplay={props.model.group_display}
-        />
-        <StaticDataTable
-          className='-mx-4 rounded-none border-0 sm:mx-0'
-          tableClassName='text-sm'
-          headerRowClassName='hover:bg-transparent'
-          data={availableGroups}
-          getRowKey={(group) => group}
-          columns={[
-            {
-              id: 'group',
-              header: t('Group'),
-              className: thClass,
-              cellClassName: 'py-2.5',
-              cell: (group) => (
-                <GroupBadge
-                  group={group}
-                  label={getPricingGroupDisplayName(
-                    group,
-                    props.model.group_display
-                  )}
-                  size='sm'
-                />
-              ),
-            },
-            {
-              id: 'resolution',
-              header: t('Resolution'),
-              className: thClass,
-              cellClassName: 'text-muted-foreground py-2.5 font-mono',
-              cell: () => tierLabels || t('Default'),
-            },
-            {
-              id: 'price',
-              header: t('Price'),
-              className: `${thClass} text-right`,
-              cellClassName: 'py-2.5 text-right font-mono tabular-nums',
-              cell: () => (
-                <div className='space-y-1'>
-                  {imageRows.length > 0
-                    ? imageRows.map((row) => (
-                        <div key={row.resolution}>
-                          <span className='text-muted-foreground/60 mr-2'>
-                            {row.resolution}
-                          </span>
-                          {formatImageSpecPrice(row.cnyPerImage)}
-                        </div>
-                      ))
-                    : formatImageSpecPrice(
-                        getDefaultImageSpecPrice(props.model) ?? 0
-                      )}
-                </div>
-              ),
-            },
-          ]}
-        />
-      </section>
-    )
-  }
-
   if (isDynamicPricingModel(props.model)) {
     const dynamicTiers = getDynamicPricingTiers(props.model)
 
@@ -866,7 +916,7 @@ function GroupPricingSection(props: {
           <AutoGroupChain
             model={props.model}
             autoGroups={props.autoGroups}
-            groupDisplay={props.model.group_display}
+            groupDisplay={props.groupDisplay}
           />
           <div className='bg-warning/10 border-warning/20 rounded-lg border p-3'>
             <div className='text-warning text-sm font-medium'>
@@ -919,7 +969,7 @@ function GroupPricingSection(props: {
         <AutoGroupChain
           model={props.model}
           autoGroups={props.autoGroups}
-          groupDisplay={props.model.group_display}
+          groupDisplay={props.groupDisplay}
         />
         <div className='space-y-3'>
           {availableGroups.map((group) => {
@@ -933,10 +983,7 @@ function GroupPricingSection(props: {
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
                   <GroupBadge
                     group={group}
-                    label={getPricingGroupDisplayName(
-                      group,
-                      props.model.group_display
-                    )}
+                    label={props.groupDisplay[group]}
                     size='sm'
                   />
                   <span className='text-muted-foreground font-mono text-xs'>
@@ -1009,7 +1056,7 @@ function GroupPricingSection(props: {
       <AutoGroupChain
         model={props.model}
         autoGroups={props.autoGroups}
-        groupDisplay={props.model.group_display}
+        groupDisplay={props.groupDisplay}
       />
       <StaticDataTable
         className='-mx-4 rounded-none border-0 sm:mx-0'
@@ -1026,10 +1073,7 @@ function GroupPricingSection(props: {
             cell: (group) => (
               <GroupBadge
                 group={group}
-                label={getPricingGroupDisplayName(
-                  group,
-                  props.model.group_display
-                )}
+                label={props.groupDisplay[group]}
                 size='sm'
               />
             ),
@@ -1102,7 +1146,8 @@ const TAB_META: Record<
 export interface ModelDetailsContentProps {
   model: PricingModel
   groupRatio: Record<string, number>
-  usableGroup: PricingUsableGroupMap
+  groupDisplay: Record<string, string>
+  usableGroup: Record<string, { desc: string; ratio: number }>
   endpointMap: Record<string, { path?: string; method?: string }>
   autoGroups: string[]
   priceRate: number
@@ -1159,6 +1204,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
             <GroupPricingSection
               model={props.model}
               groupRatio={props.groupRatio}
+              groupDisplay={props.groupDisplay}
               usableGroup={props.usableGroup}
               autoGroups={props.autoGroups}
               priceRate={props.priceRate}
@@ -1238,6 +1284,7 @@ export function ModelDetails() {
   const {
     models,
     groupRatio,
+    groupDisplay,
     usableGroup,
     endpointMap,
     autoGroups,
@@ -1317,6 +1364,7 @@ export function ModelDetails() {
         <ModelDetailsContent
           model={model}
           groupRatio={groupRatio || {}}
+          groupDisplay={groupDisplay || {}}
           usableGroup={usableGroup || {}}
           autoGroups={autoGroups || []}
           priceRate={priceRate ?? 1}

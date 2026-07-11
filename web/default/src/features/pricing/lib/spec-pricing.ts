@@ -16,114 +16,239 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { formatCNYAmount } from '@/lib/currency'
 import type { PricingModel } from '../types'
 
-type ImageSpecResolutionPrice = {
-  cny_per_image?: number
+const IMAGE_RESOLUTION_ORDER = ['1k', '2k', '4k'] as const
+
+const VIDEO_MODE_LABEL_KEYS: Record<string, string> = {
+  no_video_input: 'No video input',
+  with_video_input: 'With video input',
+  text_audio: 'Text with audio',
+  text_no_audio: 'Text without audio',
+  image_audio: 'Image with audio',
+  image_no_audio: 'Image without audio',
 }
 
-type ImageSpecPricingConfig = {
-  mode?: string
-  unit?: string
-  resolutions?: Record<string, ImageSpecResolutionPrice>
-  default_cny_per_image?: number
+export type ImageSpecResolutionPrice = {
+  cny_per_image?: number | null
+  cny_per_second?: number | null
 }
+
+export type VideoMatrixModePrice = {
+  cny_per_second?: number | null
+  unsupported?: boolean
+}
+
+export type ImageSpecPricing = Record<string, ImageSpecResolutionPrice>
+export type VideoMatrixPricing = Record<
+  string,
+  Record<string, Record<string, VideoMatrixModePrice>>
+>
 
 export type ImageSpecPriceRow = {
   resolution: string
-  cnyPerImage: number
-}
-
-export type ImageSpecPriceDisplayItem = {
   label: string
-  cnyPerImage: number
-  formatted: string
+  priceCNY: number
+  formattedPrice: string
 }
 
-export function parseImageSpecPricingConfig(
-  raw?: string
-): ImageSpecPricingConfig {
-  if (!raw?.trim()) return {}
-  try {
-    const parsed = JSON.parse(raw) as ImageSpecPricingConfig
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {}
+export type ImageSpecDefaultPriceRow = {
+  labelKey: string
+  priceCNY: number
+  formattedPrice: string
+}
+
+export type VideoMatrixPriceRow = {
+  resolution: string
+  ratio: string
+  mode: string
+  modeLabelKey: string
+  supported: boolean
+  priceCNY: number | null
+  formattedPrice: string
+  labelKey: string
+}
+
+export type ModelSpecPricingSummary =
+  | {
+      mode: 'image_spec'
+      labelKey: string
+      entries: Array<{ label: string; formattedPrice: string }>
     }
-    return parsed
-  } catch {
-    return {}
+  | {
+      mode: 'video_matrix'
+      labelKey: string
+      startPrice: string
+      unitKey: string
+    }
+  | {
+      mode: 'free'
+      labelKey: string
+      formattedPrice: string
+    }
+
+export function getModelSpecPricingSummary(
+  model: PricingModel
+): ModelSpecPricingSummary | null {
+  if (model.pricing_mode === 'image_spec') {
+    return {
+      mode: 'image_spec',
+      labelKey: 'Image generation',
+      entries: getImageSpecPriceRows(model)
+        .slice(0, 3)
+        .map((row) => ({
+          label: row.label,
+          formattedPrice: row.formattedPrice,
+        })),
+    }
+  }
+
+  if (model.pricing_mode === 'video_matrix') {
+    return {
+      mode: 'video_matrix',
+      labelKey: 'Video generation',
+      startPrice: formatSpecCNY(getVideoStartPriceCNY(model)),
+      unitKey: 'second',
+    }
+  }
+
+  if (model.pricing_mode === 'free') {
+    return {
+      mode: 'free',
+      labelKey: 'Free',
+      formattedPrice: formatSpecCNY(0),
+    }
+  }
+
+  return null
+}
+
+export function getImageSpecPriceRows(model: PricingModel): ImageSpecPriceRow[] {
+  const specPricing = asImageSpecPricing(model.spec_pricing)
+  if (!specPricing) {
+    return []
+  }
+
+  return Object.entries(specPricing)
+    .filter((entry): entry is [string, ImageSpecResolutionPrice] =>
+      hasFiniteNumber(entry[1].cny_per_image)
+    )
+    .sort(([left], [right]) => compareResolution(left, right))
+    .map(([resolution, price]) => ({
+      resolution,
+      label: formatResolutionLabel(resolution),
+      priceCNY: Number(price.cny_per_image),
+      formattedPrice: formatSpecCNY(Number(price.cny_per_image)),
+    }))
+}
+
+export function getImageSpecDefaultPriceRow(
+  model: PricingModel
+): ImageSpecDefaultPriceRow | null {
+  if (!hasFiniteNumber(model.amount_cny)) {
+    return null
+  }
+  return {
+    labelKey: 'Default price',
+    priceCNY: Number(model.amount_cny),
+    formattedPrice: formatSpecCNY(Number(model.amount_cny)),
   }
 }
 
-export function isImageSpecPricingModel(model: PricingModel): boolean {
-  const config = parseImageSpecPricingConfig(model.pricing_config)
-  return (model.pricing_mode || config.mode) === 'image_spec'
-}
-
-export function getImageSpecPriceRows(
+export function getVideoMatrixPriceRows(
   model: PricingModel
-): ImageSpecPriceRow[] {
-  if (!isImageSpecPricingModel(model)) return []
-  const config = parseImageSpecPricingConfig(model.pricing_config)
-  return Object.entries(config.resolutions || {})
-    .map(([resolution, price]) => ({
-      resolution: normalizeResolutionLabel(resolution),
-      cnyPerImage: Number(price?.cny_per_image),
-    }))
-    .filter((row) => Number.isFinite(row.cnyPerImage))
-    .sort(
-      (a, b) =>
-        resolutionSortValue(a.resolution) - resolutionSortValue(b.resolution)
-    )
+): VideoMatrixPriceRow[] {
+  const specPricing = asVideoMatrixPricing(model.spec_pricing)
+  if (!specPricing) {
+    return []
+  }
+
+  const rows: VideoMatrixPriceRow[] = []
+  for (const [resolution, ratioMap] of Object.entries(specPricing)) {
+    for (const [ratio, modeMap] of Object.entries(ratioMap)) {
+      for (const [mode, price] of Object.entries(modeMap)) {
+        const supported = !price.unsupported && hasFiniteNumber(price.cny_per_second)
+        const priceCNY = supported ? Number(price.cny_per_second) : null
+        rows.push({
+          resolution,
+          ratio,
+          mode,
+          modeLabelKey: VIDEO_MODE_LABEL_KEYS[mode] ?? mode,
+          supported,
+          priceCNY,
+          formattedPrice: supported ? formatSpecCNY(priceCNY) : '-',
+          labelKey: supported ? '' : 'Unsupported',
+        })
+      }
+    }
+  }
+
+  return rows.sort((left, right) => {
+    const resolutionOrder = compareResolution(left.resolution, right.resolution)
+    if (resolutionOrder !== 0) return resolutionOrder
+    const ratioOrder = left.ratio.localeCompare(right.ratio, undefined, {
+      numeric: true,
+    })
+    if (ratioOrder !== 0) return ratioOrder
+    return left.mode.localeCompare(right.mode)
+  })
 }
 
-export function getDefaultImageSpecPrice(model: PricingModel): number | null {
-  if (!isImageSpecPricingModel(model)) return null
-  const config = parseImageSpecPricingConfig(model.pricing_config)
-  const value = Number(config.default_cny_per_image)
-  return Number.isFinite(value) ? value : null
+function getVideoStartPriceCNY(model: PricingModel): number | null {
+  if (hasFiniteNumber(model.amount_cny)) {
+    return Number(model.amount_cny)
+  }
+  const prices = getVideoMatrixPriceRows(model)
+    .map((row) => row.priceCNY)
+    .filter((value): value is number => hasFiniteNumber(value))
+  if (prices.length === 0) {
+    return null
+  }
+  return Math.min(...prices)
 }
 
-export function formatImageSpecPrice(value: number): string {
-  return formatBillingCurrencyFromUSD(value, {
+function asImageSpecPricing(value: unknown): ImageSpecPricing | null {
+  if (!isRecord(value)) return null
+  return value as ImageSpecPricing
+}
+
+function asVideoMatrixPricing(value: unknown): VideoMatrixPricing | null {
+  if (!isRecord(value)) return null
+  return value as VideoMatrixPricing
+}
+
+function compareResolution(left: string, right: string): number {
+  const leftIndex = IMAGE_RESOLUTION_ORDER.indexOf(
+    left as (typeof IMAGE_RESOLUTION_ORDER)[number]
+  )
+  const rightIndex = IMAGE_RESOLUTION_ORDER.indexOf(
+    right as (typeof IMAGE_RESOLUTION_ORDER)[number]
+  )
+  if (leftIndex >= 0 || rightIndex >= 0) {
+    if (leftIndex < 0) return 1
+    if (rightIndex < 0) return -1
+    return leftIndex - rightIndex
+  }
+  return left.localeCompare(right, undefined, { numeric: true })
+}
+
+function formatResolutionLabel(resolution: string): string {
+  return resolution.toUpperCase()
+}
+
+function formatSpecCNY(value: number | null | undefined): string {
+  return formatCNYAmount(value, {
     digitsLarge: 2,
     digitsSmall: 4,
     abbreviate: false,
   })
 }
 
-export function getImageSpecPriceDisplayItems(
-  model: PricingModel
-): ImageSpecPriceDisplayItem[] {
-  const rows = getImageSpecPriceRows(model)
-  if (rows.length > 0) {
-    return rows.map((row) => ({
-      label: row.resolution,
-      cnyPerImage: row.cnyPerImage,
-      formatted: formatImageSpecPrice(row.cnyPerImage),
-    }))
-  }
-
-  const defaultPrice = getDefaultImageSpecPrice(model)
-  if (defaultPrice == null) return []
-  return [
-    {
-      label: 'Default',
-      cnyPerImage: defaultPrice,
-      formatted: formatImageSpecPrice(defaultPrice),
-    },
-  ]
+function hasFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
 }
 
-function normalizeResolutionLabel(value: string): string {
-  const trimmed = value.trim()
-  if (/^\d+k$/i.test(trimmed)) return trimmed.toUpperCase()
-  return trimmed
-}
-
-function resolutionSortValue(value: string): number {
-  const match = value.match(/^(\d+(?:\.\d+)?)K$/i)
-  if (match) return Number(match[1]) * 1000
-  return Number.MAX_SAFE_INTEGER
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }

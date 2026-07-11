@@ -16,3 +16,12 @@ func TestCNYQuotaConversionsUse100KUnit(t *testing.T) {
 		t.Fatalf("QuotaToPublicCNY(12499336807) = %f, want 124993.3681", got)
 	}
 }
+
+func TestLegacyQuotaToCNY100KQuotaFloorsAtPointTwo(t *testing.T) {
+	if got := LegacyQuotaToCNY100KQuota(500000); got != 100000 {
+		t.Fatalf("LegacyQuotaToCNY100KQuota(500000) = %d, want 100000", got)
+	}
+	if got := LegacyQuotaToCNY100KQuota(62496684039); got != 12499336807 {
+		t.Fatalf("LegacyQuotaToCNY100KQuota(62496684039) = %d, want 12499336807", got)
+	}
+}

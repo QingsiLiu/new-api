@@ -22,19 +22,18 @@ import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { StatusBadge } from '@/components/status-badge'
+import { GroupBadge } from '@/components/group-badge'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getPricingGroupDisplayName } from '../lib/group-display'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import {
-  getImageSpecPriceDisplayItems,
-  isImageSpecPricingModel,
+  getModelSpecPricingSummary,
+  type ModelSpecPricingSummary,
 } from '../lib/spec-pricing'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -47,6 +46,55 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   perf?: ModelPerfBadgeData
+  groupDisplay?: Record<string, string>
+}
+
+function SpecPricingInlineSummary(props: { summary: ModelSpecPricingSummary }) {
+  const { t } = useTranslation()
+
+  if (props.summary.mode === 'image_spec') {
+    return (
+      <span className='text-muted-foreground min-w-0'>
+        {t(props.summary.labelKey)}
+        {props.summary.entries.length > 0 && (
+          <>
+            <span className='text-muted-foreground/40'> · </span>
+            {props.summary.entries.map((entry, index) => (
+              <span key={entry.label} className='whitespace-nowrap'>
+                {index > 0 && (
+                  <span className='text-muted-foreground/40'> / </span>
+                )}
+                {entry.label}{' '}
+                <span className='text-foreground font-mono font-semibold'>
+                  {entry.formattedPrice}
+                </span>
+              </span>
+            ))}
+          </>
+        )}
+      </span>
+    )
+  }
+
+  if (props.summary.mode === 'video_matrix') {
+    return (
+      <span className='text-muted-foreground whitespace-nowrap'>
+        {t(props.summary.labelKey)}
+        <span className='text-muted-foreground/40'> · </span>
+        {t('Starting at')}{' '}
+        <span className='text-foreground font-mono font-semibold'>
+          {props.summary.startPrice}
+        </span>
+        /{t(props.summary.unitKey)}
+      </span>
+    )
+  }
+
+  return (
+    <span className='text-success font-mono text-xs font-semibold'>
+      {t(props.summary.labelKey)} {props.summary.formattedPrice}
+    </span>
+  )
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -60,7 +108,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
-  const endpoints = props.model.supported_endpoint_types || []
   const modelIconKey = props.model.icon || props.model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null
   const modelAlias = props.model.alias?.trim()
@@ -70,10 +117,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
-  const isImageSpecPricing = isImageSpecPricingModel(props.model)
-  const imageSpecPriceItems = isImageSpecPricing
-    ? getImageSpecPriceDisplayItems(props.model)
-    : []
+  const specPricingSummary = getModelSpecPricingSummary(props.model)
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -84,17 +128,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         groupRatioMultiplier: getDynamicDisplayGroupRatio(props.model),
       })
     : null
-
-  const primaryGroup = groups[0]
-  const primaryGroupDisplayName = getPricingGroupDisplayName(
-    primaryGroup,
-    props.model.group_display
-  )
-  const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
+  const visibleGroups = groups.filter(Boolean).slice(0, 2)
+  const visibleTags = tags.slice(0, 3)
   const hiddenCount =
-    Math.max(groups.length - 1, 0) +
-    Math.max(endpoints.length - 2, 0) +
-    Math.max(tags.length - 2, 0)
+    Math.max(groups.length - visibleGroups.length, 0) +
+    Math.max(tags.length - visibleTags.length, 0)
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -129,13 +167,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </h3>
             {hasAlias && (
               <div className='mt-1 flex min-w-0 items-center gap-1.5'>
-                <code className='text-muted-foreground truncate font-mono text-[11px] leading-4'>
+                <code className='text-muted-foreground/70 truncate font-mono text-[11px] leading-4'>
                   {props.model.model_name}
                 </code>
                 <button
                   type='button'
                   onClick={handleCopy}
-                  className='text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-5 shrink-0 items-center justify-center rounded-md transition-colors'
+                  className='text-muted-foreground/70 hover:text-foreground hover:bg-muted inline-flex size-5 shrink-0 items-center justify-center rounded-md transition-colors'
                   title={t('Copy model ID')}
                   aria-label={t('Copy model ID')}
                 >
@@ -144,36 +182,15 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </div>
             )}
             <div className='mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs sm:mt-1 sm:gap-x-3'>
-              {isImageSpecPricing ? (
-                imageSpecPriceItems.length > 0 ? (
-                  <>
-                    {imageSpecPriceItems.map((item) => (
-                      <span
-                        key={item.label}
-                        className='text-muted-foreground whitespace-nowrap'
-                      >
-                        {item.label === 'Default' ? t('Default') : item.label}{' '}
-                        <span className='text-foreground font-mono font-semibold'>
-                          {item.formatted}
-                        </span>
-                      </span>
-                    ))}
-                    <span className='text-muted-foreground/50 whitespace-nowrap'>
-                      / {t('Image')}
-                    </span>
-                  </>
-                ) : (
-                  <span className='text-muted-foreground text-xs'>
-                    {t('Image spec')}
-                  </span>
-                )
+              {specPricingSummary ? (
+                <SpecPricingInlineSummary summary={specPricingSummary} />
               ) : dynamicSummary ? (
                 dynamicSummary.isSpecialExpression ? (
                   <span className='min-w-0'>
                     <span className='text-warning'>
                       {t('Special billing expression')}
                     </span>
-                    <code className='text-muted-foreground mt-0.5 line-clamp-1 block font-mono text-[11px] break-all'>
+                    <code className='text-muted-foreground/70 mt-0.5 line-clamp-1 block font-mono text-[11px] break-all'>
                       {dynamicSummary.rawExpression}
                     </code>
                   </span>
@@ -228,7 +245,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     /{tokenUnitLabel}
                   </span>
                   {hasCachedPrice && (
-                    <span className='text-muted-foreground whitespace-nowrap'>
+                    <span className='text-muted-foreground/60 whitespace-nowrap'>
                       {t('Cached')}{' '}
                       <span className='font-mono'>
                         {formatPrice(
@@ -290,41 +307,27 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
       {/* Footer: left metadata and right performance summary share row alignment */}
       <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
-        <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
-          {primaryGroup && (
-            <span className='text-muted-foreground text-xs font-medium'>
-              {primaryGroupDisplayName} {t('Groups')}
-            </span>
-          )}
-          <span className='text-muted-foreground text-xs font-medium'>
-            {isImageSpecPricing
-              ? t('Image spec')
-              : isTokenBased
-                ? t('Token-based')
-                : t('Per Request')}
-          </span>
-          {isDynamicPricing && (
-            <StatusBadge
-              label={t('Dynamic Pricing')}
-              variant='warning'
-              copyable={false}
+        <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
+          {visibleGroups.map((group) => (
+            <GroupBadge
+              key={group}
+              group={group}
+              label={props.groupDisplay?.[group]}
               size='sm'
+              copyable={false}
             />
-          )}
+          ))}
         </div>
         <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
 
         <div className='flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:gap-x-3 sm:gap-y-1'>
-          {bottomTags.map((item) => (
-            <span key={item} className='text-muted-foreground text-xs'>
+          {visibleTags.map((item) => (
+            <span key={item} className='text-muted-foreground/70 text-xs'>
               {item}
             </span>
           ))}
-          <span className='text-muted-foreground text-xs'>
-            {tokenUnitLabel}
-          </span>
           {hiddenCount > 0 && (
-            <span className='text-muted-foreground/80 text-xs'>
+            <span className='text-muted-foreground/40 text-xs'>
               +{hiddenCount}
             </span>
           )}

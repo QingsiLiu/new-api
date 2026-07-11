@@ -28,7 +28,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
 import {
   FILTER_ALL,
 } from '../constants'
@@ -158,7 +157,6 @@ function FilterSection(props: FilterSectionProps) {
 
 export function PricingSidebar(props: PricingSidebarProps) {
   const { t } = useTranslation()
-  const { getDisplayName } = useGroupRegistry()
 
   const vendorOptions: FilterOption[] = [
     {
@@ -186,10 +184,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
     },
     ...props.groups.map((group) => ({
       value: group,
-      label: getPricingGroupDisplayName(group, {
-        [group]: getDisplayName(group),
-        ...(props.groupDisplay ?? {}),
-      }),
+      label: getPricingGroupDisplayName(group, props.groupDisplay),
       suffix: formatGroupRatio(props.groupRatios?.[group]),
     })),
   ]

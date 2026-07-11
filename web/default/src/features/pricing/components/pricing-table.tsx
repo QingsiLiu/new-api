@@ -50,6 +50,7 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate = 1,
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
+    groupDisplay = {},
     onModelClick,
   } = props
 

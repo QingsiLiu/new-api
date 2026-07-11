@@ -203,6 +203,7 @@ export function Pricing() {
               onTagChange={setTagFilter}
               vendors={vendors || []}
               groups={availableGroups}
+              groupDisplay={groupDisplay}
               groupRatios={groupRatio}
               groupDisplay={groupDisplay}
               tags={availableTags}
@@ -236,6 +237,7 @@ export function Pricing() {
                 onTagChange={setTagFilter}
                 vendors={vendors || []}
                 groups={availableGroups}
+                groupDisplay={groupDisplay}
                 groupRatios={groupRatio}
                 groupDisplay={groupDisplay}
                 tags={availableTags}
@@ -257,6 +259,7 @@ export function Pricing() {
               }}
               model={selectedModel}
               groupRatio={groupRatio || {}}
+              groupDisplay={groupDisplay || {}}
               usableGroup={usableGroup || {}}
               endpointMap={
                 (endpointMap as Record<
