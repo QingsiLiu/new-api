@@ -143,3 +143,15 @@ When creating a pull request:
 - First compare the current git user (`git config user.name` / `git config user.email`) with the repository's historical core developers (for example, the recurring top authors in `git log`). Do not change git config.
 - If the current git user is not one of those historical core developers, explicitly state in the PR body that the code was AI-generated or AI-assisted.
 - Always use the repository PR template at `.github/PULL_REQUEST_TEMPLATE.md` when drafting the PR title/body. Preserve the template structure and fill in the relevant sections instead of replacing it with an ad hoc format.
+
+## Geili 执行规范（每次任务必须遵循）
+
+完整规范：`~/Documents/GeiliAPI/docs/EXECUTION-SPEC.md`（唯一权威版本）。必守摘要：
+
+1. **任务结束 = 已提交 + 已推送**（远程 QingsiLiu/new-api，SSH 已全局走 443）。
+2. **密钥永不入库**；commit 前扫描暂存区。
+3. **生产发布只走流水线**：push main / tag v* → GitHub Actions 构建 `ghcr.io/qingsiliu/new-api` →
+   在 GeiliAPI 主仓执行 `bin/deploy-newapi.sh <tag>`（自带备份+健康检查+失败自动回滚）。
+   **禁止**手工 ssh 上服务器 rsync 源码 / docker build 部署。
+4. 分支 `codex/<主题>`，并入主干后删除；禁止 force-push 共享分支。
+5. 生产变更必须在 GeiliAPI 主仓 `PROGRESS.md` 留证据记录；改了服务器配置要回收进主仓 `deploy/`。
