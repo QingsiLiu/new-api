@@ -4026,6 +4026,203 @@ func TestAsyncTimedOutTaskIsFailedAndRefunded(t *testing.T) {
 	require.Equal(t, asyncTaskStatusTimeout, asyncTaskModelToResponse(&reloaded).Status)
 }
 
+func TestAsyncImageTaskRoutesGPTImage2ByResolution(t *testing.T) {
+	db := setupAsyncTaskTestDB(t)
+	oneKPriority := int64(100)
+	highResPriority := int64(10)
+	oneKWeight := uint(1)
+	highResWeight := uint(1)
+	oneKSetting := `{"async_spec_routes":[{"kind":"image","models":["gpt-image-2"],"resolutions":["1k"]}]}`
+	highResSetting := `{"async_spec_routes":[{"kind":"image","models":["gpt-image-2"],"resolutions":["2k","4k"]}]}`
+	upstreamURL := "https://upstream.example"
+	require.NoError(t, db.Create(&[]model.Channel{
+		{
+			Id:       4101,
+			Type:     constant.ChannelTypeOpenAI,
+			Key:      "sk-upstream-1k",
+			Status:   common.ChannelStatusEnabled,
+			Name:     "gpt-image-2 1k",
+			BaseURL:  &upstreamURL,
+			Models:   "gpt-image-2",
+			Group:    "default",
+			Priority: &oneKPriority,
+			Weight:   &oneKWeight,
+			Setting:  &oneKSetting,
+		},
+		{
+			Id:       4102,
+			Type:     constant.ChannelTypeOpenAI,
+			Key:      "sk-upstream-highres",
+			Status:   common.ChannelStatusEnabled,
+			Name:     "gpt-image-2 2k 4k",
+			BaseURL:  &upstreamURL,
+			Models:   "gpt-image-2",
+			Group:    "default",
+			Priority: &highResPriority,
+			Weight:   &highResWeight,
+			Setting:  &highResSetting,
+		},
+	}).Error)
+	for _, item := range []struct {
+		channelID int
+		priority  *int64
+	}{
+		{channelID: 4101, priority: &oneKPriority},
+		{channelID: 4102, priority: &highResPriority},
+	} {
+		require.NoError(t, db.Create(&model.Ability{
+			Group:     "default",
+			Model:     "gpt-image-2",
+			ChannelId: item.channelID,
+			Enabled:   true,
+			Priority:  item.priority,
+			Weight:    1,
+		}).Error)
+	}
+	model.InitChannelCache()
+
+	engine := gin.New()
+	asyncRouter := engine.Group("/v1/async")
+	asyncRouter.Use(middleware.TokenAuth())
+	asyncRouter.POST("/tasks", CreateAsyncTask)
+
+	var selectedChannelID int
+	restoreRunner := setAsyncTaskRunnerForTest(func(taskID string, channelID int, execution asyncTaskExecution) error {
+		selectedChannelID = channelID
+		return nil
+	})
+	defer restoreRunner()
+
+	createAsyncImageTaskWithSizeForTest(t, engine, "sk-cavas", "1024x1024")
+	require.Equal(t, 4101, selectedChannelID)
+
+	selectedChannelID = 0
+	createAsyncImageTaskWithSizeForTest(t, engine, "sk-cavas", "2048x2048")
+	require.Equal(t, 4102, selectedChannelID)
+
+	selectedChannelID = 0
+	createAsyncImageTaskWithSizeForTest(t, engine, "sk-cavas", "4096x4096")
+	require.Equal(t, 4102, selectedChannelID)
+}
+
+func TestAsyncImageTaskWithoutSpecRoutesKeepsPrioritySelection(t *testing.T) {
+	db := setupAsyncTaskTestDB(t)
+	highPriority := int64(100)
+	lowPriority := int64(10)
+	weight := uint(1)
+	upstreamURL := "https://upstream.example"
+	require.NoError(t, db.Create(&[]model.Channel{
+		{
+			Id:       4101,
+			Type:     constant.ChannelTypeOpenAI,
+			Key:      "sk-upstream-high",
+			Status:   common.ChannelStatusEnabled,
+			Name:     "gpt-image-2 high priority",
+			BaseURL:  &upstreamURL,
+			Models:   "gpt-image-2",
+			Group:    "default",
+			Priority: &highPriority,
+			Weight:   &weight,
+		},
+		{
+			Id:       4102,
+			Type:     constant.ChannelTypeOpenAI,
+			Key:      "sk-upstream-low",
+			Status:   common.ChannelStatusEnabled,
+			Name:     "gpt-image-2 low priority",
+			BaseURL:  &upstreamURL,
+			Models:   "gpt-image-2",
+			Group:    "default",
+			Priority: &lowPriority,
+			Weight:   &weight,
+		},
+	}).Error)
+	for _, item := range []struct {
+		channelID int
+		priority  *int64
+	}{
+		{channelID: 4101, priority: &highPriority},
+		{channelID: 4102, priority: &lowPriority},
+	} {
+		require.NoError(t, db.Create(&model.Ability{
+			Group:     "default",
+			Model:     "gpt-image-2",
+			ChannelId: item.channelID,
+			Enabled:   true,
+			Priority:  item.priority,
+			Weight:    1,
+		}).Error)
+	}
+	model.InitChannelCache()
+
+	engine := gin.New()
+	asyncRouter := engine.Group("/v1/async")
+	asyncRouter.Use(middleware.TokenAuth())
+	asyncRouter.POST("/tasks", CreateAsyncTask)
+
+	var selectedChannelID int
+	restoreRunner := setAsyncTaskRunnerForTest(func(taskID string, channelID int, execution asyncTaskExecution) error {
+		selectedChannelID = channelID
+		return nil
+	})
+	defer restoreRunner()
+
+	createAsyncImageTaskWithSizeForTest(t, engine, "sk-cavas", "4096x4096")
+
+	require.Equal(t, 4101, selectedChannelID)
+}
+
+func TestAsyncImageTaskRequiresMatchingSpecRouteWhenRoutesExist(t *testing.T) {
+	db := setupAsyncTaskTestDB(t)
+	priority := int64(100)
+	weight := uint(1)
+	setting := `{"async_spec_routes":[{"kind":"image","models":["gpt-image-2"],"resolutions":["1k"]}]}`
+	upstreamURL := "https://upstream.example"
+	require.NoError(t, db.Create(&model.Channel{
+		Id:       4101,
+		Type:     constant.ChannelTypeOpenAI,
+		Key:      "sk-upstream-1k",
+		Status:   common.ChannelStatusEnabled,
+		Name:     "gpt-image-2 1k",
+		BaseURL:  &upstreamURL,
+		Models:   "gpt-image-2",
+		Group:    "default",
+		Priority: &priority,
+		Weight:   &weight,
+		Setting:  &setting,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "gpt-image-2",
+		ChannelId: 4101,
+		Enabled:   true,
+		Weight:    1,
+	}).Error)
+	model.InitChannelCache()
+
+	engine := gin.New()
+	asyncRouter := engine.Group("/v1/async")
+	asyncRouter.Use(middleware.TokenAuth())
+	asyncRouter.POST("/tasks", CreateAsyncTask)
+
+	body, err := common.Marshal(map[string]interface{}{
+		"kind":       "image",
+		"action":     "generate",
+		"model":      "gpt-image-2",
+		"input":      map[string]interface{}{"prompt": "draw a studio"},
+		"parameters": map[string]interface{}{"size": "4096x4096", "n": 1},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer sk-cavas")
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "no available channel")
+}
+
 func setupAsyncTaskRouterTest(t *testing.T, upstreamURL string, modelName string) (*gin.Engine, string) {
 	t.Helper()
 	return setupAsyncTaskRouterTestWithMapping(t, upstreamURL, modelName, "")
@@ -4134,13 +4331,23 @@ func asyncTaskTestModelNames(modelNames string) []string {
 
 func createAsyncTaskForTest(t *testing.T, engine *gin.Engine, token string, prompt string, idempotencyKey string) asyncTaskResponse {
 	t.Helper()
+	return createAsyncImageTaskWithParametersForTest(t, engine, token, prompt, idempotencyKey, map[string]interface{}{"quality": "high", "size": "1024x1024", "n": 1})
+}
+
+func createAsyncImageTaskWithSizeForTest(t *testing.T, engine *gin.Engine, token string, size string) asyncTaskResponse {
+	t.Helper()
+	return createAsyncImageTaskWithParametersForTest(t, engine, token, "draw a studio", "", map[string]interface{}{"size": size, "n": 1})
+}
+
+func createAsyncImageTaskWithParametersForTest(t *testing.T, engine *gin.Engine, token string, prompt string, idempotencyKey string, parameters map[string]interface{}) asyncTaskResponse {
+	t.Helper()
 	body, err := common.Marshal(map[string]interface{}{
 		"kind":            "image",
 		"action":          "generate",
 		"model":           "gpt-image-2",
 		"idempotency_key": idempotencyKey,
 		"input":           map[string]interface{}{"prompt": prompt},
-		"parameters":      map[string]interface{}{"quality": "high", "size": "1024x1024", "n": 1},
+		"parameters":      parameters,
 	})
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()

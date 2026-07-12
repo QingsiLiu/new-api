@@ -208,6 +208,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.param_override?.trim() ||
     values.header_override?.trim() ||
     values.status_code_mapping?.trim() ||
+    values.async_spec_routes?.trim() ||
     values.tag?.trim() ||
     values.remark?.trim() ||
     values.priority ||
@@ -2696,6 +2697,96 @@ export function ChannelMutateDrawer({
                                   valueType='string'
                                 />
                               </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='async_spec_routes'
+                          render={({ field }) => (
+                            <FormItem className='space-y-3 border-t pt-4'>
+                              <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+                                <div className='space-y-1'>
+                                  <FormLabel>
+                                    {t('Async Image Spec Routing')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'Route async image channels by public model and normalized resolution.'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <div className='flex flex-wrap gap-2'>
+                                  <Button
+                                    type='button'
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() =>
+                                      field.onChange(
+                                        JSON.stringify(
+                                          [
+                                            {
+                                              kind: 'image',
+                                              models: ['gpt-image-2'],
+                                              resolutions: ['1k'],
+                                            },
+                                          ],
+                                          null,
+                                          2
+                                        )
+                                      )
+                                    }
+                                  >
+                                    <Code className='mr-2 h-4 w-4' />
+                                    {t('GPT-Image2 1K')}
+                                  </Button>
+                                  <Button
+                                    type='button'
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() =>
+                                      field.onChange(
+                                        JSON.stringify(
+                                          [
+                                            {
+                                              kind: 'image',
+                                              models: ['gpt-image-2'],
+                                              resolutions: ['2k', '4k'],
+                                            },
+                                          ],
+                                          null,
+                                          2
+                                        )
+                                      )
+                                    }
+                                  >
+                                    <Code className='mr-2 h-4 w-4' />
+                                    {t('GPT-Image2 2K/4K')}
+                                  </Button>
+                                </div>
+                              </div>
+                              <FormControl>
+                                <Textarea
+                                  className='font-mono text-xs'
+                                  rows={7}
+                                  placeholder={`[
+  {
+    "kind": "image",
+    "models": ["gpt-image-2"],
+    "resolutions": ["1k"]
+  }
+]`}
+                                  disabled={isSubmitting}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Use ["1k"] for the 1K channel, and ["2k","4k"] for high-resolution channels.'
+                                )}
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
