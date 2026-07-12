@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -895,8 +896,11 @@ export function ChannelMutateDrawer({
 
   // Transform groups to multi-select options
   const groupOptions = useMemo(() => {
-    if (!groupsData?.data) return []
-    const allGroups = new Set([...groupsData.data, ...(currentGroups || [])])
+    if (!groupsData) return []
+    const allGroups = new Set([
+      ...normalizeGroupRegistryItems(groupsData).map((g) => g.code),
+      ...(currentGroups || []),
+    ])
     return [...allGroups].map((group) => ({
       value: group,
       label: group,

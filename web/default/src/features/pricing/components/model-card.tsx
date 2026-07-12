@@ -31,7 +31,12 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
+import { getPricingGroupDisplayName } from '../lib/group-display'
 import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  getModelSpecPricingSummary,
+  type ModelSpecPricingSummary,
+} from '../lib/spec-pricing'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -43,8 +48,57 @@ export interface ModelCardProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  groupDisplay?: Record<string, string>
   selectedGroup?: string
   perf?: ModelPerfBadgeData
+}
+
+function SpecPricingInlineSummary(props: { summary: ModelSpecPricingSummary }) {
+  const { t } = useTranslation()
+
+  if (props.summary.mode === 'image_spec') {
+    return (
+      <span className='text-muted-foreground min-w-0'>
+        {t(props.summary.labelKey)}
+        {props.summary.entries.length > 0 && (
+          <>
+            <span className='text-muted-foreground/40'> · </span>
+            {props.summary.entries.map((entry, index) => (
+              <span key={entry.label} className='whitespace-nowrap'>
+                {index > 0 && (
+                  <span className='text-muted-foreground/40'> / </span>
+                )}
+                {entry.label}{' '}
+                <span className='text-foreground font-mono font-semibold'>
+                  {entry.formattedPrice}
+                </span>
+              </span>
+            ))}
+          </>
+        )}
+      </span>
+    )
+  }
+
+  if (props.summary.mode === 'video_matrix') {
+    return (
+      <span className='text-muted-foreground whitespace-nowrap'>
+        {t(props.summary.labelKey)}
+        <span className='text-muted-foreground/40'> · </span>
+        {t('Starting at')}{' '}
+        <span className='text-foreground font-mono font-semibold'>
+          {props.summary.startPrice}
+        </span>
+        /{t(props.summary.unitKey)}
+      </span>
+    )
+  }
+
+  return (
+    <span className='text-success font-mono text-xs font-semibold'>
+      {t(props.summary.labelKey)} {props.summary.formattedPrice}
+    </span>
+  )
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -91,8 +145,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     copyToClipboard(props.model.model_name || '')
   }
 
+  const specPricingSummary = getModelSpecPricingSummary(props.model)
+
   let priceSummary: ReactNode
-  if (dynamicSummary) {
+  if (specPricingSummary) {
+    priceSummary = <SpecPricingInlineSummary summary={specPricingSummary} />
+  } else if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
       priceSummary = (
         <span className='min-w-0'>
@@ -250,7 +308,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
           {primaryGroup && (
             <span className='text-muted-foreground text-sm font-medium'>
-              {primaryGroup}
+              {getPricingGroupDisplayName(primaryGroup, props.groupDisplay)}
             </span>
           )}
           <ModelBillingModeBadge model={props.model} />

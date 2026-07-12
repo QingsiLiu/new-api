@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -91,7 +92,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
   const availableModels =
     allModelsData?.data?.map((m) => m.id).filter(Boolean) || []
-  const availableGroups = groupsData?.data || []
+  const availableGroups = normalizeGroupRegistryItems(groupsData).map((g) => g.code)
 
   // Initialize form when tag changes
   useEffect(() => {

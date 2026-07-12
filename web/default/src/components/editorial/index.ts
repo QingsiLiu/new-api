@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2025 QuantumNous
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -16,14 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
-import React from 'react';
-import MjLogsTable from '../../components/table/mj-logs';
-
-const MjProxy = () => (
-  <div className='mt-[60px] px-2'>
-    <MjLogsTable />
-  </div>
-);
-
-export default MjProxy;
+export { EditorialLabel } from './editorial-label'
+export { EditorialStat, EditorialStatGroup } from './editorial-stat'
+export { EditorialStatus } from './editorial-status'
+export type { EditorialStatusTone } from './editorial-status'

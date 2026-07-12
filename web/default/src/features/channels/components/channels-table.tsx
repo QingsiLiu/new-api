@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type {
@@ -210,9 +211,9 @@ export function ChannelsTable() {
 
   const groupOptions = useMemo(
     () =>
-      (groupsData?.data || []).map((g) => ({
-        label: g,
-        value: g,
+      normalizeGroupRegistryItems(groupsData).map((g) => ({
+        label: g.display_name || g.code,
+        value: g.code,
       })),
     [groupsData]
   )

@@ -22,9 +22,11 @@ import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
+import { AsyncSpecPricingSettings } from '../models/async-spec-pricing-settings'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { LegacyModelPricingNotice } from './legacy-model-pricing-notice'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -112,6 +114,19 @@ const BILLING_SECTIONS = [
         toolPricesDefault={settings['tool_price_setting.prices']}
         visibleTabs={['models', 'unset-models', 'tool-prices', 'upstream-sync']}
       />
+    ),
+  },
+  {
+    id: 'spec-pricing',
+    titleKey: 'Spec Pricing',
+    build: (settings: BillingSettings) => (
+      <>
+        <LegacyModelPricingNotice descriptionKey='Image and video spec prices now live on each row in the unified model center. These legacy options are retained as a fallback and audit source.' />
+        <AsyncSpecPricingSettings
+          pricingDefault={settings.AsyncSpecPricing}
+          readOnly
+        />
+      </>
     ),
   },
   {

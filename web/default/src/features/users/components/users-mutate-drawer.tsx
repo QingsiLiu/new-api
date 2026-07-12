@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
@@ -118,7 +119,7 @@ export function UsersMutateDrawer({
     staleTime: 5 * 60 * 1000,
   })
 
-  const groups = groupsData?.data || []
+  const groups = normalizeGroupRegistryItems(groupsData).map((g) => g.code)
 
   // Permission catalog is owned by the backend; fetched once and reused.
   const { data: permissionCatalog = EMPTY_PERMISSION_CATALOG } = useQuery({

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
@@ -71,8 +72,11 @@ export function TagBatchEditDialog({
 
   // Transform groups to multi-select options
   const groupOptions = useMemo(() => {
-    if (!groupsData?.data) return []
-    const allGroups = new Set([...groupsData.data, ...groups])
+    if (!groupsData) return []
+    const allGroups = new Set([
+      ...normalizeGroupRegistryItems(groupsData).map((g) => g.code),
+      ...groups,
+    ])
     return Array.from(allGroups).map((group) => ({
       value: group,
       label: group,

@@ -85,6 +85,9 @@ import {
   type CurrencyDisplayType,
 } from '@/stores/system-config-store'
 
+/** Geili CNY 本位：¥1 = 100000 quota（后端 common.CNYQuotaUnit 对应值） */
+export const CNY_QUOTA_UNIT = 100000
+
 export interface CurrencyFormatOptions {
   /** Fraction digits to use when |value| >= 1 */
   digitsLarge?: number
@@ -614,4 +617,16 @@ export function formatLocalCurrencyAmount(
   const merged = mergeOptions(options)
 
   return formatCurrencyValue(amount, merged, meta)
+}
+
+
+/**
+ * Geili：格式化"本身就是 CNY"的金额（规格定价、账单公开字段等）。
+ * 生产的展示货币配置为 CNY(汇率1)，因此等价于本地货币直出。
+ */
+export function formatCNYAmount(
+  amountCNY: number | null | undefined,
+  options?: CurrencyFormatOptions
+): string {
+  return formatLocalCurrencyAmount(amountCNY, options)
 }
