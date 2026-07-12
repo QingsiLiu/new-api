@@ -1050,6 +1050,7 @@ function getDynamicFormattedPricesByTier(
 
 function GroupPricingSection(props: {
   model: PricingModel
+  groupDisplay?: Record<string, string>
   groupRatio: Record<string, number>
   usableGroup: PricingUsableGroupMap
   autoGroups: string[]
@@ -1176,7 +1177,11 @@ function GroupPricingSection(props: {
             return (
               <div key={group} className='overflow-hidden rounded-lg border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
-                  <GroupBadge group={group} size='sm' />
+                  <GroupBadge
+                    group={group}
+                    label={props.groupDisplay?.[group]}
+                    size='sm'
+                  />
                   <span className='text-muted-foreground font-mono text-xs'>
                     {ratio}x
                   </span>
@@ -1257,7 +1262,13 @@ function GroupPricingSection(props: {
             header: t('Group'),
             className: thClass,
             cellClassName: 'py-2.5',
-            cell: (group) => <GroupBadge group={group} size='sm' />,
+            cell: (group) => (
+              <GroupBadge
+                group={group}
+                label={props.groupDisplay?.[group]}
+                size='sm'
+              />
+            ),
           },
           {
             id: 'ratio',
@@ -1325,6 +1336,7 @@ const TAB_META: Record<
 }
 
 export interface ModelDetailsContentProps {
+  groupDisplay?: Record<string, string>
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: PricingUsableGroupMap
@@ -1381,6 +1393,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               <DynamicPricingBreakdown billingExpr={props.model.billing_expr} />
             )}
             <GroupPricingSection
+              groupDisplay={props.groupDisplay}
               model={props.model}
               groupRatio={props.groupRatio}
               usableGroup={props.usableGroup}

@@ -53,6 +53,7 @@ export interface PricingColumnsOptions {
   usdExchangeRate?: number
   showRechargePrice?: boolean
   selectedGroup?: string
+  groupDisplay?: Record<string, string>
 }
 
 export function usePricingColumns(
@@ -65,6 +66,7 @@ export function usePricingColumns(
     usdExchangeRate = 1,
     showRechargePrice = false,
     selectedGroup,
+    groupDisplay = {},
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
@@ -400,7 +402,12 @@ export function usePricingColumns(
         return (
           <BadgeListCell
             items={groups.map((group) => (
-              <GroupBadge key={group} group={group} size='sm' />
+              <GroupBadge
+                key={group}
+                group={group}
+                label={groupDisplay[group]}
+                size='sm'
+              />
             ))}
             tooltipClassName='max-w-[280px] p-2'
           />

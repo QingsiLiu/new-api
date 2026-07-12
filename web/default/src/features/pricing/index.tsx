@@ -46,6 +46,7 @@ export function Pricing() {
     models,
     vendors,
     groupRatio,
+    groupDisplay,
     usableGroup,
     endpointMap,
     autoGroups,
@@ -126,6 +127,7 @@ export function Pricing() {
         <ModelCardGrid
           models={filteredModels}
           onModelClick={handleModelClick}
+          groupDisplay={groupDisplay}
           priceRate={priceRate}
           usdExchangeRate={usdExchangeRate}
           tokenUnit={tokenUnit}
@@ -138,6 +140,7 @@ export function Pricing() {
     return (
       <PricingTable
         models={filteredModels}
+        groupDisplay={groupDisplay}
         priceRate={priceRate}
         usdExchangeRate={usdExchangeRate}
         tokenUnit={tokenUnit}
@@ -217,6 +220,7 @@ export function Pricing() {
               vendors={vendors || []}
               groups={availableGroups}
               groupRatios={groupRatio}
+              groupDisplay={groupDisplay}
               tags={availableTags}
               models={models || []}
               hasActiveFilters={hasActiveFilters}
@@ -249,6 +253,7 @@ export function Pricing() {
                 vendors={vendors || []}
                 groups={availableGroups}
                 groupRatios={groupRatio}
+                groupDisplay={groupDisplay}
                 tags={availableTags}
                 models={models || []}
                 hasActiveFilters={hasActiveFilters}
@@ -268,6 +273,7 @@ export function Pricing() {
               }}
               model={selectedModel}
               groupRatio={groupRatio || {}}
+              groupDisplay={groupDisplay || {}}
               usableGroup={usableGroup || {}}
               endpointMap={
                 (endpointMap as Record<
