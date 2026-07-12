@@ -46,8 +46,10 @@ import {
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
 
-function getQuotaProgressColor(): string {
-  return '[&_[data-slot=progress-indicator]]:bg-calm-gray-fg'
+function getQuotaProgressColor(percentage: number): string {
+  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
+  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
+  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
 function useGroupRatios(): Record<string, number> {
@@ -107,7 +109,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         <span className='font-medium'>{row.getValue('name')}</span>
       ),
       size: 180,
-      meta: { mobileTitle: true, flex: true },
+      meta: { mobileTitle: true },
     },
     {
       accessorKey: 'status',
@@ -120,6 +122,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
             label={t(statusConfig.label)}
             variant={statusConfig.variant}
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -138,7 +141,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
     {
       id: 'quota',
       accessorKey: 'remain_quota',
-      header: t('Balance'),
+      header: t('Quota'),
       cell: ({ row }) => {
         const apiKey = row.original
         if (apiKey.unlimited_quota) {
@@ -147,6 +150,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
               label={t('Unlimited')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -169,7 +173,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
               </div>
               <Progress
                 value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor())}
+                className={cn('h-1.5', getQuotaProgressColor(percentage))}
               />
             </TooltipTrigger>
             <TooltipContent>
@@ -226,6 +230,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         }
         return (
           <TruncatedCell
+            className='-ml-1.5'
             tooltipContent={group || '-'}
             tooltipClassName='break-all'
           >
@@ -301,6 +306,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
               label={t('Never')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -324,8 +330,6 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       id: 'actions',
       header: () => t('Actions'),
       cell: ({ row }) => <DataTableRowActions row={row} />,
-      enableSorting: false,
-      enableHiding: false,
       meta: { pinned: 'right' as const },
     },
   ]

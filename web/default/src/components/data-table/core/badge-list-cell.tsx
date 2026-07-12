@@ -35,6 +35,7 @@ interface BadgeListCellProps {
 /**
  * Table cell renderer for a list of badges with overflow tooltip.
  * Displays up to `max` badges inline; remaining items appear in a tooltip.
+ * Applies -ml-1.5 to compensate for badge px-1.5 and align with column header.
  */
 export function BadgeListCell({
   items,
@@ -50,7 +51,7 @@ export function BadgeListCell({
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger render={<div className='max-w-full min-w-0' />}>
+        <TooltipTrigger render={<div className='-ml-1.5 max-w-full' />}>
           <StatusBadgeList
             items={items}
             max={max}
@@ -62,7 +63,7 @@ export function BadgeListCell({
             side='top'
             className={
               tooltipClassName ??
-              'bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
+              'border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
             }
           >
             <div className='flex flex-wrap gap-1'>{items}</div>

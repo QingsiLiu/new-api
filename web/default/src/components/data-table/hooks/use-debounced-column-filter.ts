@@ -43,21 +43,16 @@ export function useDebouncedColumnFilter({
   const isComposingRef = React.useRef(false)
   const debouncedValue = useDebounce(pendingValue, delay)
   const onColumnFiltersChangeRef = React.useRef(onColumnFiltersChange)
+  onColumnFiltersChangeRef.current = onColumnFiltersChange
 
   React.useEffect(() => {
-    onColumnFiltersChangeRef.current = onColumnFiltersChange
-  }, [onColumnFiltersChange])
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      // Keep the input aligned when URL state changes outside the local field.
-      if (!isComposingRef.current) {
-        setInputValue(value)
-      }
-      setPendingValue(value)
-    }, 0)
-
-    return () => clearTimeout(timer)
+    // Keep the input aligned when URL state changes outside the local field.
+    if (!isComposingRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInputValue(value)
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPendingValue(value)
   }, [value])
 
   React.useEffect(() => {

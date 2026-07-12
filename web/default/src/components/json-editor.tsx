@@ -90,14 +90,10 @@ export function JsonEditor({
 
   // Parse JSON to rows when value changes externally
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (value !== jsonValue) {
-        setJsonValue(value)
-        parseJsonToRows(value)
-      }
-    }, 0)
-
-    return () => clearTimeout(timer)
+    if (value !== jsonValue) {
+      setJsonValue(value)
+      parseJsonToRows(value)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 

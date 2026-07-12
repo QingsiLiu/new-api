@@ -130,7 +130,7 @@ function AnnouncementDot({ type }: { type?: string }) {
   return (
     <span
       className={cn(
-        'mt-1.5 inline-block h-3 w-0.5 shrink-0 rounded-sm',
+        'mt-1.5 inline-block size-2 shrink-0 rounded-full',
         getAnnouncementColorClass(type)
       )}
     />

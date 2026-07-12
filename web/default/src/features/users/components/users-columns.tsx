@@ -43,8 +43,10 @@ import {
 import type { User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
-function getQuotaProgressColor(): string {
-  return '[&_[data-slot=progress-indicator]]:bg-calm-gray-fg'
+function getQuotaProgressColor(percentage: number): string {
+  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
+  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
+  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
 export function useUsersColumns(): ColumnDef<User>[] {
@@ -98,17 +100,15 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return (
           <div className='flex min-w-[160px] flex-col gap-1'>
             <div className='flex items-center gap-2'>
-              <LongText className='text-foreground max-w-[140px] font-medium'>
+              <LongText className='max-w-[140px] font-medium'>
                 {username}
               </LongText>
               {remark && (
                 <Tooltip>
                   <TooltipTrigger
-                    render={
-                      <span className='text-muted-foreground max-w-[80px] truncate text-xs' />
-                    }
+                    render={<StatusBadge variant='success' copyable={false} />}
                   >
-                    {remark}
+                    <LongText className='max-w-[80px]'>{remark}</LongText>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className='text-xs'>{remark}</p>
@@ -126,7 +126,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       },
       enableHiding: false,
       size: 220,
-      meta: { mobileTitle: true, flex: true },
+      meta: { mobileTitle: true },
     },
     {
       accessorKey: 'status',
@@ -145,7 +145,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
 
         return (
           <Tooltip>
-            <TooltipTrigger render={<div className='cursor-help' />}>
+            <TooltipTrigger render={<div className='-ml-1.5 cursor-help' />}>
               <StatusBadge
                 label={t(statusConfig.labelKey)}
                 variant={statusConfig.variant}
@@ -170,7 +170,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       id: 'quota',
       accessorKey: 'quota',
-      header: t('Balance'),
+      header: t('Quota'),
       cell: ({ row }) => {
         const user = row.original
         const used = user.used_quota
@@ -181,9 +181,10 @@ export function useUsersColumns(): ColumnDef<User>[] {
         if (total === 0) {
           return (
             <StatusBadge
-              label={t('No Balance')}
+              label={t('No Quota')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -203,7 +204,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
               </div>
               <Progress
                 value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor())}
+                className={cn('h-1.5', getQuotaProgressColor(percentage))}
               />
             </TooltipTrigger>
             <TooltipContent>
@@ -380,9 +381,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
       id: 'actions',
       header: () => t('Actions'),
       cell: ({ row }) => <DataTableRowActions row={row} />,
-      size: 64,
-      enableSorting: false,
-      enableHiding: false,
       meta: { pinned: 'right' as const },
     },
   ]

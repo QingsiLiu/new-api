@@ -81,21 +81,17 @@ function DataTableFacetedFilterInner<TData, TValue>({
     <Popover>
       <PopoverTrigger
         render={
-          <Button
-            variant='secondary'
-            size='sm'
-            className='h-8 border-0 border-transparent bg-muted/60 shadow-none hover:bg-muted'
-          />
+          <Button variant='outline' size='sm' className='h-8 border-dashed' />
         }
       >
-        <PlusCircledIcon className='text-muted-foreground size-4' />
+        <PlusCircledIcon className='size-4' />
         {title}
         {selectedValues?.size > 0 && (
           <>
             <Separator orientation='vertical' className='mx-2 h-4' />
             <Badge
               variant='secondary'
-              className='rounded-[var(--radius-pill)] px-2 font-normal lg:hidden'
+              className='rounded-sm px-1 font-normal lg:hidden'
             >
               {selectedValues.size}
             </Badge>
@@ -103,7 +99,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
               {selectedValues.size > 2 ? (
                 <Badge
                   variant='secondary'
-                  className='rounded-[var(--radius-pill)] px-2 font-normal'
+                  className='rounded-sm px-1 font-normal'
                 >
                   {selectedValues.size} {t('selected')}
                 </Badge>
@@ -114,7 +110,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
                     <Badge
                       variant='secondary'
                       key={option.value}
-                      className='rounded-[var(--radius-pill)] px-2 font-normal'
+                      className='rounded-sm px-1 font-normal'
                     >
                       {t(option.label)}
                     </Badge>
@@ -139,7 +135,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
                   >
                     <div
                       className={cn(
-                        'flex size-4 items-center justify-center rounded-[var(--radius-control)] bg-muted transition-colors',
+                        'border-primary flex size-4 items-center justify-center rounded-sm border',
                         isSelected
                           ? 'bg-primary text-primary-foreground'
                           : 'opacity-50 [&_svg]:invisible'

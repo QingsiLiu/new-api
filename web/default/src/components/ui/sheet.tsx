@@ -47,7 +47,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot='sheet-overlay'
       className={cn(
-        'bg-background/70 fixed inset-0 z-50 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs',
+        'fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs',
         className
       )}
       {...props}
@@ -77,15 +77,15 @@ function SheetContent({
         data-slot='sheet-content'
         data-side={side}
         className={cn(
-          'bg-popover text-popover-foreground fixed z-50 flex flex-col gap-4 overflow-hidden bg-clip-padding text-sm shadow-none transition duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0',
+          'bg-background text-foreground fixed z-50 flex flex-col gap-4 overflow-hidden bg-clip-padding text-sm shadow-none transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0',
           side === 'right' &&
-            'inset-y-0 right-0 h-full w-3/4 rounded-l-[var(--radius-surface)] data-ending-style:translate-x-[2.5rem] data-starting-style:translate-x-[2.5rem] sm:max-w-sm',
+            'inset-y-0 right-0 h-full w-3/4 border-l data-ending-style:translate-x-[2.5rem] data-starting-style:translate-x-[2.5rem] sm:max-w-sm',
           side === 'left' &&
-            'inset-y-0 left-0 h-full w-3/4 rounded-r-[var(--radius-surface)] data-ending-style:translate-x-[-2.5rem] data-starting-style:translate-x-[-2.5rem] sm:max-w-sm',
+            'inset-y-0 left-0 h-full w-3/4 border-r data-ending-style:translate-x-[-2.5rem] data-starting-style:translate-x-[-2.5rem] sm:max-w-sm',
           side === 'top' &&
-            'inset-x-0 top-0 h-auto rounded-b-[var(--radius-surface)] data-ending-style:translate-y-[-2.5rem] data-starting-style:translate-y-[-2.5rem]',
+            'inset-x-0 top-0 h-auto border-b data-ending-style:translate-y-[-2.5rem] data-starting-style:translate-y-[-2.5rem]',
           side === 'bottom' &&
-            'inset-x-0 bottom-0 h-auto rounded-t-[var(--radius-surface)] data-ending-style:translate-y-[2.5rem] data-starting-style:translate-y-[2.5rem]',
+            'inset-x-0 bottom-0 h-auto border-t data-ending-style:translate-y-[2.5rem] data-starting-style:translate-y-[2.5rem]',
           className
         )}
         {...props}
@@ -97,7 +97,7 @@ function SheetContent({
             render={
               <Button
                 variant='ghost'
-                className='text-muted-foreground hover:text-foreground absolute top-3 right-3'
+                className='absolute top-3 right-3'
                 size='icon-sm'
               />
             }
@@ -115,10 +115,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot='sheet-header'
-      className={cn(
-        'border-border/60 flex flex-col gap-1 border-b p-4',
-        className
-      )}
+      className={cn('flex flex-col gap-0.5 p-4', className)}
       {...props}
     />
   )
@@ -128,10 +125,7 @@ function SheetFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot='sheet-footer'
-      className={cn(
-        'border-border/60 mt-auto flex flex-col gap-2 border-t p-4',
-        className
-      )}
+      className={cn('mt-auto flex flex-col gap-2 p-4', className)}
       {...props}
     />
   )
@@ -141,7 +135,7 @@ function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot='sheet-title'
-      className={cn('text-foreground text-lg font-semibold', className)}
+      className={cn('text-foreground text-base font-medium', className)}
       {...props}
     />
   )

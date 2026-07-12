@@ -166,7 +166,7 @@ export function Features(_props: FeaturesProps) {
           </h2>
         </AnimateInView>
 
-        <div className='border-border bg-border grid gap-px overflow-hidden rounded-[var(--radius-card)] border md:grid-cols-3'>
+        <div className='border-border bg-border grid gap-px overflow-hidden rounded-xl border md:grid-cols-3'>
           {features.map((f, i) => (
             <AnimateInView
               key={f.id}

@@ -49,7 +49,7 @@ export function EmptyState(props: EmptyStateProps) {
       <Empty
         className={cn(
           'min-h-[300px]',
-          props.bordered && 'shadow-[var(--shadow-card)]',
+          props.bordered && 'border',
           props.className
         )}
       >

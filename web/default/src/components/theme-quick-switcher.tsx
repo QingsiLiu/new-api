@@ -40,7 +40,7 @@ export function ThemeQuickSwitcher() {
         <div
           role='radiogroup'
           aria-labelledby='theme-switcher-label'
-          className='border-muted/50 bg-muted/40 inline-flex w-auto items-center gap-1.5 rounded-[var(--radius-pill)] border px-1.5 py-1'
+          className='border-muted/50 bg-muted/40 inline-flex w-auto items-center gap-1.5 rounded-lg border px-1.5 py-1'
         >
           <Button
             variant='ghost'
@@ -57,7 +57,7 @@ export function ThemeQuickSwitcher() {
             {theme === 'system' && (
               <motion.span
                 layoutId='theme-switcher-active'
-                className='bg-accent ring-border absolute inset-0 rounded-[var(--radius-pill)] ring-1'
+                className='bg-accent ring-border absolute inset-0 rounded-md ring-1'
                 transition={{
                   type: 'spring',
                   stiffness: 500,
@@ -84,7 +84,7 @@ export function ThemeQuickSwitcher() {
             {theme === 'light' && (
               <motion.span
                 layoutId='theme-switcher-active'
-                className='bg-accent ring-border absolute inset-0 rounded-[var(--radius-pill)] ring-1'
+                className='bg-accent ring-border absolute inset-0 rounded-md ring-1'
                 transition={{
                   type: 'spring',
                   stiffness: 500,
@@ -111,7 +111,7 @@ export function ThemeQuickSwitcher() {
             {theme === 'dark' && (
               <motion.span
                 layoutId='theme-switcher-active'
-                className='bg-accent ring-border absolute inset-0 rounded-[var(--radius-pill)] ring-1'
+                className='bg-accent ring-border absolute inset-0 rounded-md ring-1'
                 transition={{
                   type: 'spring',
                   stiffness: 500,

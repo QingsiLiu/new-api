@@ -251,7 +251,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         >
           <span
             className={cn(
-              'rounded-[var(--radius-pill)] px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider',
+              'rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider',
               accent.badge
             )}
           >
