@@ -5,6 +5,7 @@ on:
     tags:
       - '*'
       - '!nightly*'
+      - '!archive/**'
   workflow_dispatch:
     inputs:
       tag:
