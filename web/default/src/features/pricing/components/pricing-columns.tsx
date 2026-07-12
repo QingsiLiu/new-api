@@ -16,13 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type MouseEvent } from 'react'
-import { type ColumnDef } from '@tanstack/react-table'
-import { Copy } from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { getLobeIcon } from '@/lib/lobe-icon'
-import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+
 import {
   BadgeCell,
   BadgeListCell,
@@ -30,7 +26,9 @@ import {
 } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
+import { getLobeIcon } from '@/lib/lobe-icon'
+
+import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
@@ -43,6 +41,7 @@ import {
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
+import { ModelBillingModeBadge } from './model-billing-mode-badge'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
@@ -53,30 +52,22 @@ export interface PricingColumnsOptions {
   priceRate?: number
   usdExchangeRate?: number
   showRechargePrice?: boolean
-  groupDisplay?: Record<string, string>
+  selectedGroup?: string
 }
 
 export function usePricingColumns(
   options: PricingColumnsOptions = {}
 ): ColumnDef<PricingModel>[] {
   const { t } = useTranslation()
-  const { copyToClipboard } = useCopyToClipboard()
   const {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
     usdExchangeRate = 1,
     showRechargePrice = false,
-    groupDisplay = {},
+    selectedGroup,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
-  const handleCopyModelID = (
-    event: MouseEvent<HTMLButtonElement>,
-    modelName: string
-  ) => {
-    event.stopPropagation()
-    void copyToClipboard(modelName)
-  }
 
   return [
     // Model column
@@ -90,41 +81,13 @@ export function usePricingColumns(
         const model = row.original
         const modelIconKey = model.icon || model.vendor_icon
         const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 14) : null
-        const modelAlias = model.alias?.trim()
-        const hasAlias = Boolean(modelAlias)
-        const displayName = modelAlias || model.model_name
 
         return (
-          <div className='flex max-w-full min-w-0 items-start gap-2'>
+          <div className='flex max-w-full min-w-0 items-center gap-2'>
             {modelIcon}
-            <div className='min-w-0'>
-              <div
-                className={cn(
-                  'truncate text-sm font-medium',
-                  hasAlias ? 'font-semibold' : 'font-mono'
-                )}
-              >
-                {displayName}
-              </div>
-              {hasAlias && (
-                <div className='mt-0.5 flex min-w-0 items-center gap-1.5'>
-                  <code className='text-muted-foreground/70 truncate font-mono text-[11px] leading-4'>
-                    {model.model_name}
-                  </code>
-                  <button
-                    type='button'
-                    onClick={(event) =>
-                      handleCopyModelID(event, model.model_name || '')
-                    }
-                    className='text-muted-foreground/70 hover:text-foreground hover:bg-muted inline-flex size-5 shrink-0 items-center justify-center rounded-md transition-colors'
-                    title={t('Copy model ID')}
-                    aria-label={t('Copy model ID')}
-                  >
-                    <Copy className='size-3' />
-                  </button>
-                </div>
-              )}
-            </div>
+            <span className='truncate font-mono text-sm font-medium'>
+              {model.model_name}
+            </span>
           </div>
         )
       },
@@ -135,17 +98,10 @@ export function usePricingColumns(
     {
       accessorKey: 'quota_type',
       header: t('Type'),
-      cell: ({ row }) => {
-        const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
-        return (
-          <StatusBadge
-            label={isTokenBased ? t('Token') : t('Request')}
-            variant={isTokenBased ? 'info' : 'neutral'}
-            copyable={false}
-          />
-        )
-      },
-      size: 80,
+      cell: ({ row }) => (
+        <ModelBillingModeBadge model={row.original} className='-ml-1.5' />
+      ),
+      size: 110,
       enableSorting: false,
     },
 
@@ -163,14 +119,17 @@ export function usePricingColumns(
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            model,
+            selectedGroup
+          ),
         })
 
         if (dynamicSummary) {
           if (dynamicSummary.isSpecialExpression) {
             return (
               <div className='max-w-full min-w-0'>
-                <div className='text-warning text-xs font-medium'>
+                <div className='text-xs font-medium text-amber-700 dark:text-amber-300'>
                   {t('Special billing expression')}
                 </div>
                 <div className='text-muted-foreground text-[11px]'>
@@ -225,7 +184,8 @@ export function usePricingColumns(
               tokenUnit,
               showRechargePrice,
               priceRate,
-              usdExchangeRate
+              usdExchangeRate,
+              selectedGroup
             )
           )
           const outputPrice = stripTrailingZeros(
@@ -235,7 +195,8 @@ export function usePricingColumns(
               tokenUnit,
               showRechargePrice,
               priceRate,
-              usdExchangeRate
+              usdExchangeRate,
+              selectedGroup
             )
           )
 
@@ -258,7 +219,8 @@ export function usePricingColumns(
             model,
             showRechargePrice,
             priceRate,
-            usdExchangeRate
+            usdExchangeRate,
+            selectedGroup
           )
         )
 
@@ -286,7 +248,10 @@ export function usePricingColumns(
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            model,
+            selectedGroup
+          ),
         })
 
         if (dynamicSummary) {
@@ -330,7 +295,8 @@ export function usePricingColumns(
             tokenUnit,
             showRechargePrice,
             priceRate,
-            usdExchangeRate
+            usdExchangeRate,
+            selectedGroup
           )
         )
 
@@ -434,12 +400,7 @@ export function usePricingColumns(
         return (
           <BadgeListCell
             items={groups.map((group) => (
-              <GroupBadge
-                key={group}
-                group={group}
-                label={groupDisplay[group]}
-                size='sm'
-              />
+              <GroupBadge key={group} group={group} size='sm' />
             ))}
             tooltipClassName='max-w-[280px] p-2'
           />

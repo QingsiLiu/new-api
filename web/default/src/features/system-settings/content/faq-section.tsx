@@ -16,14 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { Plus, Trash2, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { deferEffect } from '@/lib/defer-effect'
+import * as z from 'zod'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Dialog } from '@/components/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,8 +50,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { StaticDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -100,27 +102,23 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   })
 
   useEffect(() => {
-    return deferEffect(() => {
-      try {
-        const parsed = JSON.parse(data || '[]')
-        if (Array.isArray(parsed)) {
-          setFaqList(
-            parsed.map((item, idx) => ({
-              ...item,
-              id: item.id || idx + 1,
-            }))
-          )
-        }
-      } catch {
-        setFaqList([])
+    try {
+      const parsed = JSON.parse(data || '[]')
+      if (Array.isArray(parsed)) {
+        setFaqList(
+          parsed.map((item, idx) => ({
+            ...item,
+            id: item.id || idx + 1,
+          }))
+        )
       }
-    })
+    } catch {
+      setFaqList([])
+    }
   }, [data])
 
   useEffect(() => {
-    return deferEffect(() => {
-      setIsEnabled(enabled)
-    })
+    setIsEnabled(enabled)
   }, [enabled])
 
   const handleToggleEnabled = async (checked: boolean) => {
@@ -263,7 +261,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             checked={isEnabled}
             onCheckedChange={handleToggleEnabled}
             label={t('Enabled')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
         </div>
 
@@ -307,24 +305,14 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'w-32',
               cell: (faq) => (
-                <div className='flex gap-2'>
-                  <Button
-                    onClick={() => handleEdit(faq)}
-                    size='sm'
-                    variant='ghost'
-                  >
-                    <Edit className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    onClick={() => handleDelete(faq)}
-                    size='sm'
-                    variant='ghost'
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                </div>
+                <StaticRowActions
+                  editLabel={t('Edit')}
+                  deleteLabel={t('Delete')}
+                  menuLabel={t('Open menu')}
+                  onEdit={() => handleEdit(faq)}
+                  onDelete={() => handleDelete(faq)}
+                />
               ),
             },
           ]}
@@ -368,7 +356,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                   <FormLabel>{t('Question')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('How to reset my balance?')}
+                      placeholder={t('How to reset my quota?')}
                       {...field}
                     />
                   </FormControl>
@@ -388,7 +376,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                   <FormControl>
                     <Textarea
                       placeholder={t(
-                        'Visit Settings → General and adjust balance options...'
+                        'Visit Settings → General and adjust quota options...'
                       )}
                       rows={8}
                       {...field}
@@ -411,13 +399,15 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
-                ? 'This FAQ entry will be removed from the list.'
-                : `${selectedIds.length} FAQ entries will be removed from the list.`}
+                ? t('This FAQ entry will be removed from the list.')
+                : t('{{count}} FAQ entries will be removed from the list.', {
+                    count: selectedIds.length,
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>
+            <AlertDialogAction variant='destructive' onClick={confirmDelete}>
               {t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>

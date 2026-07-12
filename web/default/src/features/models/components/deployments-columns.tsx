@@ -16,34 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type * as React from 'react'
-import { type ColumnDef } from '@tanstack/react-table'
-import {
-  Eye,
-  Info,
-  MoreHorizontal,
-  Pencil,
-  Settings2,
-  Timer,
-  Trash2,
-} from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Eye, Info, Pencil, Settings2, Timer, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+
+import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+} from '@/components/ui/dropdown-menu'
+import { formatTimestampToDate } from '@/lib/format'
+
 import { getDeploymentStatusConfig } from '../constants'
 import {
   formatRemainingMinutes,
@@ -78,7 +65,7 @@ export function useDeploymentsColumns(opts: {
       accessorFn: (row) =>
         row.container_name || row.deployment_name || row.name || '',
       header: t('Name'),
-      meta: { mobileTitle: true, flex: true },
+      meta: { mobileTitle: true },
       cell: ({ getValue }) => {
         const name = String(getValue() || '-') || '-'
         return (
@@ -87,7 +74,7 @@ export function useDeploymentsColumns(opts: {
             variant='neutral'
             copyText={name}
             size='sm'
-            className='font-mono'
+            className='-ml-1.5 font-mono'
           />
         )
       },
@@ -111,6 +98,7 @@ export function useDeploymentsColumns(opts: {
             variant={config.variant}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -133,14 +121,16 @@ export function useDeploymentsColumns(opts: {
       header: t('Provider'),
       cell: ({ row }) => {
         const provider = row.original.provider
-        if (!provider)
+        if (!provider) {
           return <span className='text-muted-foreground text-xs'>-</span>
+        }
         return (
           <StatusBadge
             label={String(provider)}
             autoColor={String(provider)}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -213,8 +203,9 @@ export function useDeploymentsColumns(opts: {
           typeof row.original.hardware_quantity === 'number'
             ? row.original.hardware_quantity
             : null
-        if (!hardware)
+        if (!hardware) {
           return <span className='text-muted-foreground text-xs'>-</span>
+        }
         return (
           <div className='flex max-w-full min-w-0 flex-nowrap items-center gap-2 overflow-hidden'>
             <StatusBadge
@@ -237,12 +228,12 @@ export function useDeploymentsColumns(opts: {
       header: t('Created'),
       meta: { mobileHidden: true },
       cell: ({ row }) => {
-        const ts =
-          typeof row.original.created_at === 'number'
-            ? row.original.created_at
-            : typeof row.original.created_at === 'string'
-              ? Number(row.original.created_at)
-              : undefined
+        let ts: number | undefined
+        if (typeof row.original.created_at === 'number') {
+          ts = row.original.created_at
+        } else if (typeof row.original.created_at === 'string') {
+          ts = Number(row.original.created_at)
+        }
         return (
           <div className='min-w-[140px] font-mono text-sm'>
             {formatTimestampToDate(ts)}
@@ -256,11 +247,6 @@ export function useDeploymentsColumns(opts: {
       header: () => t('Actions'),
       enableHiding: false,
       enableSorting: false,
-      // Common actions inline (logs / details / extend / delete); the
-      // occasional ones (update config, rename) live in the overflow menu.
-      // 4 icon buttons + menu => ~184px.
-      size: 184,
-      meta: { pinned: 'right' as const },
       cell: ({ row }) => {
         const id = row.original.id
         const currentName =
@@ -269,92 +255,56 @@ export function useDeploymentsColumns(opts: {
           row.original.name ||
           ''
 
-        const inlineActions: {
-          label: string
-          icon: React.ReactNode
-          onClick: () => void
-          destructive?: boolean
-        }[] = [
-          {
-            label: t('View logs'),
-            icon: <Eye className='size-4' />,
-            onClick: () => opts.onViewLogs(id),
-          },
-          {
-            label: t('View details'),
-            icon: <Info className='size-4' />,
-            onClick: () => opts.onViewDetails(id),
-          },
-          {
-            label: t('Extend deployment'),
-            icon: <Timer className='size-4' />,
-            onClick: () => opts.onExtend(id),
-          },
-          {
-            label: t('Delete'),
-            icon: <Trash2 className='size-4' />,
-            onClick: () => opts.onDelete(row.original),
-            destructive: true,
-          },
-        ]
-
         return (
-          <div className='-ml-2 flex items-center gap-1'>
-            {inlineActions.map((action) => (
-              <Tooltip key={action.label}>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant='ghost'
-                      size='icon-sm'
-                      onClick={action.onClick}
-                      aria-label={action.label}
-                      className={
-                        action.destructive
-                          ? 'text-destructive hover:text-destructive border-0'
-                          : 'border-0'
-                      }
-                    />
-                  }
-                >
-                  {action.icon}
-                </TooltipTrigger>
-                <TooltipContent>{action.label}</TooltipContent>
-              </Tooltip>
-            ))}
-
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    className='data-popup-open:bg-muted flex h-8 w-8 border-0 p-0'
-                  />
-                }
+          <div className='-ml-2.5 flex items-center gap-1'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => opts.onViewLogs(id)}
+              aria-label={t('View logs')}
+            >
+              <Eye />
+            </Button>
+            <DataTableRowActionMenu ariaLabel={t('Open menu')}>
+              <DropdownMenuItem onClick={() => opts.onViewDetails(id)}>
+                {t('View details')}
+                <DropdownMenuShortcut>
+                  <Info size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => opts.onUpdateConfig(id)}>
+                {t('Update configuration')}
+                <DropdownMenuShortcut>
+                  <Settings2 size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => opts.onExtend(id)}>
+                {t('Extend deployment')}
+                <DropdownMenuShortcut>
+                  <Timer size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => opts.onRename(id, currentName)}>
+                {t('Rename deployment')}
+                <DropdownMenuShortcut>
+                  <Pencil size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => opts.onDelete(row.original)}
+                className='text-destructive focus:text-destructive'
               >
-                <MoreHorizontal className='h-4 w-4' />
-                <span className='sr-only'>{t('Open menu')}</span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-[200px]'>
-                <DropdownMenuItem onClick={() => opts.onUpdateConfig(id)}>
-                  {t('Update configuration')}
-                  <DropdownMenuShortcut>
-                    <Settings2 size={16} />
-                  </DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => opts.onRename(id, String(currentName))}
-                >
-                  {t('Rename deployment')}
-                  <DropdownMenuShortcut>
-                    <Pencil size={16} />
-                  </DropdownMenuShortcut>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                {t('Delete')}
+                <DropdownMenuShortcut>
+                  <Trash2 size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DataTableRowActionMenu>
           </div>
         )
       },
+      meta: { pinned: 'right' as const },
     },
   ]
 }

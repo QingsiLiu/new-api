@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -38,21 +37,25 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
-import { getUserModels } from '@/lib/api'
-import { MOTION_TRANSITION } from '@/lib/motion'
-import { ROLE } from '@/lib/roles'
-import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { Button } from '@/components/ui/button'
+
 import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
+import { Button } from '@/components/ui/button'
+import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { getUserModels } from '@/lib/api'
+import { MOTION_TRANSITION } from '@/lib/motion'
+import { ROLE } from '@/lib/roles'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
+
 import {
   useApiInfo,
   useDashboardContentVisibility,
@@ -115,6 +118,7 @@ interface HeroSignal {
   label: string
   value: string
   icon: LucideIcon
+  tone: IconBadgeTone
 }
 
 function getSavedSetupGuideExpanded(): boolean | null {
@@ -181,24 +185,35 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
     <>
       <div
         className={cn(
-          'pointer-events-none absolute inset-0',
+          'pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_48%_120%_at_78%_0%,color-mix(in_oklch,var(--overview-accent-1)_14%,transparent)_0%,transparent_62%),linear-gradient(112deg,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-2)_6%)_0%,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-3)_6%)_48%,color-mix(in_oklch,var(--background)_90%,var(--overview-accent-1)_10%)_100%)] dark:opacity-60',
           props.compact
-            ? 'bg-background/35 opacity-80'
-            : 'bg-card/35 opacity-100'
+            ? '[mask-image:linear-gradient(90deg,black_0%,black_48%,transparent_74%)] opacity-55'
+            : 'opacity-85'
         )}
         aria-hidden='true'
       />
-      <pre
+      <div
         className={cn(
-          'text-muted-foreground/20 pointer-events-none absolute right-3 hidden overflow-hidden font-mono whitespace-pre sm:block',
-          props.compact
-            ? '-top-6 w-1/2 text-[9px] leading-4'
-            : 'top-1 w-[58%] text-[11px] leading-5'
+          'text-foreground/5 dark:text-foreground/8 pointer-events-none absolute inset-y-0 right-0 hidden overflow-hidden font-mono sm:block',
+          props.compact ? 'w-1/2 opacity-45' : 'w-[58%] opacity-75'
         )}
         aria-hidden='true'
       >
-        {SETUP_GUIDE_CODE_PATTERN}
-      </pre>
+        <pre
+          className={cn(
+            'absolute right-3 [mask-image:linear-gradient(90deg,transparent_0%,black_30%,black_82%,transparent_100%)] text-right tracking-[0.38em] whitespace-pre',
+            props.compact
+              ? '-top-6 text-[9px] leading-4'
+              : 'top-1 text-[11px] leading-5'
+          )}
+        >
+          {SETUP_GUIDE_CODE_PATTERN}
+        </pre>
+      </div>
+      <div
+        className='from-background/35 to-background/70 dark:from-background/20 dark:to-background/80 pointer-events-none absolute inset-0 bg-linear-to-b via-transparent'
+        aria-hidden='true'
+      />
     </>
   )
 }
@@ -221,8 +236,8 @@ function StartStepItem(props: {
       )}
       <span
         className={cn(
-          'bg-muted relative z-10 flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)]',
-          props.step.completed && 'bg-success/10'
+          'bg-background relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg border shadow-xs',
+          props.step.completed && 'border-success/30 bg-success/10'
         )}
       >
         <StatusIcon
@@ -233,10 +248,10 @@ function StartStepItem(props: {
 
       <Link
         to={props.step.to}
-        className='hover:bg-muted focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-[var(--radius-surface)] px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2'
+        className='bg-background/70 hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left shadow-xs transition-colors outline-none focus-visible:ring-2'
       >
         <span className='flex min-w-0 items-start gap-2.5'>
-          <span className='bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-surface)]'>
+          <span className='bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg'>
             <Icon className='size-3.5' aria-hidden='true' />
           </span>
           <span className='flex min-w-0 flex-col gap-0.5'>
@@ -307,11 +322,11 @@ function RequestPreview(props: {
       initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
       animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
       transition={MOTION_TRANSITION.slow}
-      className='editorial-panel relative overflow-hidden rounded-[var(--radius-surface)] p-3'
+      className='bg-background/75 relative overflow-hidden rounded-2xl border p-3 shadow-sm backdrop-blur'
     >
       {!shouldReduceMotion && (
         <motion.div
-          className='border-border pointer-events-none absolute inset-x-0 top-0 h-px border-t'
+          className='via-foreground/30 pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent to-transparent'
           animate={{ x: ['-100%', '100%'] }}
           transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
           aria-hidden='true'
@@ -320,9 +335,9 @@ function RequestPreview(props: {
 
       <div className='flex items-center justify-between gap-3 border-b pb-3'>
         <div className='flex min-w-0 items-center gap-2'>
-          <span className='bg-muted flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-surface)]'>
-            <TerminalSquare className='size-4' aria-hidden='true' />
-          </span>
+          <IconBadge tone='info'>
+            <TerminalSquare />
+          </IconBadge>
           <div className='min-w-0'>
             <div className='truncate text-sm font-medium'>
               {t('First API request')}
@@ -353,16 +368,16 @@ function RequestPreview(props: {
         )}
       </div>
 
-      <div className='bg-foreground/[0.035] my-3 rounded-[var(--radius-surface)] p-3 font-mono text-xs'>
+      <div className='bg-foreground/[0.035] my-3 rounded-xl p-3 font-mono text-xs'>
         <div className='mb-2 flex items-center gap-1.5'>
           <span className='bg-destructive size-2 rounded-full' />
           <span className='bg-warning size-2 rounded-full' />
           <span className='bg-success size-2 rounded-full' />
         </div>
         <div className='flex flex-col gap-1 overflow-hidden'>
-          {previewLines.map((line, index) => (
+          {previewLines.map((line) => (
             <code
-              key={`${line}-${index}`}
+              key={line}
               className='text-muted-foreground truncate'
               title={line}
             >
@@ -379,13 +394,12 @@ function RequestPreview(props: {
           return (
             <div
               key={signal.label}
-              className='bg-muted/40 flex items-center justify-between gap-3 rounded-[var(--radius-surface)] px-3 py-2'
+              className='bg-muted/40 flex items-center justify-between gap-3 rounded-xl px-3 py-2'
             >
               <span className='flex min-w-0 items-center gap-2'>
-                <Icon
-                  className='text-muted-foreground size-3.5 shrink-0'
-                  aria-hidden='true'
-                />
+                <IconBadge tone={signal.tone} size='xs'>
+                  <Icon />
+                </IconBadge>
                 <span className='truncate text-xs font-medium'>
                   {signal.label}
                 </span>
@@ -406,11 +420,11 @@ function QuickActionItem(props: { action: QuickAction }) {
 
   return (
     <Button
-      variant='ghost'
-      className='bg-muted/40 hover:bg-muted h-auto justify-start rounded-[var(--radius-surface)] px-3 py-3 text-left'
+      variant='outline'
+      className='h-auto justify-start rounded-xl px-3 py-3 text-left'
       render={<Link to={props.action.to} />}
     >
-      <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-surface)]'>
+      <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg'>
         <Icon className='size-4' aria-hidden='true' />
       </span>
       <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
@@ -552,16 +566,19 @@ export function OverviewDashboard() {
         label: t('Route active'),
         value: apiInfoItems.length > 0 ? t('Online') : t('Current domain'),
         icon: RadioTower,
+        tone: 'info',
       },
       {
         label: t('Auth configured'),
         value: preferredKey ? t('Secured') : t('Needs API key'),
         icon: ShieldCheck,
+        tone: 'success',
       },
       {
         label: t('Model selected'),
         value: modelsQuery.data?.[0] ?? t('Loading'),
         icon: Timer,
+        tone: 'chart-4',
       },
     ],
     [apiInfoItems.length, modelsQuery.data, preferredKey, t]
@@ -587,7 +604,9 @@ export function OverviewDashboard() {
 
   const completedStepCount = startSteps.filter((step) => step.completed).length
   const setupComplete = completedStepCount === startSteps.length
-  const setupGuideExpanded = manualSetupGuideExpanded ?? !setupComplete
+  const setupStatusReady = apiKeysQuery.isFetched && Boolean(user)
+  const setupGuideExpanded =
+    manualSetupGuideExpanded ?? (setupStatusReady && !setupComplete)
   const showLeftContentPanels =
     isAdmin || showApiInfoPanel || showAnnouncementsPanel || showFAQPanel
   const showContentPanels = showLeftContentPanels || showUptimePanel
@@ -602,11 +621,11 @@ export function OverviewDashboard() {
     <div className='flex flex-col gap-4'>
       {setupGuideExpanded ? (
         <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
-          <CardStaggerItem className='editorial-panel h-full overflow-hidden rounded-[var(--radius-card)]'>
+          <CardStaggerItem className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
             <div className='relative h-full overflow-hidden p-4 sm:p-5'>
               <SetupGuideBackdrop />
-              <div className='relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]'>
-                <div className='flex min-w-0 flex-col gap-4'>
+              <div className='relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]'>
+                <div className='flex min-w-0 flex-col gap-5'>
                   <div className='flex flex-wrap items-start justify-between gap-3'>
                     <div className='flex max-w-2xl flex-col gap-1'>
                       <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wider uppercase'>
@@ -638,7 +657,7 @@ export function OverviewDashboard() {
                     </div>
                   </div>
 
-                  <ol className='rounded-[var(--radius-card)] bg-transparent p-2'>
+                  <ol className='bg-background/45 rounded-2xl border p-2 backdrop-blur'>
                     {startSteps.map((step, index) => (
                       <StartStepItem
                         key={step.title}
@@ -658,7 +677,7 @@ export function OverviewDashboard() {
             </div>
           </CardStaggerItem>
 
-          <CardStaggerItem className='editorial-panel h-full rounded-[var(--radius-card)] p-4 sm:p-5'>
+          <CardStaggerItem className='bg-card h-full rounded-2xl border p-4 shadow-xs sm:p-5'>
             <div className='flex h-full flex-col gap-4'>
               <div className='flex flex-col gap-1'>
                 <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
@@ -678,12 +697,12 @@ export function OverviewDashboard() {
         </CardStaggerContainer>
       ) : (
         <CardStaggerContainer>
-          <CardStaggerItem className='editorial-panel overflow-hidden rounded-[var(--radius-card)]'>
+          <CardStaggerItem className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
             <div className='relative overflow-hidden px-4 py-3 sm:px-5'>
               <SetupGuideBackdrop compact />
               <div className='relative flex flex-wrap items-center justify-between gap-3'>
                 <div className='flex min-w-0 items-center gap-3'>
-                  <span className='border-border bg-muted flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-surface)] border'>
+                  <span className='bg-background/70 flex size-9 shrink-0 items-center justify-center rounded-xl border shadow-xs'>
                     <Check className='text-success size-4' aria-hidden='true' />
                   </span>
                   <div className='min-w-0'>
@@ -693,7 +712,7 @@ export function OverviewDashboard() {
                           ? t('Setup guide complete')
                           : t('Setup guide')}
                       </h3>
-                      <span className='text-muted-foreground bg-muted rounded-[var(--radius-surface)] px-2 py-0.5 text-xs'>
+                      <span className='text-muted-foreground bg-background/60 rounded-md border px-2 py-0.5 text-xs'>
                         {t('Setup progress: {{completed}}/{{total}}', {
                           completed: completedStepCount,
                           total: startSteps.length,

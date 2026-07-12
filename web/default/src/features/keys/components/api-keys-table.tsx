@@ -18,13 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { type Table as TanstackTable } from '@tanstack/react-table'
+import type { Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
+import {
+  DISABLED_ROW_DESKTOP,
+  DISABLED_ROW_MOBILE,
+  DataTablePage,
+  useDebouncedColumnFilter,
+  useDataTable,
+} from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -34,14 +41,10 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DISABLED_ROW_DESKTOP,
-  DISABLED_ROW_MOBILE,
-  DataTablePage,
-  useDebouncedColumnFilter,
-  useDataTable,
-} from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
@@ -49,7 +52,7 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
-import { type ApiKey } from '../types'
+import type { ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
 import { useApiKeysColumns } from './api-keys-columns'
 import { useApiKeys } from './api-keys-provider'
@@ -57,6 +60,11 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
+const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
+const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
+  { length: 5 },
+  (_, index) => `api-key-mobile-skeleton-${index + 1}`
+)
 
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED
@@ -64,15 +72,15 @@ function isDisabledApiKeyRow(apiKey: ApiKey) {
 
 function ApiKeysMobileSkeleton() {
   return (
-    <div className='divide-border overflow-hidden rounded-[var(--radius-card)]'>
-      {Array.from({ length: 5 }).map((_, index) => (
+    <div className='divide-border overflow-hidden rounded-lg border'>
+      {API_KEYS_MOBILE_SKELETON_IDS.map((id) => (
         <div
-          key={index}
+          key={id}
           className='space-y-2 border-b px-3 py-2.5 last:border-b-0'
         >
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
-            <Skeleton className='h-5 w-16 rounded-[var(--radius-pill)]' />
+            <Skeleton className='h-5 w-16 rounded-md' />
           </div>
           <div className='flex items-center justify-between gap-3'>
             <Skeleton className='h-7 w-44' />
@@ -99,7 +107,7 @@ function ApiKeysMobileList({
 
   if (!rows.length) {
     return (
-      <div className='rounded-[var(--radius-card)] p-8'>
+      <div className='rounded-lg border p-8'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -118,7 +126,7 @@ function ApiKeysMobileList({
   }
 
   return (
-    <div className='divide-border overflow-hidden rounded-[var(--radius-card)]'>
+    <div className='divide-border overflow-hidden rounded-lg border'>
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
@@ -134,7 +142,7 @@ function ApiKeysMobileList({
           >
             <div className='flex items-start justify-between gap-3'>
               <div className='min-w-0'>
-                <div className='text-foreground truncate text-sm font-medium'>
+                <div className='truncate text-sm font-semibold'>
                   {apiKey.name}
                 </div>
                 <div className='text-muted-foreground text-[11px]'>
@@ -158,7 +166,7 @@ function ApiKeysMobileList({
             </div>
 
             <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-muted-foreground'>{t('Balance')}</span>
+              <span className='text-muted-foreground'>{t('Quota')}</span>
               {apiKey.unlimited_quota ? (
                 <span className='font-medium'>{t('Unlimited')}</span>
               ) : (
@@ -181,7 +189,16 @@ function ApiKeysMobileList({
 export function ApiKeysTable() {
   const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
-  const columns = useApiKeysColumns()
+  const [now, setNow] = useState(() => Date.now())
+  const columns = useApiKeysColumns(now)
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+    }, 30_000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const {
     globalFilter,
@@ -264,6 +281,7 @@ export function ApiKeysTable() {
     columns,
     enableRowSelection: true,
     columnFilters,
+    columnVisibilityStorageKey: API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY,
     globalFilter,
     pagination,
     globalFilterFn: () => true,

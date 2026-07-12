@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
+
 import { createSectionRegistry } from '@/features/system-settings/utils/section-registry'
 import { ROLE } from '@/lib/roles'
 
@@ -32,6 +33,11 @@ const DASHBOARD_SECTIONS = [
   {
     id: 'models',
     titleKey: 'Model Call Analytics',
+    build: () => null,
+  },
+  {
+    id: 'flow',
+    titleKey: 'Flow',
     build: () => null,
   },
   {

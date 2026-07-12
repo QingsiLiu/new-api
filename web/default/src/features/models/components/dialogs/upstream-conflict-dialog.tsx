@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef, type RowSelectionState } from '@tanstack/react-table'
 import {
@@ -26,10 +25,13 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { deferEffect } from '@/lib/defer-effect'
-import { useIsMobile } from '@/hooks/use-mobile'
+
+import { DataTableView, useDataTable } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -46,9 +48,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { DataTableView, useDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { useIsMobile } from '@/hooks/use-mobile'
+
 import { applyUpstreamOverwrite } from '../../api'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
 import type { SyncOverwritePayload } from '../../types'
@@ -62,7 +63,7 @@ const FIELD_LABELS: Record<string, string> = {
   name_rule: 'Name Rule',
   status: 'Status',
   endpoints: 'Endpoints',
-  quota_types: 'Billing Types',
+  quota_types: 'Quota Types',
   enable_groups: 'Enable Groups',
 }
 
@@ -123,11 +124,9 @@ export function UpstreamConflictDialog({
 
   useEffect(() => {
     if (open) {
-      return deferEffect(() => {
-        setRowSelection({})
-        setSearch('')
-        setPageIndex(0)
-      })
+      setRowSelection({})
+      setSearch('')
+      setPageIndex(0)
     }
   }, [open, upstreamConflicts])
 
@@ -358,9 +357,7 @@ export function UpstreamConflictDialog({
     totalFilteredFields === 0 ? 1 : Math.ceil(totalFilteredFields / pageSize)
 
   useEffect(() => {
-    return deferEffect(() => {
-      setPageIndex((prev) => Math.min(prev, Math.max(0, totalPages - 1)))
-    })
+    setPageIndex((prev) => Math.min(prev, Math.max(0, totalPages - 1)))
   }, [totalPages])
 
   const pageStart = pageIndex * pageSize
@@ -482,7 +479,7 @@ export function UpstreamConflictDialog({
     >
       <div className='flex min-h-0 flex-1 flex-col gap-4'>
         {!hasConflicts ? (
-          <div className='bg-muted/30 text-muted-foreground flex flex-1 items-center justify-center rounded-md p-8 text-center text-sm shadow-[var(--shadow-card)]'>
+          <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
             {t('No conflict entries available.')}
           </div>
         ) : (
@@ -525,7 +522,7 @@ export function UpstreamConflictDialog({
             </div>
 
             {showSearchEmptyState ? (
-              <div className='bg-muted/30 text-muted-foreground flex flex-1 items-center justify-center rounded-md p-8 text-center text-sm shadow-[var(--shadow-card)]'>
+              <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
                 {t('No conflicts match your search.')}
               </div>
             ) : (

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
+
 import type { DataTableColumnClassName, DataTablePinnedColumn } from './types'
 
 export function getResolvedColumnClassName(
@@ -37,14 +38,18 @@ export function getResolvedColumnClassNameFromMap(
     const customClassName = getColumnClassName?.(columnId, kind)
     const pinnedColumn = pinnedColumnById?.get(columnId)
 
-    if (!pinnedColumn) return customClassName
+    if (!pinnedColumn) {
+      return customClassName
+    }
 
     return cn(customClassName, getPinnedColumnClassName(pinnedColumn, kind))
   }
 }
 
 export function getPinnedColumnMap(pinnedColumns?: DataTablePinnedColumn[]) {
-  if (!pinnedColumns?.length) return undefined
+  if (!pinnedColumns?.length) {
+    return undefined
+  }
 
   return new Map(pinnedColumns.map((column) => [column.columnId, column]))
 }
@@ -53,22 +58,18 @@ function getPinnedColumnClassName(
   pinnedColumn: DataTablePinnedColumn,
   kind: 'header' | 'cell'
 ) {
+  const edgeClassName =
+    pinnedColumn.side === 'left'
+      ? 'shadow-[8px_0_10px_-10px_hsl(var(--foreground))]'
+      : 'shadow-[-8px_0_10px_-10px_hsl(var(--foreground))]'
+
   return cn(
     'sticky whitespace-nowrap',
     pinnedColumn.side === 'left' ? 'left-0' : 'right-0',
-    pinnedColumn.side === 'left'
-      ? 'border-r border-border/70'
-      : 'border-l border-border/70',
-    // `data-table-pinned-cell` is the hook for the opaque-background CSS in
-    // index.css. A sticky cell sits ABOVE horizontally-scrolled content, so it
-    // must stay fully opaque in every state — but the global rule
-    // `[data-slot=table-row]:hover [data-slot=table-cell]` (specificity 0,3,0)
-    // paints a translucent hover tint on EVERY cell and out-specifies plain
-    // utility classes like `bg-card`. The CSS rule keyed off this marker class
-    // wins on specificity and restores an opaque background.
+    edgeClassName,
     kind === 'header'
-      ? 'data-table-pinned-cell z-30 !bg-card'
-      : 'data-table-pinned-cell z-20 bg-card',
+      ? '[background-color:var(--table-header-bg,var(--table-header))] group-hover:[background-color:var(--table-header-hover)] z-30'
+      : 'bg-background z-10 group-hover:[background-color:color-mix(in_oklch,var(--muted)_50%,var(--background))] group-data-[state=selected]:bg-muted',
     pinnedColumn.className,
     kind === 'header'
       ? pinnedColumn.headerClassName

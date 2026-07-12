@@ -8,7 +8,7 @@ import (
 )
 
 func TestJimengOpenAIVideoChannelTypeUsesOpenAIVideoEndpoint(t *testing.T) {
-	require.Equal(t, 59, constant.ChannelTypeJimengOpenAIVideo)
+	require.Equal(t, 102, constant.ChannelTypeJimengOpenAIVideo) // 2026-07-12 改号避让上游(原59)
 	require.Equal(t, "JimengOpenAIVideo", constant.GetChannelTypeName(constant.ChannelTypeJimengOpenAIVideo))
 	require.True(t, IsOpenAIVideoChannelType(constant.ChannelTypeJimengOpenAIVideo))
 

@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback } from 'react'
-import { deferEffect } from '@/lib/defer-effect'
+
 import { get2FAStatus } from '@/lib/api'
+
 import type { TwoFAStatus } from '../types'
 
 // ============================================================================
@@ -53,9 +54,7 @@ export function useTwoFA(enabled = true) {
   }, [enabled])
 
   useEffect(() => {
-    return deferEffect(() => {
-      void fetchStatus()
-    })
+    fetchStatus()
   }, [fetchStatus])
 
   return {

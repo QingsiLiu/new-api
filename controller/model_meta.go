@@ -67,9 +67,16 @@ func SearchModelsMeta(c *gin.Context) {
 	}
 	// 批量填充附加字段，提升列表接口性能
 	enrichModels(modelsMeta)
+	vendorCounts, _ := model.GetVendorModelCounts()
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(modelsMeta)
-	common.ApiSuccess(c, pageInfo)
+	common.ApiSuccess(c, gin.H{
+		"items":         modelsMeta,
+		"total":         total,
+		"page":          pageInfo.GetPage(),
+		"page_size":     pageInfo.GetPageSize(),
+		"vendor_counts": vendorCounts,
+	})
 }
 
 // GetModelMeta 根据 ID 获取单条模型信息

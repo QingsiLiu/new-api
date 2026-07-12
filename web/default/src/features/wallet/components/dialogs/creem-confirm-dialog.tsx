@@ -18,9 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+
 import { Dialog } from '@/components/dialog'
-import { formatCreemPrice, formatQuotaShort } from '../../lib/format'
+import { Button } from '@/components/ui/button'
+import { formatNumber } from '@/lib/format'
+
+import { formatCreemPrice } from '../../lib/format'
 import type { CreemProduct } from '../../types'
 
 interface CreemConfirmDialogProps {
@@ -80,8 +83,8 @@ export function CreemConfirmDialog({
           </span>
         </div>
         <div className='flex items-center justify-between'>
-          <span className='text-muted-foreground'>{t('Balance')}</span>
-          <span className='font-medium'>{formatQuotaShort(product.quota)}</span>
+          <span className='text-muted-foreground'>{t('Quota')}</span>
+          <span className='font-medium'>{formatNumber(product.quota)}</span>
         </div>
       </div>
     </Dialog>

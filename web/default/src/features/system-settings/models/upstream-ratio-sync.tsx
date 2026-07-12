@@ -16,13 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckSquare, Loader2, RefreshCcw } from 'lucide-react'
+import { CheckSquare, RefreshCcw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { deferEffect } from '@/lib/defer-effect'
+
 import { Button } from '@/components/ui/button'
+
 import {
   fetchUpstreamRatios,
   getUpstreamChannels,
@@ -51,7 +52,12 @@ import {
 import {
   NUMERIC_SYNC_FIELDS,
   RATIO_SYNC_FIELDS,
-  getPreferredSyncField,
+  applyResolutionRemovalPlan,
+  applyResolutionSelection,
+  applyResolutionSelections,
+  deleteResolutionField,
+  type ResolutionRemovalPlan,
+  type ResolutionSelection,
   type ResolutionsMap,
 } from './upstream-ratio-sync-helpers'
 import { UpstreamRatioSyncTable } from './upstream-ratio-sync-table'
@@ -73,7 +79,6 @@ type UpstreamRatioSyncProps = {
     'billing_setting.billing_mode': string
     'billing_setting.billing_expr': string
   }
-  readOnly?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -88,13 +93,6 @@ function getDefaultEndpointForChannel(channel: UpstreamChannel): string {
   if (channel.id === OFFICIAL_CHANNEL_ID) return OFFICIAL_CHANNEL_ENDPOINT
   if (channel.type === OPENROUTER_CHANNEL_TYPE) return OPENROUTER_ENDPOINT
   return DEFAULT_ENDPOINT
-}
-
-function getBillingCategory(ratioType: string): 'price' | 'ratio' | 'tiered' {
-  if (ratioType === 'model_price') return 'price'
-  if (ratioType === 'billing_mode' || ratioType === 'billing_expr')
-    return 'tiered'
-  return 'ratio'
 }
 
 function optionKeyBySyncField(ratioType: string): string {
@@ -117,33 +115,11 @@ function parseJsonRecord<T>(raw: string | undefined | null): Record<string, T> {
   }
 }
 
-function deleteResolutionField(
-  res: ResolutionsMap,
-  model: string,
-  ratioType: string
-): ResolutionsMap {
-  if (!res[model]) return res
-  const newModelRes = { ...res[model] }
-  delete newModelRes[ratioType]
-  if (ratioType === 'billing_expr') delete newModelRes['billing_mode']
-  if (ratioType === 'billing_mode') delete newModelRes['billing_expr']
-  const next = { ...res }
-  if (Object.keys(newModelRes).length === 0) {
-    delete next[model]
-  } else {
-    next[model] = newModelRes
-  }
-  return next
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function UpstreamRatioSync({
-  modelRatios,
-  readOnly = false,
-}: UpstreamRatioSyncProps) {
+export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
@@ -171,18 +147,16 @@ export function UpstreamRatioSync({
 
   useEffect(() => {
     if (channels.length === 0) return
-    return deferEffect(() => {
-      setChannelEndpoints((prev) => {
-        let mutated = false
-        const next = { ...prev }
-        for (const channel of channels) {
-          if (!next[channel.id]) {
-            next[channel.id] = getDefaultEndpointForChannel(channel)
-            mutated = true
-          }
+    setChannelEndpoints((prev) => {
+      let mutated = false
+      const next = { ...prev }
+      for (const channel of channels) {
+        if (!next[channel.id]) {
+          next[channel.id] = getDefaultEndpointForChannel(channel)
+          mutated = true
         }
-        return mutated ? next : prev
-      })
+      }
+      return mutated ? next : prev
     })
   }, [channels])
 
@@ -251,12 +225,10 @@ export function UpstreamRatioSync({
   })
 
   const handleOpenChannelDialog = () => {
-    if (readOnly) return
     setChannelDialogOpen(true)
   }
 
   const handleConfirmChannelSelection = (selectedIds: number[]) => {
-    if (readOnly) return
     const selectedChannels = channels.filter((ch) =>
       selectedIds.includes(ch.id)
     )
@@ -283,65 +255,39 @@ export function UpstreamRatioSync({
       value: number | string,
       sourceName: string
     ) => {
-      if (readOnly) return
-      const modelDiffs = differences[model]
-
-      // Prefer billing_expr over individual ratio fields when available
-      const preferredType = sourceName
-        ? getPreferredSyncField(modelDiffs || {}, ratioType, sourceName)
-        : ratioType
-      const preferredValue =
-        preferredType === ratioType
-          ? value
-          : (modelDiffs?.[preferredType]?.upstreams?.[sourceName] ?? value)
-
-      const finalType = preferredType
-      const finalValue = preferredValue as number | string
-      const category = getBillingCategory(finalType)
-
-      setResolutions((prev) => {
-        const newModelRes = { ...(prev[model] || {}) }
-
-        // Clear conflicting categories
-        Object.keys(newModelRes).forEach((rt) => {
-          if (
-            category !== 'tiered' &&
-            getBillingCategory(rt) !== 'tiered' &&
-            getBillingCategory(rt) !== category
-          ) {
-            delete newModelRes[rt]
-          }
+      setResolutions((prev) =>
+        applyResolutionSelection(prev, differences, {
+          model,
+          ratioType,
+          value,
+          sourceName,
         })
-
-        newModelRes[finalType] = finalValue
-
-        // When selecting a tiered field, auto-populate paired fields from the same source
-        if (category === 'tiered' && sourceName && modelDiffs) {
-          const modeVal = modelDiffs.billing_mode?.upstreams?.[sourceName]
-          const exprVal = modelDiffs.billing_expr?.upstreams?.[sourceName]
-          if (modeVal !== undefined && modeVal !== null && modeVal !== 'same') {
-            newModelRes['billing_mode'] = modeVal
-          } else if (finalType === 'billing_expr') {
-            newModelRes['billing_mode'] = 'tiered_expr'
-          }
-          if (exprVal !== undefined && exprVal !== null && exprVal !== 'same') {
-            newModelRes['billing_expr'] = exprVal
-          }
-        }
-
-        return { ...prev, [model]: newModelRes }
-      })
+      )
     },
-    [differences, readOnly]
+    [differences]
+  )
+
+  const handleSelectValues = useCallback(
+    (selections: ResolutionSelection[]) => {
+      if (selections.length === 0) return
+      setResolutions((prev) =>
+        applyResolutionSelections(prev, differences, selections)
+      )
+    },
+    [differences]
   )
 
   const handleUnselectValue = useCallback(
     (model: string, ratioType: RatioType) => {
-      if (readOnly) return
       setResolutions((prev) => deleteResolutionField(prev, model, ratioType))
     },
-    [readOnly]
+    []
   )
+
+  const handleUnselectValues = useCallback((plan: ResolutionRemovalPlan) => {
+    if (plan.size === 0) return
+    setResolutions((prev) => applyResolutionRemovalPlan(prev, plan))
+  }, [])
 
   const parsedRatios = useMemo(() => {
     return {
@@ -379,8 +325,9 @@ export function UpstreamRatioSync({
       currentRatios.ImageRatio[model] !== undefined ||
       currentRatios.AudioRatio[model] !== undefined ||
       currentRatios.AudioCompletionRatio[model] !== undefined
-    )
+    ) {
       return 'ratio'
+    }
     return null
   }
 
@@ -458,7 +405,6 @@ export function UpstreamRatioSync({
   }
 
   const handleApplySync = () => {
-    if (readOnly) return
     const currentRatios = parsedRatios
     const conflicts: ConflictItem[] = []
 
@@ -514,7 +460,6 @@ export function UpstreamRatioSync({
   }
 
   const handleConfirmConflict = async () => {
-    if (readOnly) return
     setConfirmLoading(true)
     try {
       const success = await performSync(parsedRatios)
@@ -530,23 +475,20 @@ export function UpstreamRatioSync({
   const isLoading = fetchMutation.isPending || isSyncPending || confirmLoading
 
   return (
-    <div className='space-y-4'>
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+    <div className='flex h-full min-h-0 flex-col gap-4'>
+      <div className='flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex flex-col gap-2 sm:flex-row'>
-          <Button
-            onClick={handleOpenChannelDialog}
-            disabled={isLoading || readOnly}
-          >
+          <Button onClick={handleOpenChannelDialog} disabled={isLoading}>
             <RefreshCcw className='mr-2 h-4 w-4' />
             {t('Select Sync Channels')}
           </Button>
           <Button
             variant='secondary'
             onClick={handleApplySync}
-            disabled={!hasSelections || isLoading || readOnly}
+            disabled={!hasSelections || isLoading}
           >
             {(isSyncPending || confirmLoading) && (
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              <span className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
             )}
             <CheckSquare className='mr-2 h-4 w-4' />
             {t('Apply Sync')}
@@ -554,14 +496,18 @@ export function UpstreamRatioSync({
         </div>
       </div>
 
-      <UpstreamRatioSyncTable
-        differences={differences}
-        resolutions={resolutions}
-        isDisabled={isLoading || readOnly}
-        isSyncing={fetchMutation.isPending}
-        onSelectValue={handleSelectValue}
-        onUnselectValue={handleUnselectValue}
-      />
+      <div className='min-h-0 flex-1'>
+        <UpstreamRatioSyncTable
+          differences={differences}
+          resolutions={resolutions}
+          isDisabled={isLoading}
+          isSyncing={fetchMutation.isPending}
+          onSelectValue={handleSelectValue}
+          onSelectValues={handleSelectValues}
+          onUnselectValue={handleUnselectValue}
+          onUnselectValues={handleUnselectValues}
+        />
+      </div>
 
       <ChannelSelectorDialog
         open={channelDialogOpen}

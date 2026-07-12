@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, Trash2, Download, Search } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCommonHeaders } from '@/lib/api'
-import { deferEffect } from '@/lib/defer-effect'
+
+import { Dialog } from '@/components/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +39,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
-import { Dialog } from '@/components/dialog'
+import { getCommonHeaders } from '@/lib/api'
+
 import {
   deleteOllamaModel,
   fetchModels as fetchModelsFromEndpoint,
@@ -96,6 +97,25 @@ export function OllamaModelsDialog({
     () => parseModelsString(currentRow?.models ?? ''),
     [currentRow?.models]
   )
+
+  useEffect(() => {
+    if (!open) {
+      setModels([])
+      setSelected([])
+      setSearch('')
+      setPullName('')
+      setIsPulling(false)
+      setPullProgress(null)
+      pullAbortRef.current?.abort()
+      pullAbortRef.current = null
+      return
+    }
+
+    if (open && isOllamaChannel && channelId) {
+      void fetchOllamaModels()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isOllamaChannel, channelId])
 
   const fetchOllamaModels = useCallback(async () => {
     if (!channelId) return
@@ -157,27 +177,6 @@ export function OllamaModelsDialog({
     }
   }, [channelId, currentRow, isOllamaChannel, t])
 
-  useEffect(() => {
-    if (!open) {
-      return deferEffect(() => {
-        setModels([])
-        setSelected([])
-        setSearch('')
-        setPullName('')
-        setIsPulling(false)
-        setPullProgress(null)
-        pullAbortRef.current?.abort()
-        pullAbortRef.current = null
-      })
-    }
-
-    if (open && isOllamaChannel && channelId) {
-      return deferEffect(() => {
-        void fetchOllamaModels()
-      })
-    }
-  }, [open, isOllamaChannel, channelId, fetchOllamaModels])
-
   const toggleSelected = (modelId: string, checked: boolean) => {
     setSelected((prev) => {
       if (checked) return prev.includes(modelId) ? prev : [...prev, modelId]
@@ -189,7 +188,7 @@ export function OllamaModelsDialog({
     setSelected((prev) => {
       const next = new Set(prev)
       filteredModels.forEach((m) => next.add(m.id))
-      return Array.from(next)
+      return [...next]
     })
   }
 
@@ -204,8 +203,8 @@ export function OllamaModelsDialog({
 
     const next =
       mode === 'replace'
-        ? Array.from(new Set(selected))
-        : Array.from(new Set([...existingModels, ...selected]))
+        ? [...new Set(selected)]
+        : [...new Set([...existingModels, ...selected])]
 
     try {
       const res = await updateChannel(currentRow.id, { models: next.join(',') })
@@ -590,7 +589,7 @@ export function OllamaModelsDialog({
               {t('Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              variant='destructive'
               disabled={isDeleting || !deleteTarget}
               onClick={() => {
                 if (!deleteTarget) return

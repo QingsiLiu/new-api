@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -18,87 +19,63 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
 import * as React from 'react'
-import { type LucideIcon } from 'lucide-react'
+
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { stringToColor } from '@/lib/colors'
 import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 export const dotColorMap = {
-  success: 'bg-calm-green-fg',
-  warning: 'bg-calm-amber-fg',
-  danger: 'bg-calm-rose-fg',
-  info: 'bg-calm-blue-fg',
-  neutral: 'bg-calm-gray-fg',
-  purple: 'bg-calm-violet-fg',
-  amber: 'bg-calm-amber-fg',
-  blue: 'bg-calm-blue-fg',
-  cyan: 'bg-calm-teal-fg',
-  green: 'bg-calm-green-fg',
-  grey: 'bg-calm-gray-fg',
-  indigo: 'bg-calm-violet-fg',
-  'light-blue': 'bg-calm-blue-fg',
-  'light-green': 'bg-calm-green-fg',
-  lime: 'bg-calm-green-fg',
-  orange: 'bg-calm-amber-fg',
-  pink: 'bg-calm-rose-fg',
-  red: 'bg-calm-rose-fg',
-  teal: 'bg-calm-teal-fg',
-  violet: 'bg-calm-violet-fg',
-  yellow: 'bg-calm-amber-fg',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-destructive',
+  info: 'bg-info',
+  neutral: 'bg-neutral',
+  purple: 'bg-chart-4',
+  amber: 'bg-warning',
+  blue: 'bg-chart-1',
+  cyan: 'bg-chart-2',
+  green: 'bg-success',
+  grey: 'bg-neutral',
+  indigo: 'bg-chart-1',
+  'light-blue': 'bg-info',
+  'light-green': 'bg-emerald-400',
+  lime: 'bg-chart-3',
+  orange: 'bg-warning',
+  pink: 'bg-chart-5',
+  red: 'bg-destructive',
+  teal: 'bg-chart-2',
+  violet: 'bg-chart-4',
+  yellow: 'bg-warning',
 } as const
 
 export const textColorMap = {
-  success: 'text-calm-green-fg',
-  warning: 'text-calm-amber-fg',
-  danger: 'text-calm-rose-fg',
-  info: 'text-calm-blue-fg',
-  neutral: 'text-calm-gray-fg',
-  purple: 'text-calm-violet-fg',
-  amber: 'text-calm-amber-fg',
-  blue: 'text-calm-blue-fg',
-  cyan: 'text-calm-teal-fg',
-  green: 'text-calm-green-fg',
-  grey: 'text-calm-gray-fg',
-  indigo: 'text-calm-violet-fg',
-  'light-blue': 'text-calm-blue-fg',
-  'light-green': 'text-calm-green-fg',
-  lime: 'text-calm-green-fg',
-  orange: 'text-calm-amber-fg',
-  pink: 'text-calm-rose-fg',
-  red: 'text-calm-rose-fg',
-  teal: 'text-calm-teal-fg',
-  violet: 'text-calm-violet-fg',
-  yellow: 'text-calm-amber-fg',
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-destructive',
+  info: 'text-info',
+  neutral: 'text-muted-foreground',
+  purple: 'text-chart-4',
+  amber: 'text-warning',
+  blue: 'text-chart-1',
+  cyan: 'text-chart-2',
+  green: 'text-success',
+  grey: 'text-muted-foreground',
+  indigo: 'text-chart-1',
+  'light-blue': 'text-info',
+  'light-green': 'text-emerald-500 dark:text-emerald-300',
+  lime: 'text-chart-3',
+  orange: 'text-warning',
+  pink: 'text-chart-5',
+  red: 'text-destructive',
+  teal: 'text-chart-2',
+  violet: 'text-chart-4',
+  yellow: 'text-warning',
 } as const
 
 export type StatusVariant = keyof typeof dotColorMap
 
-export const badgeSurfaceMap: Record<StatusVariant, string> = {
-  success: 'bg-calm-green-bg',
-  warning: 'bg-calm-amber-bg',
-  danger: 'bg-calm-rose-bg',
-  info: 'bg-calm-blue-bg',
-  neutral: 'bg-calm-gray-bg',
-  purple: 'bg-calm-violet-bg',
-  amber: 'bg-calm-amber-bg',
-  blue: 'bg-calm-blue-bg',
-  cyan: 'bg-calm-teal-bg',
-  green: 'bg-calm-green-bg',
-  grey: 'bg-calm-gray-bg',
-  indigo: 'bg-calm-violet-bg',
-  'light-blue': 'bg-calm-blue-bg',
-  'light-green': 'bg-calm-green-bg',
-  lime: 'bg-calm-green-bg',
-  orange: 'bg-calm-amber-bg',
-  pink: 'bg-calm-rose-bg',
-  red: 'bg-calm-rose-bg',
-  teal: 'bg-calm-teal-bg',
-  violet: 'bg-calm-violet-bg',
-  yellow: 'bg-calm-amber-bg',
-}
-
 /** Controls the visual style of the badge.
- * - `badge`    — default editorial chip with dot and mono text (default)
+ * - `badge`    — default pill with background and padding (default)
  * - `text`     — plain text, no background or padding, only color
  * - `underline`— plain text with a bottom border underline
  */
@@ -110,15 +87,15 @@ export const StatusBadgeTypeContext =
   React.createContext<StatusBadgeType>('badge')
 
 const sizeMap = {
-  sm: 'h-5 gap-1.5 px-2.5 text-[0.6875rem] leading-none',
-  md: 'h-5 gap-1.5 px-2.5 text-[0.6875rem] leading-none',
-  lg: 'h-6 gap-1.5 px-3 text-xs leading-none',
+  sm: 'h-5 gap-1 px-1.5 text-sm leading-none',
+  md: 'h-5 gap-1 px-1.5 text-sm leading-none',
+  lg: 'h-6 gap-1.5 px-2 text-sm leading-none',
 } as const
 
 const textSizeMap = {
-  sm: 'gap-1.5 text-[0.6875rem] leading-none',
-  md: 'gap-1.5 text-[0.6875rem] leading-none',
-  lg: 'gap-1.5 text-xs leading-none',
+  sm: 'gap-1 text-sm leading-none',
+  md: 'gap-1 text-sm leading-none',
+  lg: 'gap-1.5 text-sm leading-none',
 } as const
 
 export interface StatusBadgeProps extends Omit<
@@ -129,7 +106,7 @@ export interface StatusBadgeProps extends Omit<
   children?: React.ReactNode
   icon?: LucideIcon
   pulse?: boolean
-  /** Kept for compatibility; when enabled, renders a small color swatch. */
+  /** Kept for compatibility. Badges no longer render leading dots. */
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
@@ -189,7 +166,7 @@ export function StatusBadge({
       className={cn(
         'inline-flex w-fit max-w-full min-w-0 shrink items-center font-medium tracking-normal whitespace-nowrap transition-colors',
         isBadge
-          ? cn(badgeSurfaceMap[computedVariant], sizeMap[size ?? 'sm'])
+          ? cn('rounded-4xl', sizeMap[size ?? 'sm'])
           : cn(
               textSizeMap[size ?? 'sm'],
               type === 'underline' && 'border-b border-current pb-px'
@@ -198,8 +175,7 @@ export function StatusBadge({
         pulse && 'animate-pulse',
         copyable &&
           'cursor-copy hover:brightness-95 active:scale-95 dark:hover:brightness-110',
-        className,
-        isBadge && 'rounded-[var(--radius-pill)]'
+        className
       )}
       onClick={handleClick}
       title={title}
@@ -254,7 +230,7 @@ export function StatusBadgeList<T>(props: StatusBadgeListProps<T>) {
   return (
     <div
       className={cn(
-        'flex max-w-full min-w-0 items-center gap-1 overflow-visible [&_[data-slot=status-badge]]:overflow-hidden',
+        'flex max-w-full min-w-0 items-center gap-1 overflow-hidden',
         className
       )}
       {...domProps}

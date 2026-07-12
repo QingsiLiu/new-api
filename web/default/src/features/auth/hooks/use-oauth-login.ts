@@ -16,13 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useRef, useEffect } from 'react'
 import type { AxiosRequestConfig } from 'axios'
+import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
+
 import { api } from '@/lib/api'
-import { deferEffect } from '@/lib/defer-effect'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { getOAuthState } from '../api'
 import {
   buildGitHubOAuthUrl,
@@ -48,12 +49,9 @@ export function useOAuthLogin(status: SystemStatus | null) {
   const { auth } = useAuthStore()
 
   useEffect(() => {
-    const cleanup = deferEffect(() => {
-      setGithubButtonText(t('Continue with GitHub'))
-    })
+    setGithubButtonText(t('Continue with GitHub'))
 
     return () => {
-      cleanup()
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current)
       }

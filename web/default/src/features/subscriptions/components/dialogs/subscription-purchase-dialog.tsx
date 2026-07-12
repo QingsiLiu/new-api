@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
 import { Crown, CalendarClock, Package } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { CNY_QUOTA_UNIT, formatLocalCurrencyAmount } from '@/lib/currency'
-import { deferEffect } from '@/lib/defer-effect'
-import { formatQuota } from '@/lib/format'
+
+import { Dialog } from '@/components/dialog'
+import { GroupBadge } from '@/components/group-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,8 +34,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Dialog } from '@/components/dialog'
-import { GroupBadge } from '@/components/group-badge'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { formatQuota } from '@/lib/format'
+import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
+
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -68,17 +70,16 @@ interface Props {
 
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
+  const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
 
   useEffect(() => {
-    return deferEffect(() => {
-      if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-        setSelectedEpayMethod(props.epayMethods[0].type)
-      } else if (!props.open) {
-        setSelectedEpayMethod('')
-      }
-    })
+    if (props.open && props.epayMethods && props.epayMethods.length > 0) {
+      setSelectedEpayMethod(props.epayMethods[0].type)
+    } else if (!props.open) {
+      setSelectedEpayMethod('')
+    }
   }, [props.open, props.epayMethods])
 
   const plan = props.plan?.plan
@@ -97,13 +98,15 @@ export function SubscriptionPurchaseDialog(props: Props) {
     selectedEpayMethod ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
-  const priceAmount = Number(plan.price_amount || 0)
-  const price = formatLocalCurrencyAmount(priceAmount, {
-    digitsLarge: 2,
-    digitsSmall: 2,
-    abbreviate: false,
-  })
-  const balanceCost = Math.max(0, Math.ceil(priceAmount * CNY_QUOTA_UNIT))
+  const price = Number(plan.price_amount || 0).toFixed(2)
+  const quotaPerUnit =
+    currency?.quotaPerUnit && currency.quotaPerUnit > 0
+      ? currency.quotaPerUnit
+      : DEFAULT_CURRENCY_CONFIG.quotaPerUnit
+  const balanceCost = Math.max(
+    0,
+    Math.ceil(Number(plan.price_amount || 0) * quotaPerUnit)
+  )
   const userQuota = Math.max(0, Number(props.userQuota || 0))
   const allowBalancePay = plan.allow_balance_pay !== false
   const insufficientBalance = userQuota < balanceCost
@@ -296,7 +299,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
           )}
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('Received amount')}
+              {t('Plan Quota')}
             </span>
             <span className='flex items-center gap-1 text-sm'>
               <Package className='h-3.5 w-3.5' />
@@ -314,7 +317,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
           <Separator />
           <div className='flex items-center justify-between'>
             <span className='text-sm font-medium'>{t('Amount Due')}</span>
-            <span className='text-primary text-lg font-bold'>{price}</span>
+            <span className='text-primary text-lg font-bold'>${price}</span>
           </div>
         </div>
 

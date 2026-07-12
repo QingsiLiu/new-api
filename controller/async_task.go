@@ -277,7 +277,7 @@ func CreateAsyncTask(c *gin.Context) {
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios,
+			OtherRatios:     relayInfo.PriceData.OtherRatios(),
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 			SpecPricing:     asyncTaskSpecPricingForTask(relayInfo.PriceData.SpecPricing),
@@ -350,7 +350,7 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 		ModelPrice:  relayInfo.PriceData.ModelPrice,
 		ModelRatio:  relayInfo.PriceData.ModelRatio,
 		GroupRatio:  relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-		OtherRatios: asyncPublicEstimateRatios(relayInfo.PriceData.OtherRatios),
+		OtherRatios: asyncPublicEstimateRatios(relayInfo.PriceData.OtherRatios()),
 		FreeModel:   relayInfo.PriceData.FreeModel,
 		UsePrice:    relayInfo.PriceData.UsePrice,
 	}
@@ -969,9 +969,9 @@ func applyResolvedAsyncTaskSpecPricing(relayInfo *relaycommon.RelayInfo, result 
 		Quota:       result.Quota,
 		QuotaPerCNY: result.QuotaPerCNY,
 	}
-	relayInfo.PriceData.OtherRatios = map[string]float64{
+	relayInfo.PriceData.ReplaceOtherRatios(map[string]float64{
 		"spec_priced": 1,
-	}
+	})
 	return nil
 }
 

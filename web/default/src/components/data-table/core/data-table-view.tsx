@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { Row, Table as TanstackTable } from '@tanstack/react-table'
 import * as React from 'react'
-import { type Row, type Table as TanstackTable } from '@tanstack/react-table'
-import { cn } from '@/lib/utils'
+
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+
 import {
   getPinnedColumnMap,
   getResolvedColumnClassNameFromMap,
@@ -43,6 +45,7 @@ export type {
   DataTableViewProps,
 } from './types'
 export { DataTableRow } from './data-table-row'
+export { DataTableRowActionMenu } from './row-action-menu'
 
 export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   const rows = props.rows ?? props.table.getRowModel().rows
@@ -59,7 +62,7 @@ export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   return (
     <div
       className={cn(
-        'bg-card overflow-hidden rounded-[var(--radius-card)] shadow-none',
+        'overflow-hidden rounded-lg border',
         props.containerClassName
       )}
       {...props.containerProps}
@@ -134,10 +137,9 @@ function SplitHeaderTableView<TData>({
       )}
     >
       <div
-        data-slot='table-container'
         className={cn(
-          'min-h-0 flex-1 overflow-auto rounded-[var(--radius-card)]',
-          '**:data-[slot=table-header]:[--table-header-bg:var(--card)]',
+          'min-h-0 flex-1 overflow-auto',
+          '**:data-[slot=table-header]:[--table-header-bg:var(--table-header)]',
           '**:data-[slot=table-header]:bg-(--table-header-bg)',
           props.splitHeaderScrollClassName,
           props.bodyContainerClassName
@@ -146,7 +148,7 @@ function SplitHeaderTableView<TData>({
         <table
           data-slot='table'
           className={cn(
-            'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-xs [&_th_*]:text-xs',
+            'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-sm [&_th_*]:text-sm',
             props.tableClassName
           )}
           style={tableSizing.style}
@@ -193,7 +195,9 @@ function getMetaPinnedColumns<TData>(
 ): DataTablePinnedColumn[] {
   return table.getAllColumns().flatMap((column) => {
     const side = column.columnDef.meta?.pinned
-    if (!side) return []
+    if (!side) {
+      return []
+    }
 
     return [{ columnId: column.id, side }]
   })
@@ -248,7 +252,7 @@ function renderTableBody<TData>(
   getColumnClassName: DataTableColumnClassName
 ) {
   return (
-    <TableBody className={cn(props.tableBodyClassName)}>
+    <TableBody className={props.tableBodyClassName}>
       {renderTableBodyContent(props, rows, colSpan, getColumnClassName)}
     </TableBody>
   )

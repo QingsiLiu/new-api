@@ -18,16 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
+import { MaskedValueDisplay } from '@/components/masked-value-display'
+import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { MaskedValueDisplay } from '@/components/masked-value-display'
-import { StatusBadge } from '@/components/status-badge'
-import { TableId } from '@/components/table-id'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
 import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import { type Redemption } from '../types'
@@ -73,7 +75,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       accessorKey: 'name',
       header: t('Name'),
-      meta: { mobileTitle: true, flex: true },
+      meta: { mobileTitle: true },
       cell: ({ row }) => (
         <span className='font-medium'>{row.getValue('name')}</span>
       ),
@@ -94,6 +96,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
               label={t('Expired')}
               variant='warning'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -109,6 +112,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             label={t(statusConfig.labelKey)}
             variant={statusConfig.variant}
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -152,7 +156,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'quota',
-      header: t('Amount'),
+      header: t('Quota'),
       cell: ({ row }) => {
         const quota = row.getValue('quota') as number
         return (
@@ -160,6 +164,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             label={formatQuota(quota)}
             variant='neutral'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -190,6 +195,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
               label={t('Never')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -250,10 +256,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       id: 'actions',
       header: () => t('Actions'),
       cell: ({ row }) => <DataTableRowActions row={row} />,
-      enableSorting: false,
-      enableHiding: false,
       meta: { pinned: 'right' as const },
-      size: 64,
     },
   ]
 }

@@ -16,20 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatCNYAmount } from '@/lib/currency'
+
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog } from '@/components/dialog'
+import {
+  formatQuota,
+  parseQuotaFromDollars,
+  quotaUnitsToDollars,
+} from '@/lib/format'
+import {
+  DEFAULT_CURRENCY_CONFIG,
+  useSystemConfigStore,
+} from '@/stores/system-config-store'
 
 interface TransferDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (amountCNY: number) => Promise<boolean>
-  availableCNY: number
+  onConfirm: (amount: number) => Promise<boolean>
+  availableQuota: number
   transferring: boolean
 }
 
@@ -37,22 +46,38 @@ export function TransferDialog({
   open,
   onOpenChange,
   onConfirm,
-  availableCNY,
+  availableQuota,
   transferring,
 }: TransferDialogProps) {
   const { t } = useTranslation()
-  const defaultAmount = availableCNY > 0 && availableCNY < 1 ? availableCNY : 1
-  const [amount, setAmount] = useState(defaultAmount)
+  const currencyConfig = useSystemConfigStore(
+    (state) => state.config.currency
+  )
+  const minimumQuota = Math.ceil(
+    currencyConfig.quotaPerUnit > 0
+      ? currencyConfig.quotaPerUnit
+      : DEFAULT_CURRENCY_CONFIG.quotaPerUnit
+  )
+  const minimumAmount = quotaUnitsToDollars(minimumQuota)
+  const maximumAmount = quotaUnitsToDollars(availableQuota)
+  const [amount, setAmount] = useState(minimumAmount)
+  const transferQuota = parseQuotaFromDollars(amount)
+  const canTransfer =
+    Number.isFinite(amount) &&
+    transferQuota >= minimumQuota &&
+    transferQuota <= availableQuota
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAmount(defaultAmount)
+      setAmount(minimumAmount)
     }
-  }, [defaultAmount, open])
+  }, [minimumAmount, open])
 
   const handleConfirm = async () => {
-    const success = await onConfirm(amount)
+    if (!canTransfer) return
+
+    const success = await onConfirm(transferQuota)
     if (success) {
       onOpenChange(false)
     }
@@ -65,7 +90,7 @@ export function TransferDialog({
       title={t('Transfer Rewards')}
       description={t('Move affiliate rewards to your main balance')}
       contentClassName='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'
-      titleClassName='text-lg font-semibold'
+      titleClassName='text-xl font-semibold'
       footerClassName='grid grid-cols-2 gap-2 sm:flex'
       contentHeight='auto'
       bodyClassName='space-y-4'
@@ -78,7 +103,10 @@ export function TransferDialog({
           >
             {t('Cancel')}
           </Button>
-          <Button onClick={handleConfirm} disabled={transferring}>
+          <Button
+            onClick={handleConfirm}
+            disabled={transferring || !canTransfer}
+          >
             {transferring && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {t('Transfer')}
           </Button>
@@ -90,8 +118,8 @@ export function TransferDialog({
           <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
             {t('Available Rewards')}
           </Label>
-          <div className='text-xl font-semibold'>
-            {formatCNYAmount(availableCNY)}
+          <div className='text-2xl font-semibold'>
+            {formatQuota(availableQuota)}
           </div>
         </div>
 
@@ -107,13 +135,13 @@ export function TransferDialog({
             type='number'
             value={amount}
             onChange={(e) => setAmount(Number(e.target.value))}
-            min={0.01}
-            max={availableCNY}
-            step={0.01}
+            min={minimumAmount}
+            max={maximumAmount}
+            step={minimumAmount}
             className='font-mono text-lg'
           />
           <p className='text-muted-foreground text-xs'>
-            {t('Minimum:')} {formatCNYAmount(0.01)}
+            {t('Minimum:')} {formatQuota(minimumQuota)}
           </p>
         </div>
       </div>

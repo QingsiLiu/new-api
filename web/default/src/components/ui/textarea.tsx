@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
+
 import { cn } from '@/lib/utils'
 
 function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
@@ -24,7 +25,7 @@ function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
     <textarea
       data-slot='textarea'
       className={cn(
-        'placeholder:text-muted-foreground focus-visible:ring-ring/35 disabled:bg-muted/50 aria-invalid:ring-destructive/25 dark:aria-invalid:ring-destructive/35 bg-muted/40 focus-visible:bg-background flex field-sizing-content min-h-16 w-full rounded-[var(--radius-surface)] border border-transparent px-3 py-2 text-base transition-[background-color,box-shadow,color] duration-150 ease-[var(--motion-standard)] outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-2 md:text-sm',
+        'border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 flex field-sizing-content max-h-96 min-h-16 w-full overflow-y-auto rounded-lg border bg-transparent px-2.5 py-2 text-base transition-colors outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm',
         className
       )}
       {...props}

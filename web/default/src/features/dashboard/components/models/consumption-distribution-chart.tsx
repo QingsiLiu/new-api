@@ -16,14 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { AreaChart, BarChart3, WalletCards } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { deferEffect } from '@/lib/defer-effect'
-import { useThemeRadiusPx } from '@/lib/theme-radius'
-import type { TimeGranularity } from '@/lib/time'
-import { VCHART_OPTION } from '@/lib/vchart'
+
+import { IconBadge } from '@/components/ui/icon-badge'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import {
@@ -35,6 +33,9 @@ import type {
   ConsumptionDistributionChartType,
   QuotaDataItem,
 } from '@/features/dashboard/types'
+import { useThemeRadiusPx } from '@/lib/theme-radius'
+import type { TimeGranularity } from '@/lib/time'
+import { VCHART_OPTION } from '@/lib/vchart'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -75,12 +76,7 @@ export function ConsumptionDistributionChart(
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
 
   useEffect(() => {
-    const defaultChartType = props.defaultChartType
-    if (defaultChartType) {
-      return deferEffect(() => {
-        setChartType(defaultChartType)
-      })
-    }
+    if (props.defaultChartType) setChartType(props.defaultChartType)
   }, [props.defaultChartType])
 
   useEffect(() => {
@@ -108,17 +104,9 @@ export function ConsumptionDistributionChart(
         props.loading ? [] : props.data,
         timeGranularity,
         t,
-        customization.preset,
         chartRadius
       ),
-    [
-      props.data,
-      props.loading,
-      timeGranularity,
-      t,
-      customization.preset,
-      chartRadius,
-    ]
+    [props.data, props.loading, timeGranularity, t, chartRadius]
   )
   const spec = chartType === 'bar' ? chartData.spec_line : chartData.spec_area
   const specType = typeof spec?.type === 'string' ? spec.type : chartType
@@ -132,17 +120,19 @@ export function ConsumptionDistributionChart(
   ].join('-')
 
   return (
-    <div className='overflow-hidden rounded-[var(--radius-card)]'>
+    <div className='overflow-hidden rounded-lg border'>
       <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
-          <WalletCards className='text-muted-foreground/60 size-4' />
-          <div className='text-sm font-semibold'>{t('Cost Distribution')}</div>
+          <IconBadge tone='success' size='sm'>
+            <WalletCards />
+          </IconBadge>
+          <div className='text-sm font-semibold'>{t('Quota Distribution')}</div>
           <span className='text-muted-foreground text-xs'>
             {t('Total:')} {chartData.totalQuotaDisplay}
           </span>
         </div>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-[var(--radius-pill)] p-0.5 sm:h-8 sm:w-auto'>
+        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
           {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
             const Icon = CHART_TYPE_ICONS[item.value]
             return (
@@ -150,9 +140,9 @@ export function ConsumptionDistributionChart(
                 key={item.value}
                 type='button'
                 onClick={() => setChartType(item.value)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius-pill)] px-3 text-xs font-medium transition-colors ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
                   chartType === item.value
-                    ? 'bg-background text-foreground shadow-none'
+                    ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >

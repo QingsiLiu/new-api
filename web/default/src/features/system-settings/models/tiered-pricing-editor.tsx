@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ChevronDown, Copy, Plus, Trash2 } from 'lucide-react'
 import {
   memo,
   useCallback,
@@ -28,11 +29,9 @@ import {
   type InputHTMLAttributes,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
-import { ChevronDown, Copy, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { deferEffect } from '@/lib/defer-effect'
-import { cn } from '@/lib/utils'
+
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -100,6 +99,7 @@ import {
   normalizeVisualTier,
   tryParseVisualConfig,
 } from '@/features/pricing/lib/tier-expr'
+import { cn } from '@/lib/utils'
 
 const PRICE_SUFFIX = '$/1M tokens'
 const CACHE_PRICE_VARS = BILLING_EXTRA_VARS.filter(
@@ -370,9 +370,7 @@ function DraftNumberInput({
 
   useEffect(() => {
     if (!focused) {
-      return deferEffect(() => {
-        setDraft(formatNumberDraft(value))
-      })
+      setDraft(formatNumberDraft(value))
     }
   }, [focused, value])
 
@@ -598,11 +596,7 @@ function VisualTierCard({
   const [mediaOpen, setMediaOpen] = useState(hasMediaPricing)
 
   useEffect(() => {
-    if (hasMediaPricing) {
-      return deferEffect(() => {
-        setMediaOpen(true)
-      })
-    }
+    if (hasMediaPricing) setMediaOpen(true)
   }, [hasMediaPricing])
 
   const renderPriceVariable = (
@@ -798,7 +792,7 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
     const lastIndex = tiers.length - 1
     // When adding a new fallback, give the previous catch-all tier a default
     // upper-bound condition so the expression compiles into a sane two-tier
-    // shape.
+    // shape. Mirrors the classic editor's UX for adding tiers.
     if (lastIndex >= 0 && tiers[lastIndex].conditions.length === 0) {
       tiers[lastIndex] = normalizeVisualTier({
         ...tiers[lastIndex],
@@ -1461,7 +1455,7 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
         ) : (
           <div className='flex items-center gap-2'>
             <span className='font-medium'>
-              {t('Estimated CNY cost')}: {result.cost.toLocaleString()}
+              {t('Estimated quota cost')}: {result.cost.toLocaleString()}
             </span>
             {result.matchedTier && (
               <Badge variant='outline' className='text-xs'>

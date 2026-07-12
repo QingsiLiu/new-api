@@ -35,7 +35,7 @@ func TestInitChannelCacheIgnoresDisabledAbilities(t *testing.T) {
 
 	InitChannelCache()
 
-	channel, err := GetRandomSatisfiedChannel("media", "gemini-3-pro-image-preview", 0)
+	channel, err := GetRandomSatisfiedChannel("media", "gemini-3-pro-image-preview", 0, "")
 	require.NoError(t, err)
 	require.Nil(t, channel)
 }

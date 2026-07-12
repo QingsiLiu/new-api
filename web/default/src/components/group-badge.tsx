@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+
 import { cn } from '@/lib/utils'
-import { useGroupRegistry } from '@/features/groups/hooks/use-group-registry'
+
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 
 type GroupBadgeProps = Omit<
@@ -32,12 +33,12 @@ type GroupBadgeProps = Omit<
 
 function getGroupRatioClassName(ratio: number): string {
   if (ratio > 1) {
-    return 'bg-calm-amber-bg text-calm-amber-fg'
+    return 'bg-warning/10 text-warning'
   }
   if (ratio < 1) {
-    return 'bg-calm-blue-bg text-calm-blue-fg'
+    return 'bg-info/10 text-info'
   }
-  return 'bg-calm-gray-bg text-calm-gray-fg'
+  return 'bg-muted text-muted-foreground'
 }
 
 function getGroupLabel(params: {
@@ -55,7 +56,6 @@ function getGroupLabel(params: {
 
 export function GroupBadge(props: GroupBadgeProps) {
   const { t } = useTranslation()
-  const { getDisplayName } = useGroupRegistry()
   const {
     group,
     label: labelOverride,
@@ -71,7 +71,7 @@ export function GroupBadge(props: GroupBadgeProps) {
   const isSpecialGroup = isAutoGroup || isEmptyGroup
   const label = getGroupLabel({
     labelOverride,
-    groupName: getDisplayName(groupName),
+    groupName,
     isAutoGroup,
     isEmptyGroup,
     t,
@@ -98,7 +98,7 @@ export function GroupBadge(props: GroupBadgeProps) {
       <span className='max-w-full min-w-0 overflow-hidden'>{badge}</span>
       <span
         className={cn(
-          'inline-flex h-5 shrink-0 items-center rounded-[var(--radius-pill)] px-2.5 text-xs leading-none font-medium tabular-nums',
+          'inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-mono text-xs leading-none font-medium tabular-nums',
           getGroupRatioClassName(ratio)
         )}
       >

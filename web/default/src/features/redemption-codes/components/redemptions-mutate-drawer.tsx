@@ -16,13 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { type FormEvent, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyLabel } from '@/lib/currency'
-import { addTimeToDate } from '@/lib/time'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -43,14 +50,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { DateTimePicker } from '@/components/datetime-picker'
-import {
-  SideDrawerSection,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { addTimeToDate } from '@/lib/time'
+
 import { createRedemption, updateRedemption, getRedemption } from '../api'
 import { SUCCESS_MESSAGES } from '../constants'
 import {
@@ -135,16 +138,30 @@ export function RedemptionsMutateDrawer({
     }
   }
 
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (!isUpdate) {
+      const name = form.getValues('name')
+      if (!name?.trim()) {
+        const quota = parseQuotaFromDollars(form.getValues('quota_dollars'))
+        form.setValue('name', formatQuota(quota), { shouldValidate: true })
+      }
+    }
+
+    void form.handleSubmit(onSubmit)(event)
+  }
+
   const handleSetExpiry = (months: number, days: number, hours: number) => {
     const newDate = addTimeToDate(months, days, hours)
     form.setValue('expired_time', newDate)
   }
 
+  const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
-  const amountLabel = t('Amount ({{currency}})', { currency: currencyLabel })
-  const amountPlaceholder = t('Enter amount in {{currency}}', {
-    currency: currencyLabel,
-  })
+  const tokensOnly = currencyMeta.kind === 'tokens'
+  const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
+  const quotaPlaceholder = tokensOnly
+    ? t('Enter quota in tokens')
+    : t('Enter quota in {{currency}}', { currency: currencyLabel })
 
   return (
     <Sheet
@@ -175,7 +192,7 @@ export function RedemptionsMutateDrawer({
         <Form {...form}>
           <form
             id='redemption-form'
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={handleSubmit}
             className={sideDrawerFormClassName()}
           >
             <SideDrawerSection>
@@ -201,22 +218,24 @@ export function RedemptionsMutateDrawer({
                 name='quota_dollars'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{amountLabel}</FormLabel>
+                    <FormLabel>{quotaLabel}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type='number'
-                        step={0.01}
-                        placeholder={amountPlaceholder}
+                        step={tokensOnly ? 1 : 0.01}
+                        placeholder={quotaPlaceholder}
                         onChange={(e) =>
                           field.onChange(parseFloat(e.target.value) || 0)
                         }
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Enter the balance amount in {{currency}}', {
-                        currency: currencyLabel,
-                      })}
+                      {tokensOnly
+                        ? t('Enter the quota amount in tokens')
+                        : t('Enter the quota amount in {{currency}}', {
+                            currency: currencyLabel,
+                          })}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

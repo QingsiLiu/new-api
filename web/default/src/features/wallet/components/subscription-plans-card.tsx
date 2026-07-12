@@ -16,13 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatLocalCurrencyAmount } from '@/lib/currency'
-import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
+import {
+  StatusBadge,
+  dotColorMap,
+  textColorMap,
+} from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -43,11 +46,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  StatusBadge,
-  dotColorMap,
-  textColorMap,
-} from '@/components/status-badge'
-import {
   getPublicPlans,
   getSelfSubscriptionFull,
   updateBillingPreference,
@@ -58,6 +56,9 @@ import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
+import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import type { PaymentMethod, TopupInfo } from '../types'
 
 interface SubscriptionPlansCardProps {
@@ -110,7 +111,6 @@ export function SubscriptionPlansCard({
     useState('subscription_first')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [nowSeconds, setNowSeconds] = useState(0)
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
@@ -144,7 +144,6 @@ export function SubscriptionPlansCard({
         )
         setActiveSubscriptions(res.data.subscriptions || [])
         setAllSubscriptions(res.data.all_subscriptions || [])
-        setNowSeconds(Date.now() / 1000)
       }
     } catch {
       // ignore
@@ -225,7 +224,8 @@ export function SubscriptionPlansCard({
   const getRemainingDays = (sub: UserSubscriptionRecord) => {
     const endTime = sub?.subscription?.end_time || 0
     if (!endTime) return 0
-    return Math.max(0, Math.ceil((endTime - nowSeconds) / 86400))
+    const now = Date.now() / 1000
+    return Math.max(0, Math.ceil((endTime - now) / 86400))
   }
 
   const getUsagePercent = (sub: UserSubscriptionRecord) => {
@@ -244,8 +244,8 @@ export function SubscriptionPlansCard({
         <CardContent className='space-y-4 p-3 sm:p-5'>
           <Skeleton className='h-20 w-full' />
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-48 w-full' />
+            {['first', 'second', 'third'].map((key) => (
+              <Skeleton key={key} className='h-48 w-full' />
             ))}
           </div>
         </CardContent>
@@ -263,11 +263,12 @@ export function SubscriptionPlansCard({
         title={t('Subscription Plans')}
         description={t('Subscribe to a plan for model access')}
         icon={<Crown className='h-4 w-4' />}
+        iconTone='warning'
         disableHoverEffect
         contentClassName='space-y-4 sm:space-y-5'
       >
         {/* My subscriptions & billing preference */}
-        <div className='rounded-[var(--radius-card)] p-3 sm:p-4'>
+        <div className='rounded-xl border p-3 sm:p-4'>
           <div className='flex flex-wrap items-center justify-between gap-2.5 sm:gap-3'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className='text-sm font-medium'>
@@ -276,7 +277,7 @@ export function SubscriptionPlansCard({
               <span className='flex items-center gap-1.5 text-xs font-medium'>
                 <span
                   className={cn(
-                    'h-3 w-0.5 shrink-0 rounded-sm',
+                    'size-1.5 shrink-0 rounded-full',
                     hasActive ? dotColorMap.success : dotColorMap.neutral
                   )}
                   aria-hidden='true'
@@ -406,15 +407,48 @@ export function SubscriptionPlansCard({
                     planTitleMap.get(subscription?.plan_id) || ''
                   const remainDays = getRemainingDays(sub)
                   const usagePercent = getUsagePercent(sub)
-                  const isExpired = (subscription?.end_time || 0) < nowSeconds
+                  const now = Date.now() / 1000
+                  const isExpired = (subscription?.end_time || 0) < now
                   const isCancelled = subscription?.status === 'cancelled'
                   const isActive =
                     subscription?.status === 'active' && !isExpired
+                  const nextResetTime = subscription?.next_reset_time ?? 0
+                  let statusBadge = (
+                    <StatusBadge
+                      label={t('Expired')}
+                      variant='neutral'
+                      copyable={false}
+                    />
+                  )
+                  if (isActive) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Active')}
+                        variant='success'
+                        copyable={false}
+                      />
+                    )
+                  } else if (isCancelled) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Cancelled')}
+                        variant='neutral'
+                        copyable={false}
+                      />
+                    )
+                  }
+
+                  let endTimeLabel = t('Expired at')
+                  if (isActive) {
+                    endTimeLabel = t('Until')
+                  } else if (isCancelled) {
+                    endTimeLabel = t('Cancelled at')
+                  }
 
                   return (
                     <div
                       key={subscription?.id}
-                      className='bg-background rounded-[var(--radius-surface)] p-3 text-xs'
+                      className='bg-background rounded-md border p-3 text-xs'
                     >
                       <div className='flex items-center justify-between'>
                         <div className='flex items-center gap-2'>
@@ -423,25 +457,7 @@ export function SubscriptionPlansCard({
                               ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
                               : `${t('Subscription')} #${subscription?.id}`}
                           </span>
-                          {isActive ? (
-                            <StatusBadge
-                              label={t('Active')}
-                              variant='success'
-                              copyable={false}
-                            />
-                          ) : isCancelled ? (
-                            <StatusBadge
-                              label={t('Cancelled')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          ) : (
-                            <StatusBadge
-                              label={t('Expired')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          )}
+                          {statusBadge}
                         </div>
                         {isActive && (
                           <span className='text-muted-foreground'>
@@ -452,25 +468,19 @@ export function SubscriptionPlansCard({
                         )}
                       </div>
                       <div className='text-muted-foreground mt-1.5'>
-                        {isActive
-                          ? t('Until')
-                          : isCancelled
-                            ? t('Cancelled at')
-                            : t('Expired at')}{' '}
+                        {endTimeLabel}{' '}
                         {new Date(
                           (subscription?.end_time || 0) * 1000
                         ).toLocaleString()}
                       </div>
-                      {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
+                      {isActive && nextResetTime > 0 && (
                         <div className='text-muted-foreground mt-1'>
                           {t('Next reset')}:{' '}
-                          {new Date(
-                            subscription!.next_reset_time! * 1000
-                          ).toLocaleString()}
+                          {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
                       <div className='text-muted-foreground mt-1'>
-                        {t('Included Balance')}:{' '}
+                        {t('Total Quota')}:{' '}
                         {totalAmount > 0 ? (
                           <Tooltip>
                             <TooltipTrigger
@@ -481,8 +491,8 @@ export function SubscriptionPlansCard({
                               {formatQuota(remainAmount)}
                             </TooltipTrigger>
                             <TooltipContent>
-                              {t('Used')} {formatQuota(usedAmount)} ·{' '}
-                              {t('Remaining')} {formatQuota(remainAmount)}
+                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
+                              {t('Remaining')} {remainAmount}
                             </TooltipContent>
                           </Tooltip>
                         ) : (
@@ -518,14 +528,7 @@ export function SubscriptionPlansCard({
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
-              const price = formatLocalCurrencyAmount(
-                Number(plan.price_amount || 0),
-                {
-                  digitsLarge: 2,
-                  digitsSmall: 2,
-                  abbreviate: false,
-                }
-              )
+              const price = Number(plan.price_amount || 0).toFixed(2)
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
@@ -534,11 +537,11 @@ export function SubscriptionPlansCard({
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
                 formatResetPeriod(plan, t) !== t('No Reset')
-                  ? `${t('Balance Reset')}: ${formatResetPeriod(plan, t)}`
+                  ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
                   : null,
                 totalAmount > 0
-                  ? `${t('Included Balance')}: ${formatQuota(totalAmount)}`
-                  : `${t('Included Balance')}: ${t('Unlimited')}`,
+                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
+                  : `${t('Total Quota')}: ${t('Unlimited')}`,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
@@ -549,7 +552,7 @@ export function SubscriptionPlansCard({
                 <Card
                   key={plan.id}
                   data-card-hover='false'
-                  className={cn(isPopular && 'border-primary/70')}
+                  className={cn(isPopular && 'border-primary/70 shadow-sm')}
                 >
                   <CardContent className='flex h-full flex-col p-3.5 sm:p-4'>
                     <div className='mb-2 flex items-start justify-between gap-3'>
@@ -576,8 +579,8 @@ export function SubscriptionPlansCard({
                     </div>
 
                     <div className='py-2'>
-                      <span className='text-primary text-xl font-bold'>
-                        {price}
+                      <span className='text-primary text-2xl font-bold'>
+                        ${price}
                       </span>
                     </div>
 

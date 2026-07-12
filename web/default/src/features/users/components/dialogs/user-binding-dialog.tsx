@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Mail,
   Globe,
@@ -28,11 +27,14 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiDiscord } from 'react-icons/si'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
-import { deferEffect } from '@/lib/defer-effect'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -42,9 +44,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { api } from '@/lib/api'
+
 import {
   getUser,
   getUserOAuthBindings,
@@ -203,16 +204,14 @@ export function UserBindingDialog(props: Props) {
   }, [props.userId, t])
 
   useEffect(() => {
-    return deferEffect(() => {
-      if (props.open && props.userId) {
-        setShowBoundOnly(true)
-        void fetchData()
-      } else {
-        setUser(null)
-        setOauthBindings([])
-        setStatusInfo({})
-      }
-    })
+    if (props.open && props.userId) {
+      setShowBoundOnly(true)
+      fetchData()
+    } else {
+      setUser(null)
+      setOauthBindings([])
+      setStatusInfo({})
+    }
   }, [props.open, props.userId, fetchData])
 
   const allBindings = useMemo<BindingItem[]>(() => {

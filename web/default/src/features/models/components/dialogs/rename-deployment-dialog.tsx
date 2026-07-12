@@ -16,15 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { deferEffect } from '@/lib/defer-effect'
+
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog } from '@/components/dialog'
+
 import { checkClusterNameAvailability, updateDeploymentName } from '../../api'
 import { deploymentsQueryKeys } from '../../lib'
 
@@ -45,8 +46,7 @@ export function RenameDeploymentDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!open) return
-    return deferEffect(() => setName(currentName || ''))
+    if (open) setName(currentName || '')
   }, [open, currentName])
 
   const trimmed = name.trim()

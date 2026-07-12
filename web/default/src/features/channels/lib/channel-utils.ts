@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
-import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
+
 import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPES,
   MULTI_KEY_STATUS_CONFIG,
   RESPONSE_TIME_CONFIG,
+  RESPONSE_TIME_THRESHOLDS,
   TYPE_TO_KEY_PROMPT,
 } from '../constants'
 import type { Channel, ChannelSettings, ChannelOtherSettings } from '../types'
@@ -50,6 +51,7 @@ export function getChannelTypeIcon(type: number): string {
     6: 'OpenAI', // OpenAIMax
     7: 'OpenAI', // OhMyGPT
     8: 'OpenAI', // Custom
+    58: 'NewAPI', // Advanced Custom
     3: 'Azure', // Azure
 
     // Anthropic
@@ -91,18 +93,15 @@ export function getChannelTypeIcon(type: number): string {
     20: 'OpenRouter', // OpenRouter
 
     // Image/Video generation
-    2: 'Midjourney', // Midjourney
-    5: 'Midjourney', // MidjourneyPlus
+    2: 'Midjourney', // MjProxy
+    5: 'Midjourney', // MjProxyPlus
     50: 'Kling', // Kling
     51: 'Jimeng', // Jimeng
-    59: 'Jimeng', // Jimeng Video (OpenAI Video)
-    60: 'Jimeng', // Ls.API Seedance
     52: 'Vidu', // Vidu
     36: 'Suno', // SunoAPI
     55: 'OpenAI', // Sora
     54: 'Doubao', // DoubaoVideo
     56: 'Replicate', // Replicate
-    58: 'Kie', // KIE
 
     // Tools & Platforms
     37: 'Dify', // Dify
@@ -172,7 +171,9 @@ export function formatChannelKey(
   key: string,
   isMultiKey: boolean = false
 ): string {
-  if (!key) return ''
+  if (!key) {
+    return ''
+  }
 
   if (isMultiKey) {
     const keys = key.split('\n').filter((k) => k.trim())
@@ -192,8 +193,12 @@ export function formatChannelKey(
  * Format key preview for multi-key display
  */
 export function formatKeyPreview(key: string, maxLength: number = 10): string {
-  if (!key) return ''
-  if (key.length <= maxLength) return key
+  if (!key) {
+    return ''
+  }
+  if (key.length <= maxLength) {
+    return key
+  }
   return `${key.slice(0, maxLength)}...`
 }
 
@@ -201,7 +206,9 @@ export function formatKeyPreview(key: string, maxLength: number = 10): string {
  * Count keys in multi-key string
  */
 export function countKeys(key: string): number {
-  if (!key) return 0
+  if (!key) {
+    return 0
+  }
   return key.split('\n').filter((k) => k.trim()).length
 }
 
@@ -213,7 +220,9 @@ export function countKeys(key: string): number {
  * Parse comma-separated models list
  */
 export function parseModelsList(models: string): string[] {
-  if (!models) return []
+  if (!models) {
+    return []
+  }
   return models
     .split(',')
     .map((m) => m.trim())
@@ -225,14 +234,20 @@ export function parseModelsList(models: string): string[] {
  * Sorts with 'default' group first, then locale-sorted alphabetically.
  */
 export function parseGroupsList(groups: string): string[] {
-  if (!groups) return []
+  if (!groups) {
+    return []
+  }
   const list = groups
     .split(',')
     .map((g) => g.trim())
     .filter((g) => g.length > 0)
   return list.sort((a, b) => {
-    if (a === 'default') return -1
-    if (b === 'default') return 1
+    if (a === 'default') {
+      return -1
+    }
+    if (b === 'default') {
+      return 1
+    }
     return a.localeCompare(b)
   })
 }
@@ -261,7 +276,9 @@ export function formatGroupsString(groups: string[]): string {
 export function parseChannelSettings(
   settingStr: string | null | undefined
 ): ChannelSettings {
-  if (!settingStr) return {}
+  if (!settingStr) {
+    return {}
+  }
   try {
     return JSON.parse(settingStr) as ChannelSettings
   } catch {
@@ -275,7 +292,9 @@ export function parseChannelSettings(
 export function parseChannelOtherSettings(
   settingsStr: string | null | undefined
 ): ChannelOtherSettings {
-  if (!settingsStr || settingsStr === '{}') return {}
+  if (!settingsStr || settingsStr === '{}') {
+    return {}
+  }
   try {
     return JSON.parse(settingsStr) as ChannelOtherSettings
   } catch {
@@ -287,7 +306,9 @@ export function parseChannelOtherSettings(
  * Validate JSON string
  */
 export function validateChannelSettings(settings: string): boolean {
-  if (!settings || settings.trim() === '') return true
+  if (!settings || settings.trim() === '') {
+    return true
+  }
   try {
     JSON.parse(settings)
     return true
@@ -304,7 +325,9 @@ export function validateChannelSettings(settings: string): boolean {
  * Format balance with currency symbol
  */
 export function formatBalance(balance: number | null | undefined): string {
-  if (balance == null || Number.isNaN(balance)) return '-'
+  if (balance == null || Number.isNaN(balance)) {
+    return '-'
+  }
   return formatCurrencyFromUSD(balance, {
     digitsLarge: 2,
     digitsSmall: 4,
@@ -317,9 +340,17 @@ export function formatBalance(balance: number | null | undefined): string {
  */
 export function getBalanceVariant(
   balance: number
-): 'neutral' {
-  void balance
-  return 'neutral'
+): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (balance === 0) {
+    return 'neutral'
+  }
+  if (balance < 1) {
+    return 'danger'
+  }
+  if (balance < 10) {
+    return 'warning'
+  }
+  return 'success'
 }
 
 // ============================================================================
@@ -334,9 +365,12 @@ type TFunction = (key: string, options?: { value?: number | string }) => string
  * Pass `t` from useTranslation() for i18n (e.g. "Not tested", "{{value}}ms", "{{value}}s").
  */
 export function formatResponseTime(timeMs: number, t?: TFunction): string {
-  if (timeMs === 0) return t ? t('Not tested') : 'Not tested'
-  if (timeMs < 1000)
+  if (timeMs === 0) {
+    return t ? t('Not tested') : 'Not tested'
+  }
+  if (timeMs < 1000) {
     return t ? t('{{value}}ms', { value: timeMs }) : `${timeMs}ms`
+  }
   return t
     ? t('{{value}}s', { value: (timeMs / 1000).toFixed(2) })
     : `${(timeMs / 1000).toFixed(2)}s`
@@ -346,9 +380,22 @@ export function formatResponseTime(timeMs: number, t?: TFunction): string {
  * Get response time performance rating
  */
 export function getResponseTimeConfig(timeMs: number) {
-  if (timeMs === 0) return RESPONSE_TIME_CONFIG.UNKNOWN
-  if (timeMs > 10_000) return RESPONSE_TIME_CONFIG.POOR
-  return RESPONSE_TIME_CONFIG.GOOD
+  if (timeMs === 0) {
+    return RESPONSE_TIME_CONFIG.UNKNOWN
+  }
+  if (timeMs <= RESPONSE_TIME_THRESHOLDS.EXCELLENT) {
+    return RESPONSE_TIME_CONFIG.EXCELLENT
+  }
+  if (timeMs <= RESPONSE_TIME_THRESHOLDS.GOOD) {
+    return RESPONSE_TIME_CONFIG.GOOD
+  }
+  if (timeMs <= RESPONSE_TIME_THRESHOLDS.FAIR) {
+    return RESPONSE_TIME_CONFIG.FAIR
+  }
+  if (timeMs <= RESPONSE_TIME_THRESHOLDS.POOR) {
+    return RESPONSE_TIME_CONFIG.POOR
+  }
+  return RESPONSE_TIME_CONFIG.POOR
 }
 
 // ============================================================================
@@ -356,14 +403,62 @@ export function getResponseTimeConfig(timeMs: number) {
 // ============================================================================
 
 /**
- * Format Unix timestamp to relative time
- * e.g., "2 hours ago", "3 days ago"
+ * Format a Unix timestamp (seconds) as a compact, locale-aware relative time.
+ * Uses `Intl.RelativeTimeFormat` with the `narrow` style so the label stays
+ * short inside table cells, e.g. "4h ago" / "42m ago" (en) or "4 小时前" (zh),
+ * instead of the verbose "4 hours ago".
  */
-export function formatRelativeTime(timestamp: number): string {
-  if (!timestamp || timestamp === 0) return 'Never'
+export function formatRelativeTime(
+  timestamp: number,
+  locale?: Intl.LocalesArgument
+): string {
+  if (!timestamp || timestamp === 0) {
+    return 'Never'
+  }
 
   try {
-    return dayjs(timestamp * 1000).fromNow()
+    const diffSec = timestamp - Date.now() / 1000
+    const absSec = Math.abs(diffSec)
+    const rtf = new Intl.RelativeTimeFormat(locale, {
+      numeric: 'always',
+      style: 'narrow',
+    })
+
+    const MINUTE = 60
+    const HOUR = 60 * MINUTE
+    const DAY = 24 * HOUR
+    const MONTH = 30 * DAY
+    const YEAR = 365 * DAY
+
+    let value: number
+    let unit: Intl.RelativeTimeFormatUnit
+    if (absSec < MINUTE) {
+      value = Math.round(diffSec)
+      unit = 'second'
+    } else if (absSec < HOUR) {
+      value = Math.round(diffSec / MINUTE)
+      unit = 'minute'
+    } else if (absSec < DAY) {
+      value = Math.round(diffSec / HOUR)
+      unit = 'hour'
+    } else if (absSec < MONTH) {
+      value = Math.round(diffSec / DAY)
+      unit = 'day'
+    } else if (absSec < YEAR) {
+      value = Math.round(diffSec / MONTH)
+      unit = 'month'
+    } else {
+      value = Math.round(diffSec / YEAR)
+      unit = 'year'
+    }
+
+    const formatted = rtf.format(value, unit)
+    const primaryLocale = Array.isArray(locale) ? locale[0] : locale
+    const language = primaryLocale?.toString()
+    if (language?.startsWith('zh')) {
+      return formatted.replaceAll(/(\d)([\u4e00-\u9fff])/g, '$1 $2')
+    }
+    return formatted
   } catch {
     return 'Unknown'
   }
@@ -373,7 +468,9 @@ export function formatRelativeTime(timestamp: number): string {
  * Format Unix timestamp to date string
  */
 export function formatTimestamp(timestamp: number): string {
-  if (!timestamp || timestamp === 0) return 'N/A'
+  if (!timestamp || timestamp === 0) {
+    return 'N/A'
+  }
 
   try {
     return formatTimestampToDate(timestamp)
@@ -405,7 +502,9 @@ export function formatQuota(quota: number): string {
 export function getPriorityDisplay(
   priority: number | null | undefined
 ): string {
-  if (priority === null || priority === undefined) return '0'
+  if (priority === null || priority === undefined) {
+    return '0'
+  }
   return String(priority)
 }
 
@@ -413,7 +512,9 @@ export function getPriorityDisplay(
  * Get weight display value
  */
 export function getWeightDisplay(weight: number | null | undefined): string {
-  if (weight === null || weight === undefined) return '0'
+  if (weight === null || weight === undefined) {
+    return '0'
+  }
   return String(weight)
 }
 
@@ -454,10 +555,14 @@ export function validateGroups(groups: string): boolean {
  */
 export function channelNeedsAttention(channel: Channel): boolean {
   // Auto-disabled
-  if (channel.status === 3) return true
+  if (channel.status === 3) {
+    return true
+  }
 
   // Low balance (less than $1)
-  if (channel.balance > 0 && channel.balance < 1) return true
+  if (channel.balance > 0 && channel.balance < 1) {
+    return true
+  }
 
   // Multi-key channel with all keys disabled
   if (
@@ -476,8 +581,12 @@ export function channelNeedsAttention(channel: Channel): boolean {
  * Get attention reason for channel
  */
 export function getAttentionReason(channel: Channel): string | null {
-  if (channel.status === 3) return 'Auto-disabled'
-  if (channel.balance > 0 && channel.balance < 1) return 'Low balance'
+  if (channel.status === 3) {
+    return 'Auto-disabled'
+  }
+  if (channel.balance > 0 && channel.balance < 1) {
+    return 'Low balance'
+  }
   if (
     channel.channel_info?.is_multi_key &&
     channel.channel_info.multi_key_status_list &&
@@ -526,7 +635,7 @@ export function aggregateChannelsByTag(
         ...channel,
         key: tag,
         id: tag as unknown as number,
-        tag: tag,
+        tag,
         name: tag,
         type: 0,
         status: undefined as unknown as number,
@@ -546,7 +655,10 @@ export function aggregateChannelsByTag(
       result.push(tagRow)
     }
 
-    const tagRow = tagMap.get(tag)!
+    const tagRow = tagMap.get(tag)
+    if (!tagRow) {
+      continue
+    }
 
     // Add to children
     tagRow.children.push(channel)
@@ -582,7 +694,7 @@ export function aggregateChannelsByTag(
       const newGroups = channel.group.split(',').filter(Boolean)
       newGroups.forEach((g) => {
         if (!existingGroups.has(g)) {
-          tagRow.group += ',' + g
+          tagRow.group += `,${g}`
         }
       })
     }

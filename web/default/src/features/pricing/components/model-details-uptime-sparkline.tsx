@@ -16,16 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { Activity, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { formatUptimePct } from '@/features/performance-metrics/lib/format'
+import {
+  formatUptimePct,
+  getSuccessRateDotClass,
+  getSuccessRateTextClass,
+} from '@/features/performance-metrics/lib/format'
+import { cn } from '@/lib/utils'
+
 import { aggregateUptime, type UptimeDayPoint } from '../lib/mock-stats'
 
 // ---------------------------------------------------------------------------
@@ -50,27 +56,12 @@ type UptimeSparklineProps = {
   className?: string
 }
 
-function colourFor(uptime: number): string {
-  if (uptime >= 99.9) return 'bg-success'
-  if (uptime >= 99.0) return 'bg-success/80'
-  if (uptime >= 95.0) return 'bg-warning'
-  if (uptime >= 90.0) return 'bg-warning/80'
-  return 'bg-destructive'
-}
-
 function heightFor(uptime: number): string {
   if (uptime >= 99.9) return 'h-full'
   if (uptime >= 99.0) return 'h-[88%]'
   if (uptime >= 95.0) return 'h-[72%]'
   if (uptime >= 90.0) return 'h-[55%]'
   return 'h-[40%]'
-}
-
-function overallTextColour(pct: number): string {
-  if (pct >= 99.9) return 'text-success'
-  if (pct >= 99.0) return 'text-success'
-  if (pct >= 95.0) return 'text-warning'
-  return 'text-destructive'
 }
 
 export function UptimeSparkline(props: UptimeSparklineProps) {
@@ -116,7 +107,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
               <div
                 className={cn(
                   'w-full rounded-sm',
-                  colourFor(day.uptime_pct),
+                  getSuccessRateDotClass(day.uptime_pct),
                   heightFor(day.uptime_pct)
                 )}
                 aria-hidden
@@ -138,7 +129,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
         <span
           className={cn(
             'font-mono text-sm font-semibold tabular-nums',
-            overallTextColour(overall)
+            getSuccessRateTextClass(overall)
           )}
         >
           {overall.toFixed(1)}%
@@ -174,12 +165,12 @@ export function UptimeStatusRow(props: {
 
   const statusColour =
     status === 'operational'
-      ? 'text-success'
+      ? 'text-emerald-600 dark:text-emerald-400'
       : status === 'minor'
-        ? 'text-success'
+        ? 'text-emerald-600 dark:text-emerald-400'
         : status === 'degraded'
-          ? 'text-warning'
-          : 'text-destructive'
+          ? 'text-amber-600 dark:text-amber-400'
+          : 'text-rose-600 dark:text-rose-400'
 
   const statusLabel =
     status === 'operational'

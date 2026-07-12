@@ -16,18 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback } from 'react'
 import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { deferEffect } from '@/lib/defer-effect'
-import { ROLE } from '@/lib/roles'
+
+import { PasswordInput } from '@/components/password-input'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { PasswordInput } from '@/components/password-input'
+import { ROLE } from '@/lib/roles'
+
 import { updateUserSettings } from '../../api'
 import {
   DEFAULT_QUOTA_WARNING_THRESHOLD,
@@ -92,25 +93,23 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
   useEffect(() => {
     if (profile?.setting) {
-      return deferEffect(() => {
-        const parsed = parseUserSettings(profile.setting)
-        setSettings({
-          notify_type: normalizeNotifyType(parsed.notify_type),
-          quota_warning_threshold:
-            parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
-          notification_email: parsed.notification_email ?? '',
-          webhook_url: parsed.webhook_url ?? '',
-          webhook_secret: parsed.webhook_secret ?? '',
-          bark_url: parsed.bark_url ?? '',
-          gotify_url: parsed.gotify_url ?? '',
-          gotify_token: parsed.gotify_token ?? '',
-          gotify_priority: parsed.gotify_priority ?? 5,
-          accept_unset_model_ratio_model:
-            parsed.accept_unset_model_ratio_model || false,
-          record_ip_log: parsed.record_ip_log || false,
-          upstream_model_update_notify_enabled:
-            parsed.upstream_model_update_notify_enabled || false,
-        })
+      const parsed = parseUserSettings(profile.setting)
+      setSettings({
+        notify_type: normalizeNotifyType(parsed.notify_type),
+        quota_warning_threshold:
+          parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
+        notification_email: parsed.notification_email ?? '',
+        webhook_url: parsed.webhook_url ?? '',
+        webhook_secret: parsed.webhook_secret ?? '',
+        bark_url: parsed.bark_url ?? '',
+        gotify_url: parsed.gotify_url ?? '',
+        gotify_token: parsed.gotify_token ?? '',
+        gotify_priority: parsed.gotify_priority ?? 5,
+        accept_unset_model_ratio_model:
+          parsed.accept_unset_model_ratio_model || false,
+        record_ip_log: parsed.record_ip_log || false,
+        upstream_model_update_notify_enabled:
+          parsed.upstream_model_update_notify_enabled || false,
       })
     }
   }, [profile])
@@ -173,7 +172,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
       {/* Warning Threshold */}
       <div className='space-y-1.5'>
-        <Label htmlFor='threshold'>{t('Balance Warning Threshold')}</Label>
+        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
         <Input
           id='threshold'
           type='number'

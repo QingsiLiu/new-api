@@ -137,37 +137,11 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   58: {
     id: 58,
     name: CHANNEL_TYPES[58],
-    icon: 'kie',
-    defaultBaseUrl: 'https://api.kie.ai',
+    icon: 'newapi',
     hints: {
-      key: 'KIE API Key',
-      models: 'bytedance/seedance-2-fast',
-      baseUrl: 'Default: https://api.kie.ai',
-    },
-  },
-  59: {
-    id: 59,
-    name: CHANNEL_TYPES[59],
-    icon: 'jimeng',
-    defaultBaseUrl: 'https://zz1cc.cc.cd',
-    hints: {
-      key: 'zz1cc API Key',
-      models: 'video-ds-2.0-fast,video-ds-2.0',
-      baseUrl: 'Default: https://zz1cc.cc.cd',
-      other: 'Uses OpenAI Video-compatible /v1/videos endpoints for Jimeng/Seedance video models.',
-    },
-  },
-  60: {
-    id: 60,
-    name: CHANNEL_TYPES[60],
-    icon: 'jimeng',
-    defaultBaseUrl: 'http://api.callxyq.xyz',
-    hints: {
-      key: 'Ls.API Key',
-      models: 'seedance-2.0,seedance-2.0-fast',
-      baseUrl: 'Default: http://api.callxyq.xyz',
-      other:
-        'Maps Geili Seedance video tasks to Ls.API /seedance/v1 endpoints. Use model_mapping for dreamina-seedance upstream IDs.',
+      baseUrl: 'Fallback base URL',
+      key: 'Used by route auth templates',
+      models: 'Models exposed by this channel',
     },
   },
 }

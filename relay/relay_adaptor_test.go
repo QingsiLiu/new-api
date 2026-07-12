@@ -10,7 +10,7 @@ import (
 )
 
 func TestJimengOpenAIVideoChannelTypeUsesSoraTaskAdaptor(t *testing.T) {
-	adaptor := GetTaskAdaptor(constant.TaskPlatform("59"))
+	adaptor := GetTaskAdaptor(constant.TaskPlatform("102"))
 	require.IsType(t, &tasksora.TaskAdaptor{}, adaptor)
 
 	_, ok := adaptor.(channel.OpenAIVideoConverter)

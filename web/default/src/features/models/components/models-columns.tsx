@@ -16,10 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
-import { getLobeIcon } from '@/lib/lobe-icon'
+
+import { BadgeCell, BadgeListCell } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
+import { ProviderBadge } from '@/components/provider-badge'
+import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -27,23 +31,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { BadgeCell, BadgeListCell } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
-import { ProviderBadge } from '@/components/provider-badge'
-import { StatusBadge } from '@/components/status-badge'
-import { TableId } from '@/components/table-id'
+import { formatTimestampToDate } from '@/lib/format'
+import { getLobeIcon } from '@/lib/lobe-icon'
+
 import {
   getModelStatusConfig,
   getNameRuleConfig,
   getQuotaTypeConfig,
 } from '../constants'
-import {
-  formatEndpointsDisplay,
-  getModelModalLabel,
-  getPricingModeLabel,
-  parseModelTags,
-  summarizeModelPricing,
-} from '../lib'
+import { parseModelTags, formatEndpointsDisplay } from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
@@ -103,16 +99,17 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const id = row.getValue('id') as number
         return <TableId value={id} />
       },
-      size: 80,
+      size: 64,
     },
 
-    // Icon column
+    // Model Name column (with model icon)
     {
-      accessorKey: 'icon',
-      header: t('Icon'),
-      meta: { mobileHidden: true },
+      accessorKey: 'model_name',
+      header: t('Model Name'),
+      meta: { mobileTitle: true },
       cell: ({ row }) => {
         const model = row.original
+        const name = row.getValue('model_name') as string
         const iconKey =
           model.icon ||
           vendorMap[model.vendor_id || 0]?.icon ||
@@ -121,57 +118,22 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const icon = getCompactModelIcon(iconKey)
 
         return (
-          <div className='ms-1 flex size-5 items-center justify-center overflow-hidden'>
-            {icon}
+          <div className='flex max-w-full min-w-0 items-center gap-2'>
+            <div className='flex size-5 shrink-0 items-center justify-center overflow-hidden'>
+              {icon}
+            </div>
+            <StatusBadge
+              label={name}
+              variant='neutral'
+              copyText={name}
+              size='sm'
+              className='-ml-1.5 font-mono'
+            />
           </div>
         )
       },
-      size: 70,
-      enableSorting: false,
-    },
-
-    // Model Name column
-    {
-      accessorKey: 'model_name',
-      header: t('Model Name'),
-      meta: { mobileTitle: true, flex: true },
-      cell: ({ row }) => {
-        const name = row.getValue('model_name') as string
-        return (
-          <StatusBadge
-            label={name}
-            variant='neutral'
-            copyText={name}
-            size='sm'
-            className='font-mono'
-          />
-        )
-      },
+      size: 260,
       minSize: 200,
-    },
-
-    // Modality column
-    {
-      accessorKey: 'modal',
-      header: t('Modality'),
-      meta: { mobileBadge: true },
-      cell: ({ row }) => {
-        const modal = row.getValue('modal') as string | undefined
-        return (
-          <StatusBadge
-            label={getModelModalLabel(t, modal)}
-            variant='info'
-            size='sm'
-            copyable={false}
-          />
-        )
-      },
-      filterFn: (row, id, value) => {
-        if (!value || value.length === 0 || value.includes('all')) return true
-        return value.includes(String(row.getValue(id)))
-      },
-      size: 120,
-      enableSorting: false,
     },
 
     // Name Rule column
@@ -190,7 +152,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
 
         const badge = (
           <StatusBadge
-            label={label}
             variant={
               (config.color === 'error' ? 'danger' : config.color) as
                 | 'neutral'
@@ -200,7 +161,10 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
                 | 'info'
             }
             size='sm'
-          />
+            className='-ml-1.5 max-w-none shrink-0'
+          >
+            {label}
+          </StatusBadge>
         )
 
         // Show tooltip with matched models for non-exact rules
@@ -209,14 +173,16 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           model.matched_models &&
           model.matched_models.length > 0
         ) {
-          const matchedBadges = model.matched_models.map((m, idx) => (
-            <StatusBadge key={idx} label={m} autoColor={m} size='sm' />
+          const matchedBadges = model.matched_models.map((m) => (
+            <StatusBadge key={m} label={m} autoColor={m} size='sm' />
           ))
 
           return (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger render={<div />}>
+                <TooltipTrigger
+                  render={<div className='inline-flex max-w-full min-w-0' />}
+                >
                   {badge}
                 </TooltipTrigger>
                 <TooltipContent
@@ -232,7 +198,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
 
         return badge
       },
-      size: 140,
+      size: 100,
       enableSorting: false,
     },
 
@@ -248,11 +214,13 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
 
         return (
           <StatusBadge
-            label={config.label}
             variant={config.variant}
             size='sm'
             copyable={false}
-          />
+            className='-ml-1.5 max-w-none shrink-0'
+          >
+            {config.label}
+          </StatusBadge>
         )
       },
       filterFn: (row, id, value) => {
@@ -262,41 +230,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         if (value.includes('disabled')) return status !== 1
         return false
       },
-      size: 120,
-      enableSorting: false,
-    },
-
-    // Pricing Mode column
-    {
-      accessorKey: 'pricing_mode',
-      header: t('Pricing'),
-      meta: { mobileBadge: true },
-      cell: ({ row }) => {
-        const model = row.original
-        const pricingMode = model.pricing_mode || 'inherit'
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                <StatusBadge
-                  label={summarizeModelPricing(model, t)}
-                  variant={pricingMode === 'inherit' ? 'warning' : 'success'}
-                  size='sm'
-                  copyable={false}
-                />
-              </TooltipTrigger>
-              <TooltipContent side='top'>
-                {getPricingModeLabel(t, pricingMode)}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )
-      },
-      filterFn: (row, id, value) => {
-        if (!value || value.length === 0 || value.includes('all')) return true
-        return value.includes(String(row.getValue(id)))
-      },
-      size: 150,
+      size: 110,
+      minSize: 110,
       enableSorting: false,
     },
 
@@ -322,7 +257,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         if (!value || value.length === 0 || value.includes('all')) return true
         return value.includes(String(row.getValue(id)))
       },
-      size: 150,
+      size: 130,
       enableSorting: false,
     },
 
@@ -353,13 +288,13 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const tagArray = parseModelTags(tags)
         return (
           <BadgeListCell
-            items={tagArray.map((tag, idx) => (
-              <StatusBadge key={idx} label={tag} autoColor={tag} size='sm' />
+            items={tagArray.map((tag) => (
+              <StatusBadge key={tag} label={tag} autoColor={tag} size='sm' />
             ))}
           />
         )
       },
-      size: 150,
+      size: 100,
       enableSorting: false,
     },
 
@@ -373,13 +308,14 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const endpointArray = formatEndpointsDisplay(endpoints)
         return (
           <BadgeListCell
-            items={endpointArray.map((ep, idx) => (
-              <StatusBadge key={idx} label={ep} autoColor={ep} size='sm' />
+            max={3}
+            items={endpointArray.map((ep) => (
+              <StatusBadge key={ep} label={ep} autoColor={ep} size='sm' />
             ))}
           />
         )
       },
-      size: 150,
+      size: 200,
       enableSorting: false,
     },
 
@@ -397,9 +333,9 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         }>
         return (
           <BadgeListCell
-            items={(channels ?? []).map((c, idx) => (
+            items={(channels ?? []).map((c) => (
               <StatusBadge
-                key={idx}
+                key={c.id}
                 label={`${c.name} (${c.type})`}
                 autoColor={c.name}
                 size='sm'
@@ -421,30 +357,31 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const groups = row.getValue('enable_groups') as string[]
         return (
           <BadgeListCell
+            max={3}
             items={(groups ?? []).map((g) => (
               <GroupBadge key={g} group={g} size='sm' />
             ))}
           />
         )
       },
-      size: 150,
+      size: 200,
       enableSorting: false,
     },
 
-    // Billing Types column
+    // Quota Types column
     {
       accessorKey: 'quota_types',
-      header: t('Billing Types'),
+      header: t('Quota Types'),
       meta: { mobileHidden: true },
       cell: ({ row }) => {
         const quotaTypes = row.getValue('quota_types') as number[]
         return (
           <BadgeListCell
-            items={(quotaTypes ?? []).map((qt, idx) => {
+            items={(quotaTypes ?? []).map((qt) => {
               const config = QUOTA_TYPE_CONFIG[qt]
               return (
                 <StatusBadge
-                  key={idx}
+                  key={qt}
                   label={config?.label || String(qt)}
                   variant={
                     (config?.color === 'error' ? 'danger' : config?.color) as
@@ -474,11 +411,13 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const syncOfficial = row.getValue('sync_official') as number
         return (
           <StatusBadge
-            label={syncOfficial === 1 ? t('Official Sync') : t('No Sync')}
             variant={syncOfficial === 1 ? 'success' : 'warning'}
             size='sm'
             copyable={false}
-          />
+            className='-ml-1.5 max-w-none shrink-0'
+          >
+            {syncOfficial === 1 ? t('Official Sync') : t('No Sync')}
+          </StatusBadge>
         )
       },
       filterFn: (row, id, value) => {
@@ -488,7 +427,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         if (value.includes('no')) return syncOfficial !== 1
         return false
       },
-      size: 120,
+      size: 100,
       enableSorting: false,
     },
 
@@ -500,12 +439,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       cell: ({ row }) => {
         const timestamp = row.getValue('created_time') as number
         return (
-          <div className='min-w-[140px] font-mono text-sm'>
+          <div className='font-mono text-sm whitespace-nowrap'>
             {formatTimestampToDate(timestamp)}
           </div>
         )
       },
-      size: 180,
+      size: 140,
     },
 
     // Updated Time column
@@ -516,12 +455,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       cell: ({ row }) => {
         const timestamp = row.getValue('updated_time') as number
         return (
-          <div className='min-w-[140px] font-mono text-sm'>
+          <div className='font-mono text-sm whitespace-nowrap'>
             {formatTimestampToDate(timestamp)}
           </div>
         )
       },
-      size: 180,
+      size: 140,
     },
 
     // Actions column
@@ -531,7 +470,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       cell: ({ row }) => {
         return <DataTableRowActions row={row} />
       },
-      size: 64,
       enableSorting: false,
       enableHiding: false,
       meta: { pinned: 'right' as const },

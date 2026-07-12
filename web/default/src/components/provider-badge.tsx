@@ -18,35 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
+
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 
 type ProviderBadgeProps = Omit<StatusBadgeProps, 'children' | 'label'> & {
   iconKey?: string | null
   iconSize?: number
   label: string
-}
-
-function getProviderVariant(
-  label: string,
-  iconKey?: string | null
-): StatusBadgeProps['variant'] {
-  const identity = `${iconKey ?? ''} ${label}`.toLowerCase()
-
-  if (identity.includes('openai')) return 'green'
-  if (identity.includes('anthropic') || identity.includes('claude')) {
-    return 'violet'
-  }
-  if (
-    identity.includes('gemini') ||
-    identity.includes('google') ||
-    identity.includes('vertex') ||
-    identity.includes('azure')
-  ) {
-    return 'blue'
-  }
-  if (identity.includes('kie')) return 'teal'
-
-  return undefined
+  /** Color the label text by provider name. Set false for a neutral label. */
+  colorText?: boolean
 }
 
 export function ProviderBadge({
@@ -54,24 +34,25 @@ export function ProviderBadge({
   iconKey,
   iconSize = 14,
   label,
-  variant,
+  colorText = true,
   ...badgeProps
 }: ProviderBadgeProps) {
   const icon = iconKey ? getLobeIcon(iconKey, iconSize) : null
-  const providerVariant = variant ?? getProviderVariant(label, iconKey)
 
   return (
-    <StatusBadge
+    <div
       data-slot='provider-badge'
-      label={label}
-      autoColor={providerVariant ? undefined : label}
-      variant={providerVariant}
-      size='sm'
-      className={cn('min-w-0 shrink overflow-hidden', className)}
-      {...badgeProps}
+      className={cn('flex max-w-full min-w-0 items-center gap-1.5', className)}
     >
       {icon && <span className='flex shrink-0 items-center'>{icon}</span>}
-      <span className='min-w-0 truncate leading-normal'>{label}</span>
-    </StatusBadge>
+      <StatusBadge
+        label={label}
+        autoColor={colorText ? label : undefined}
+        variant={colorText ? undefined : 'neutral'}
+        size='sm'
+        className={cn('min-w-0 shrink overflow-hidden', !icon && 'pl-0')}
+        {...badgeProps}
+      />
+    </div>
   )
 }

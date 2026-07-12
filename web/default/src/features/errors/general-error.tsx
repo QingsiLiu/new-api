@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
-import { ErrorFrame } from './error-frame'
+import { cn } from '@/lib/utils'
 
 const FEEDBACK_URL = 'https://github.com/QuantumNous/new-api/issues'
 
@@ -55,20 +55,24 @@ export function GeneralError({
     : t('Please try again later.')
 
   return (
-    <ErrorFrame
-      className={cn(className)}
-      code={status ?? 500}
-      eyebrow={isRateLimited ? t('Rate Limited') : t('System Error')}
-      title={title}
-      minimal={minimal}
-      description={`${t('We apologize for the inconvenience.')} ${description}${
-        minimal
-          ? ''
-          : ` ${t('If this keeps happening, please report it on GitHub Issues.')}`
-      }`}
-      actions={
-        !minimal && (
-          <>
+    <div className={cn('h-svh w-full', className)}>
+      <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
+        {!minimal && (
+          <h1 className='text-[7rem] leading-tight font-bold'>
+            {status ?? 500}
+          </h1>
+        )}
+        <span className='font-medium'>{title}</span>
+        <p className='text-muted-foreground text-center'>
+          {t('We apologize for the inconvenience.')} <br /> {description}
+        </p>
+        {!minimal && (
+          <p className='text-muted-foreground text-center text-sm'>
+            {t('If this keeps happening, please report it on GitHub Issues.')}
+          </p>
+        )}
+        {!minimal && (
+          <div className='mt-6 flex flex-wrap justify-center gap-4'>
             <Button variant='outline' onClick={() => history.go(-1)}>
               {t('Go Back')}
             </Button>
@@ -87,9 +91,9 @@ export function GeneralError({
             <Button onClick={() => navigate({ to: '/' })}>
               {t('Back to Home')}
             </Button>
-          </>
-        )
-      }
-    />
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
