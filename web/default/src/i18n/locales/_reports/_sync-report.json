@@ -1,5 +1,7 @@
 {
   "base": "en.json",
+  "sourceKeys": 4232,
+  "addedSourceKeys": [],
   "locales": {
     "en": {
       "file": "en.json",

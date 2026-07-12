@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 type AccentTone = 'primary' | 'success' | 'warning' | 'info'
@@ -311,10 +312,11 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
 
 function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
   const { demo, transitioning } = props
+  const { t } = useTranslation()
 
   return (
     <div className='relative px-5 py-4'>
-      <SectionLabel>Request</SectionLabel>
+      <SectionLabel>{t('Request')}</SectionLabel>
       <div
         className={cn(
           'mt-2 transition-opacity duration-200',
@@ -350,12 +352,13 @@ function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
 
 function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
   const { demo, transitioning } = props
+  const { t } = useTranslation()
 
   return (
     <div
       className={cn('relative border-t px-5 py-4', 'border-border bg-muted/20')}
     >
-      <SectionLabel>Response</SectionLabel>
+      <SectionLabel>{t('Response')}</SectionLabel>
       <div
         className={cn(
           'mt-2 transition-opacity duration-200',

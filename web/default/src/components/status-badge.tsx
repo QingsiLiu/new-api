@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /* eslint-disable react-refresh/only-export-components */
 import * as React from 'react'
 import { type LucideIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { stringToColor } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -156,9 +157,11 @@ export function StatusBadge({
   onClick,
   ...props
 }: StatusBadgeProps) {
+  const { t } = useTranslation()
   const { copyToClipboard } = useCopyToClipboard()
   const contextType = React.useContext(StatusBadgeTypeContext)
   const type = typeProp ?? contextType
+  const displayLabel = label ? t(label) : label
 
   const computedVariant: StatusVariant = autoColor
     ? (stringToColor(autoColor) as StatusVariant)
@@ -175,13 +178,13 @@ export function StatusBadge({
   const content =
     children ??
     (label ? (
-      <span className='min-w-0 truncate leading-normal'>{label}</span>
+      <span className='min-w-0 truncate leading-normal'>{displayLabel}</span>
     ) : null)
 
   const isBadge = type === 'badge'
   const title = copyable
-    ? `Click to copy: ${copyText || label || ''}`
-    : label || undefined
+    ? t('Click to copy: {{value}}', { value: copyText || label || '' })
+    : displayLabel || undefined
 
   return (
     <span

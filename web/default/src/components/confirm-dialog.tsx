@@ -59,13 +59,16 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
     handleConfirm,
     ...actions
   } = props
+  const resolvedDesc = typeof desc === 'string' ? t(desc) : desc
+  const resolvedConfirmText =
+    typeof confirmText === 'string' ? t(confirmText) : confirmText
   return (
     <AlertDialog {...actions}>
       <AlertDialogContent className={cn(className && className)}>
         <AlertDialogHeader className='text-start'>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription render={<div />}>
-            {desc}
+            {resolvedDesc}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {children}
@@ -78,7 +81,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             onClick={handleConfirm}
             disabled={disabled || isLoading}
           >
-            {confirmText ?? t('Continue')}
+            {resolvedConfirmText ?? t('Continue')}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
