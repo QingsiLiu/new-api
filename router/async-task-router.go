@@ -22,6 +22,29 @@ func SetAsyncTaskRouter(router *gin.Engine) {
 	}
 }
 
+// SetGeiliPublicModelRouter Geili 自有：模型注册表公开只读 API（无鉴权，供公开层 SLP/market/pricing 消费）。
+// 不受 AsyncTaskProductRoutesEnabled 门控：纯只读展示数据，与产品生成路由独立。
+func SetGeiliPublicModelRouter(router *gin.Engine) {
+	publicRouter := router.Group("/v1/public")
+	publicRouter.Use(middleware.RouteTag("api"))
+	publicRouter.Use(middleware.GlobalAPIRateLimit())
+	{
+		publicRouter.GET("/models", controller.GetPublicModels)
+		publicRouter.GET("/models/:slug", controller.GetPublicModelBySlug)
+	}
+}
+
+// SetGeiliModelRegistryAdminRouter Geili 自有：注册表运营录入接口（Admin）。
+func SetGeiliModelRegistryAdminRouter(apiRouter *gin.RouterGroup) {
+	registryRoute := apiRouter.Group("/geili/model-registry")
+	registryRoute.Use(middleware.AdminAuth())
+	{
+		registryRoute.GET("", controller.AdminListModelRegistry)
+		registryRoute.POST("", controller.AdminUpsertModelRegistry)
+		registryRoute.DELETE("/:model", controller.AdminDeleteModelRegistry)
+	}
+}
+
 func SetAsyncTaskProductRouter(router *gin.Engine) {
 	if !operation_setting.AsyncTaskProductRoutesEnabled {
 		return
