@@ -1,5 +1,18 @@
 # AGENTS.md — Project Conventions for new-api
 
+## ⚠️ 上游冻结宣告（E3，2026-07-16 生效）
+
+**本 fork 永不再合并上游（QuantumNous/new-api）。** 宪章第 3 条：引擎只增不换。
+
+- 上游安全补丁按需**手工摘取**（cherry-pick 单补丁+全量测试），禁止整分支 merge；
+- 一切新能力走加法（新表/新端点/默认关的开关），破坏型/语义变更须终局批次专项审批；
+- 门面（geili-web/Studio）只准消费 `GeiliAPI 主仓 docs/engine-contract.md` 契约内端点，
+  需要新端点先改契约再动工；
+- 自有代码索引见主仓 `docs/engine-adapters-index.md`——这是终局 geili-engine 摘核的手术图；
+- 终局方向：契约稳定+营收验证+具体瓶颈三条件齐备后，按契约摘核为精简自研引擎，本 fork 退役。
+
+（宣告检索锚点：UPSTREAM-FREEZE-E3）
+
 ## Overview
 
 This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
