@@ -286,7 +286,10 @@ func mintOrReuseStudioOnlineToken(userID int) (*model.Token, bool, error) {
 		ExpiredTime:    -1,
 		RemainQuota:    0,
 		UnlimitedQuota: true,
-		Group:          "default",
+		// 空分组=鉴权时随用户分组走（middleware/auth.go 对空 token 分组跳过弃用检查）。
+		// 曾硬编码 "default"：分组注册表弃用 default 后所有 studio-online token 403
+		//（Phase3 挂账的「SSO token 分组 403」缺陷根因，2026-07-16 修复+存量数据同步修正）。
+		Group:          "",
 	}
 	if err := token.Insert(); err != nil {
 		return nil, false, err
