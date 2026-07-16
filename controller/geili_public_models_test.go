@@ -30,6 +30,10 @@ func setupModelRegistryTestDB(t *testing.T) {
 	model.DB = db
 	require.NoError(t, db.AutoMigrate(&model.ModelRegistry{}))
 
+	// 公开端点缓存为包级状态：逐测试清空，避免跨用例串味
+	invalidateGeiliPublicModelCache()
+	t.Cleanup(invalidateGeiliPublicModelCache)
+
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()
 		if err == nil {
@@ -199,4 +203,69 @@ func TestAdminUpsertModelRegistryIdempotent(t *testing.T) {
 	// modality 校验
 	bad := doUpsert(strings.Replace(payload, `"modality": "image"`, `"modality": "audio"`, 1))
 	require.Contains(t, bad.Body.String(), "modality")
+}
+
+func TestPublicModelsCacheTTLAndAdminInvalidation(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	seedModelRegistryFixtures(t)
+
+	doList := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(rec)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models", nil)
+		GetPublicModels(ctx)
+		return rec
+	}
+
+	// 首次请求：填缓存 + 带 Cache-Control
+	first := doList()
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Equal(t, "public, max-age=60", first.Header().Get("Cache-Control"))
+
+	// 绕过管理端直改 DB：TTL 内应命中缓存返回旧 body（DB 零查询语义的可观测面）
+	require.NoError(t, model.DB.Model(&model.ModelRegistry{}).
+		Where("slug = ?", "seedance-2-0").
+		Update("display_name_zh", "缓存期内不应看到我").Error)
+	stale := doList()
+	require.Equal(t, first.Body.String(), stale.Body.String(), "TTL 内应返回缓存 body")
+	require.NotContains(t, stale.Body.String(), "缓存期内不应看到我")
+
+	// 管理端写操作 → 主动失效 → 下一次请求返回新数据
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/geili/model-registry/disabled-model", nil)
+	ctx.Params = gin.Params{{Key: "model", Value: "disabled-model"}}
+	AdminDeleteModelRegistry(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	fresh := doList()
+	require.Contains(t, fresh.Body.String(), "缓存期内不应看到我", "管理端写后缓存应失效")
+}
+
+func TestPublicModelDetailCacheBysSlug(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	seedModelRegistryFixtures(t)
+
+	doDetail := func(slug string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(rec)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models/"+slug, nil)
+		ctx.Params = gin.Params{{Key: "slug", Value: slug}}
+		GetPublicModelBySlug(ctx)
+		return rec
+	}
+
+	first := doDetail("seedance-2-0")
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Equal(t, "public, max-age=60", first.Header().Get("Cache-Control"))
+
+	require.NoError(t, model.DB.Model(&model.ModelRegistry{}).
+		Where("slug = ?", "seedance-2-0").
+		Update("seo_zh", "详情缓存期内不应看到我").Error)
+	stale := doDetail("seedance-2-0")
+	require.Equal(t, first.Body.String(), stale.Body.String())
+
+	// 404 不缓存：未知 slug 每次都查 DB（限流兜底），不留负缓存
+	miss := doDetail("no-such-model")
+	require.Equal(t, http.StatusNotFound, miss.Code)
 }

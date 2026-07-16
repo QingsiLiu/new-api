@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -37,6 +39,36 @@ type publicModelDetail struct {
 	Faq           map[string]json.RawMessage `json:"faq,omitempty"`
 	Seo           map[string]string          `json:"seo,omitempty"`
 	SpecPricing   json.RawMessage            `json:"spec_pricing,omitempty"` // 我方完整规格价（CNY）
+}
+
+// ---- 公开端点进程内响应缓存 ----
+// 注册表与规格价均为低频变更数据，60s 内允许陈旧；管理端写操作主动失效。
+// 与 GlobalAPIRateLimit 互补：限流挡刷量，缓存把命中期内的 DB 查询降为零。
+// （CF 侧 all.geiliapi.com 无 API 缓存规则且 CF 配置属用户人工项，故缓存放进程内。）
+
+const geiliPublicModelCacheTTL = 60 * time.Second
+
+type geiliCachedBody struct {
+	body    []byte
+	expires time.Time
+}
+
+var (
+	geiliPublicModelCacheMu     sync.RWMutex
+	geiliPublicModelListCache   geiliCachedBody
+	geiliPublicModelDetailCache = map[string]geiliCachedBody{}
+)
+
+func invalidateGeiliPublicModelCache() {
+	geiliPublicModelCacheMu.Lock()
+	geiliPublicModelListCache = geiliCachedBody{}
+	geiliPublicModelDetailCache = map[string]geiliCachedBody{}
+	geiliPublicModelCacheMu.Unlock()
+}
+
+func writeGeiliPublicJSON(c *gin.Context, body []byte) {
+	c.Header("Cache-Control", "public, max-age=60")
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }
 
 func rawJSONOrNil(s string) json.RawMessage {
@@ -154,6 +186,14 @@ func buildPublicModelSummary(entry model.ModelRegistry, pricing operation_settin
 
 // GetPublicModels GET /v1/public/models
 func GetPublicModels(c *gin.Context) {
+	geiliPublicModelCacheMu.RLock()
+	cached := geiliPublicModelListCache
+	geiliPublicModelCacheMu.RUnlock()
+	if cached.body != nil && time.Now().Before(cached.expires) {
+		writeGeiliPublicJSON(c, cached.body)
+		return
+	}
+
 	entries, err := model.GetEnabledModelRegistries()
 	if err != nil {
 		common.ApiError(c, err)
@@ -164,12 +204,29 @@ func GetPublicModels(c *gin.Context) {
 	for _, entry := range entries {
 		list = append(list, buildPublicModelSummary(entry, pricing))
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": list})
+	body, err := json.Marshal(gin.H{"success": true, "data": list})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	geiliPublicModelCacheMu.Lock()
+	geiliPublicModelListCache = geiliCachedBody{body: body, expires: time.Now().Add(geiliPublicModelCacheTTL)}
+	geiliPublicModelCacheMu.Unlock()
+	writeGeiliPublicJSON(c, body)
 }
 
 // GetPublicModelBySlug GET /v1/public/models/:slug
 func GetPublicModelBySlug(c *gin.Context) {
-	entry, err := model.GetModelRegistryBySlug(c.Param("slug"))
+	slug := c.Param("slug")
+	geiliPublicModelCacheMu.RLock()
+	cached, ok := geiliPublicModelDetailCache[slug]
+	geiliPublicModelCacheMu.RUnlock()
+	if ok && cached.body != nil && time.Now().Before(cached.expires) {
+		writeGeiliPublicJSON(c, cached.body)
+		return
+	}
+
+	entry, err := model.GetModelRegistryBySlug(slug)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "model not found"})
 		return
@@ -190,7 +247,15 @@ func GetPublicModelBySlug(c *gin.Context) {
 		},
 		SpecPricing: specRaw,
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": detail})
+	body, err := json.Marshal(gin.H{"success": true, "data": detail})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	geiliPublicModelCacheMu.Lock()
+	geiliPublicModelDetailCache[slug] = geiliCachedBody{body: body, expires: time.Now().Add(geiliPublicModelCacheTTL)}
+	geiliPublicModelCacheMu.Unlock()
+	writeGeiliPublicJSON(c, body)
 }
 
 // ---- 管理端（AdminAuth 挂在路由层） ----
@@ -270,6 +335,7 @@ func AdminUpsertModelRegistry(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	invalidateGeiliPublicModelCache()
 	common.ApiSuccess(c, gin.H{"model": entry.ModelName, "slug": entry.Slug})
 }
 
@@ -289,5 +355,6 @@ func AdminDeleteModelRegistry(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	invalidateGeiliPublicModelCache()
 	common.ApiSuccess(c, nil)
 }
