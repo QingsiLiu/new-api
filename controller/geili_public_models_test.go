@@ -296,6 +296,28 @@ func TestAdminUpsertTextModelRegistryRejectsInvalidOfficialPricing(t *testing.T)
 	}
 }
 
+func TestAdminUpsertTextCategoryPricingRejectsUnsetSentinelsAndOutOfRangeValues(t *testing.T) {
+	setupModelRegistryTestDB(t)
+
+	for name, payload := range map[string]string{
+		"missing":  `{"category":"gpt"}`,
+		"zero":     `{"category":"gpt","multiplier":0}`,
+		"negative": `{"category":"gpt","multiplier":-0.1}`,
+		"over one": `{"category":"gpt","multiplier":1.1}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(rec)
+			ctx.Request = httptest.NewRequest(http.MethodPut, "/api/geili/text-category-pricing", strings.NewReader(payload))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			AdminUpsertTextCategoryPricing(ctx)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.Contains(t, rec.Body.String(), `"success":false`)
+		})
+	}
+}
+
 func TestTextDraftUpsertStaysInvisibleFromPublicEndpoints(t *testing.T) {
 	setupModelRegistryTestDB(t)
 

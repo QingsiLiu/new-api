@@ -468,8 +468,8 @@ func AdminUpsertTextCategoryPricing(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "category 必须是 gpt、claude、gemini 或 grok"})
 		return
 	}
-	if req.Multiplier == nil || math.IsNaN(*req.Multiplier) || math.IsInf(*req.Multiplier, 0) || *req.Multiplier < 0 || *req.Multiplier > 1 {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multiplier 必须是 0 到 1 的有限数"})
+	if req.Multiplier == nil || math.IsNaN(*req.Multiplier) || math.IsInf(*req.Multiplier, 0) || *req.Multiplier <= 0 || *req.Multiplier > 1 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multiplier 必须是大于 0 且不超过 1 的有限数"})
 		return
 	}
 	entry := model.TextCategoryPricing{
