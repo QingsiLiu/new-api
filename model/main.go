@@ -1,11 +1,11 @@
 package model
 
 import (
-	"strconv"
 	"fmt"
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -303,6 +303,7 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&ModelRegistry{},
+		&ModelRating{},
 	)
 	if err != nil {
 		return err

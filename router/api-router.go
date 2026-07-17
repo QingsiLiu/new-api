@@ -19,6 +19,7 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	apiRouter.Use(middleware.QuotaMigrationGuard())
 	SetGeiliModelRegistryAdminRouter(apiRouter)
+	apiRouter.POST("/geili/model-ratings", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UpsertModelRating)
 	anonymousRequestBodyLimit := middleware.AnonymousRequestBodyLimit()
 	{
 		apiRouter.GET("/setup", controller.GetSetup)

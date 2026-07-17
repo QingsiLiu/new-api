@@ -30,6 +30,7 @@ func SetGeiliPublicModelRouter(router *gin.Engine) {
 	publicRouter.Use(middleware.GlobalAPIRateLimit())
 	{
 		publicRouter.GET("/models", controller.GetPublicModels)
+		publicRouter.GET("/models/:slug/rating", controller.GetPublicModelRating)
 		publicRouter.GET("/models/:slug", controller.GetPublicModelBySlug)
 	}
 }
