@@ -303,6 +303,7 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&ModelRegistry{},
+		&TextCategoryPricing{},
 		&ModelRating{},
 	)
 	if err != nil {

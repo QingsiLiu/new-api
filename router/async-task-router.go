@@ -44,6 +44,12 @@ func SetGeiliModelRegistryAdminRouter(apiRouter *gin.RouterGroup) {
 		registryRoute.POST("", controller.AdminUpsertModelRegistry)
 		registryRoute.DELETE("/:model", controller.AdminDeleteModelRegistry)
 	}
+	pricingRoute := apiRouter.Group("/geili/text-category-pricing")
+	pricingRoute.Use(middleware.AdminAuth())
+	{
+		pricingRoute.GET("", controller.AdminListTextCategoryPricing)
+		pricingRoute.PUT("", controller.AdminUpsertTextCategoryPricing)
+	}
 }
 
 func SetAsyncTaskProductRouter(router *gin.Engine) {

@@ -17,24 +17,25 @@ type ModelRegistry struct {
 	Slug            string `json:"slug" gorm:"size:128;not null;uniqueIndex"`
 	DisplayNameZh   string `json:"display_name_zh" gorm:"size:128"`
 	DisplayNameEn   string `json:"display_name_en" gorm:"size:128"`
-	Aliases         string `json:"aliases" gorm:"type:text"`          // JSON 数组：热门别名（SEO 关键词）
-	Vendor          string `json:"vendor" gorm:"size:64;index"`       // 厂商 slug：google/openai/bytedance…
+	Aliases         string `json:"aliases" gorm:"type:text"`    // JSON 数组：热门别名（SEO 关键词）
+	Vendor          string `json:"vendor" gorm:"size:64;index"` // 厂商 slug：google/openai/bytedance…
 	VendorDisplayZh string `json:"vendor_display_zh" gorm:"size:64"`
 	VendorDisplayEn string `json:"vendor_display_en" gorm:"size:64"`
-	Modality        string `json:"modality" gorm:"size:16;index"`      // image | video
+	Modality        string `json:"modality" gorm:"size:16;index"`      // image | video | text
+	TextCategory    string `json:"text_category" gorm:"size:16;index"` // gpt | claude | gemini | grok
 	CapabilityTags  string `json:"capability_tags" gorm:"type:text"`   // JSON 数组：text-to-image 等（market 能力页）
 	OfficialPrice   string `json:"official_price" gorm:"type:text"`    // JSON：官方价（对比列/折扣百分比）
 	ParamsSchema    string `json:"params_schema" gorm:"type:text"`     // JSON Schema：Playground 表单（M2 消费）
 	ExampleParams   string `json:"example_params" gorm:"type:text"`    // JSON：示例参数
 	FaqZh           string `json:"faq_zh" gorm:"type:text"`            // JSON 数组 [{q,a}]
 	FaqEn           string `json:"faq_en" gorm:"type:text"`
-	SeoZh           string `json:"seo_zh" gorm:"type:text"`            // Markdown 长文
+	SeoZh           string `json:"seo_zh" gorm:"type:text"` // Markdown 长文
 	SeoEn           string `json:"seo_en" gorm:"type:text"`
 	// 注意：不加 gorm default 标签——否则 Create 时零值 false 会被 DB 默认值顶掉（GORM 行为）。
 	// Enabled 一律由 Upsert/种子导入显式赋值。
-	Enabled         bool   `json:"enabled" gorm:"index"`
-	CreatedTime     int64  `json:"created_time" gorm:"bigint"`
-	UpdatedTime     int64  `json:"updated_time" gorm:"bigint"`
+	Enabled     bool  `json:"enabled" gorm:"index"`
+	CreatedTime int64 `json:"created_time" gorm:"bigint"`
+	UpdatedTime int64 `json:"updated_time" gorm:"bigint"`
 }
 
 func (ModelRegistry) TableName() string {

@@ -28,7 +28,7 @@ func setupModelRegistryTestDB(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	model.DB = db
-	require.NoError(t, db.AutoMigrate(&model.ModelRegistry{}))
+	require.NoError(t, db.AutoMigrate(&model.ModelRegistry{}, &model.TextCategoryPricing{}))
 
 	// 公开端点缓存为包级状态：逐测试清空，避免跨用例串味
 	invalidateGeiliPublicModelCache()
@@ -90,6 +90,7 @@ var publicModelAllowedKeys = map[string]bool{
 	"capability_tags": true, "price_unit": true, "price_from_cny": true,
 	"official_price": true, "params_schema": true, "example_params": true,
 	"faq": true, "seo": true, "spec_pricing": true,
+	"text_category": true, "category_multiplier": true,
 }
 
 // 黑名单：任何渠道/上游/密钥痕迹出现在公开响应即失败。
@@ -203,6 +204,128 @@ func TestAdminUpsertModelRegistryIdempotent(t *testing.T) {
 	// modality 校验
 	bad := doUpsert(strings.Replace(payload, `"modality": "image"`, `"modality": "audio"`, 1))
 	require.Contains(t, bad.Body.String(), "modality")
+}
+
+func TestAdminUpsertTextModelRegistryProjectsOfficialPricingAndSharedCategoryMultiplier(t *testing.T) {
+	setupModelRegistryTestDB(t)
+
+	payload := `{
+		"model":"gpt-5.5",
+		"slug":"gpt-5-5",
+		"display_name":{"zh":"GPT-5.5","en":"GPT-5.5"},
+		"vendor":"openai",
+		"vendor_display":{"zh":"OpenAI","en":"OpenAI"},
+		"modality":"text",
+		"text_category":"gpt",
+		"capability_tags":["chat","reasoning"],
+		"official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":5,"cached_input":0.5,"output":30},"source_url":"https://developers.openai.com/api/docs/pricing"},
+		"enabled":true
+	}`
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/geili/model-registry", strings.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	AdminUpsertModelRegistry(ctx)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"success":true`)
+
+	detailRec := httptest.NewRecorder()
+	detailCtx, _ := gin.CreateTestContext(detailRec)
+	detailCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models/gpt-5-5", nil)
+	detailCtx.Params = gin.Params{{Key: "slug", Value: "gpt-5-5"}}
+	GetPublicModelBySlug(detailCtx)
+
+	require.Equal(t, http.StatusOK, detailRec.Code)
+	assertNoLeak(t, detailRec.Body.String())
+	var detail struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(detailRec.Body.Bytes(), &detail))
+	require.Equal(t, "text", detail.Data["modality"])
+	require.Equal(t, "gpt", detail.Data["text_category"])
+	require.NotContains(t, detail.Data, "pricing", "公开响应不得持久化或手抄成品价")
+	require.NotContains(t, detail.Data, "price_from_cny", "类目倍率未拍板时不得推导起价")
+	require.NotContains(t, detail.Data, "category_multiplier", "未配置类目倍率时应保持空值")
+	official := detail.Data["official_price"].(map[string]interface{})
+	dimensions := official["dimensions"].(map[string]interface{})
+	require.InDelta(t, 5, dimensions["input"].(float64), 1e-9)
+	require.InDelta(t, 0.5, dimensions["cached_input"].(float64), 1e-9)
+	require.InDelta(t, 30, dimensions["output"].(float64), 1e-9)
+
+	multiplierRec := httptest.NewRecorder()
+	multiplierCtx, _ := gin.CreateTestContext(multiplierRec)
+	multiplierCtx.Request = httptest.NewRequest(http.MethodPut, "/api/geili/text-category-pricing", strings.NewReader(`{"category":"gpt","multiplier":0.8}`))
+	multiplierCtx.Request.Header.Set("Content-Type", "application/json")
+	AdminUpsertTextCategoryPricing(multiplierCtx)
+	require.Contains(t, multiplierRec.Body.String(), `"success":true`)
+
+	detailAfterMultiplier := httptest.NewRecorder()
+	detailAfterCtx, _ := gin.CreateTestContext(detailAfterMultiplier)
+	detailAfterCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models/gpt-5-5", nil)
+	detailAfterCtx.Params = gin.Params{{Key: "slug", Value: "gpt-5-5"}}
+	GetPublicModelBySlug(detailAfterCtx)
+	var after struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(detailAfterMultiplier.Body.Bytes(), &after))
+	require.InDelta(t, 0.8, after.Data["category_multiplier"].(float64), 1e-9)
+	require.NotContains(t, after.Data, "pricing", "引擎只投影真源，页面负责运行时推导")
+}
+
+func TestAdminUpsertTextModelRegistryRejectsInvalidOfficialPricing(t *testing.T) {
+	setupModelRegistryTestDB(t)
+
+	cases := map[string]string{
+		"missing category":       `{"model":"bad-category","slug":"bad-category","modality":"text","official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":1,"output":2},"source_url":"https://example.com"}}`,
+		"missing official price": `{"model":"bad-missing","slug":"bad-missing","modality":"text","text_category":"gpt"}`,
+		"missing output":         `{"model":"bad-output","slug":"bad-output","modality":"text","text_category":"gpt","official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":1},"source_url":"https://example.com"}}`,
+		"negative cache":         `{"model":"bad-negative","slug":"bad-negative","modality":"text","text_category":"gpt","official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":1,"cache_read":-1,"output":2},"source_url":"https://example.com"}}`,
+	}
+	for name, payload := range cases {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(rec)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/geili/model-registry", strings.NewReader(payload))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			AdminUpsertModelRegistry(ctx)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.Contains(t, rec.Body.String(), `"success":false`)
+		})
+	}
+}
+
+func TestTextDraftUpsertStaysInvisibleFromPublicEndpoints(t *testing.T) {
+	setupModelRegistryTestDB(t)
+
+	payload := `{
+		"model":"draft-text-model",
+		"slug":"draft-text-model",
+		"modality":"text",
+		"text_category":"gpt",
+		"official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":1,"output":4},"source_url":"https://example.com"},
+		"enabled":false
+	}`
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/geili/model-registry", strings.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	AdminUpsertModelRegistry(ctx)
+	require.Contains(t, rec.Body.String(), `"success":true`)
+
+	listRec := httptest.NewRecorder()
+	listCtx, _ := gin.CreateTestContext(listRec)
+	listCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models", nil)
+	GetPublicModels(listCtx)
+	require.NotContains(t, listRec.Body.String(), "draft-text-model")
+
+	detailRec := httptest.NewRecorder()
+	detailCtx, _ := gin.CreateTestContext(detailRec)
+	detailCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models/draft-text-model", nil)
+	detailCtx.Params = gin.Params{{Key: "slug", Value: "draft-text-model"}}
+	GetPublicModelBySlug(detailCtx)
+	require.Equal(t, http.StatusNotFound, detailRec.Code)
 }
 
 func TestPublicModelsCacheTTLAndAdminInvalidation(t *testing.T) {
