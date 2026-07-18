@@ -78,6 +78,7 @@ const oauthSchema = z.object({
     authorization_endpoint: z.string(),
     token_endpoint: z.string(),
     user_info_endpoint: z.string(),
+    redirect_uri: z.string(),
   }),
   TelegramOAuthEnabled: z.boolean(),
   TelegramBotToken: z.string(),
@@ -108,6 +109,7 @@ type FlatOAuthDefaults = {
   'oidc.authorization_endpoint': string
   'oidc.token_endpoint': string
   'oidc.user_info_endpoint': string
+  'oidc.redirect_uri': string
   TelegramOAuthEnabled: boolean
   TelegramBotToken: string
   TelegramBotName: string
@@ -190,6 +192,7 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
     authorization_endpoint: defaults['oidc.authorization_endpoint'] ?? '',
     token_endpoint: defaults['oidc.token_endpoint'] ?? '',
     user_info_endpoint: defaults['oidc.user_info_endpoint'] ?? '',
+    redirect_uri: defaults['oidc.redirect_uri'] ?? '',
   },
   TelegramOAuthEnabled: defaults.TelegramOAuthEnabled,
   TelegramBotToken: defaults.TelegramBotToken ?? '',
@@ -218,6 +221,7 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   'oidc.authorization_endpoint': values.oidc.authorization_endpoint,
   'oidc.token_endpoint': values.oidc.token_endpoint,
   'oidc.user_info_endpoint': values.oidc.user_info_endpoint,
+  'oidc.redirect_uri': values.oidc.redirect_uri,
   TelegramOAuthEnabled: values.TelegramOAuthEnabled,
   TelegramBotToken: values.TelegramBotToken,
   TelegramBotName: values.TelegramBotName,
@@ -594,7 +598,9 @@ export function OAuthSection(props: OAuthSectionProps) {
                     },
                     {
                       label: t('Redirect URL'),
-                      value: oidcCallbackUrl,
+                      value:
+                        form.watch('oidc.redirect_uri')?.trim() ||
+                        oidcCallbackUrl,
                       copyLabel: t('Copy redirect URL'),
                     },
                   ]}
@@ -770,6 +776,37 @@ export function OAuthSection(props: OAuthSectionProps) {
                           ref={field.ref}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='oidc.redirect_uri'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Redirect URI Override (Optional)')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='https://your-frontend.com/oauth/oidc'
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Exact redirect_uri used in the token exchange. Set it when the login page domain differs from the server address'
+                        )}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -56,7 +56,13 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 	logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken: code=%s...", code[:min(len(code), 10)])
 
 	settings := system_setting.GetOIDCSettings()
-	redirectUri := fmt.Sprintf("%s/oauth/oidc", system_setting.ServerAddress)
+	// 门面(登录页)域名与 ServerAddress 分离部署时，换 token 的 redirect_uri 必须与
+	// 授权跳转、IdP 后台登记值完全一致（Google 等严格校验），否则 invalid_grant。
+	// oidc.redirect_uri 为空则回落 ServerAddress 拼接（上游原行为）。
+	redirectUri := strings.TrimSpace(settings.RedirectUri)
+	if redirectUri == "" {
+		redirectUri = fmt.Sprintf("%s/oauth/oidc", system_setting.ServerAddress)
+	}
 	values := url.Values{}
 	values.Set("client_id", settings.ClientId)
 	values.Set("client_secret", settings.ClientSecret)

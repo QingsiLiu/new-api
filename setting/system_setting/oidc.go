@@ -10,6 +10,7 @@ type OIDCSettings struct {
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
 	UserInfoEndpoint      string `json:"user_info_endpoint"`
+	RedirectUri           string `json:"redirect_uri"`
 }
 
 // 默认配置
