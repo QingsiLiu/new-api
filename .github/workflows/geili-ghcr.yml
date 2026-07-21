@@ -8,11 +8,6 @@ name: Publish image to GHCR (Geili)
 
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        description: '要构建的分支/标签/SHA（留空=当前触发 ref）'
-        required: false
-        type: string
   push:
     branches:
       - main
@@ -23,12 +18,41 @@ on:
       - 'docs/**'
 
 concurrency:
-  group: geili-ghcr-${{ github.event.inputs.ref || github.ref }}
+  group: geili-ghcr-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
+  verify:
+    name: Verify before image publication
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify immutable checkout
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Go tests
+        run: go test ./... -count=1
+
   build-and-push:
     name: Build & push (amd64) → GHCR
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,8 +62,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
+
+      - name: Verify immutable checkout
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Write VERSION
         run: |
@@ -57,36 +84,62 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          # metadata-action 会自动把 owner 转小写 → ghcr.io/qingsiliu/new-api
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=sha,prefix=sha-,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build & push
-        id: build
+      - name: Build candidate image
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          load: true
+          tags: new-api:ci-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
           provenance: false
+
+      - name: Verify candidate image revision
+        run: |
+          revision="$(docker image inspect "new-api:ci-$GITHUB_SHA" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          test "$revision" = "$GITHUB_SHA"
+
+      - name: Publish verified image
+        id: publish
+        env:
+          IMAGE_REPO: ghcr.io/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          image="${IMAGE_REPO,,}"
+          short_sha="${GITHUB_SHA::7}"
+          docker tag "new-api:ci-$GITHUB_SHA" "$image:sha-$short_sha"
+          docker push "$image:sha-$short_sha"
+          tags="$image:sha-$short_sha"
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            for moving_tag in main latest; do
+              docker tag "new-api:ci-$GITHUB_SHA" "$image:$moving_tag"
+              docker push "$image:$moving_tag"
+              tags="$tags"$'\n'"$image:$moving_tag"
+            done
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            release_tag="${GITHUB_REF#refs/tags/}"
+            docker tag "new-api:ci-$GITHUB_SHA" "$image:$release_tag"
+            docker push "$image:$release_tag"
+            tags="$tags"$'\n'"$image:$release_tag"
+          fi
+          digest="$(docker buildx imagetools inspect "$image:sha-$short_sha" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          test -n "$digest"
+          {
+            echo 'tags<<EOF'
+            echo "$tags"
+            echo 'EOF'
+            echo "digest=$digest"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
           {
             echo "### 已推送到 GHCR"
             echo '```'
-            echo "${{ steps.meta.outputs.tags }}"
-            echo "digest: ${{ steps.build.outputs.digest }}"
+            echo "${{ steps.publish.outputs.tags }}"
+            echo "digest: ${{ steps.publish.outputs.digest }}"
             echo '```'
             echo "服务器拉取示例："
             echo '```bash'
