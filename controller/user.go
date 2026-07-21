@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -587,6 +588,55 @@ func TransferAffQuota(c *gin.Context) {
 		return
 	}
 	common.ApiSuccessI18n(c, i18n.MsgUserTransferSuccess, nil)
+}
+
+type TransferAllAffQuotaResponse struct {
+	Currency       string  `json:"currency"`
+	TransferredCNY float64 `json:"transferred_cny"`
+	BalanceCNY     float64 `json:"balance_cny"`
+	AffBalanceCNY  float64 `json:"aff_balance_cny"`
+}
+
+func decodeEmptyJSONObject(c *gin.Context) bool {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1024)
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil || common.GetJsonType(body) != "object" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return false
+	}
+
+	request := map[string]json.RawMessage{}
+	if err := common.Unmarshal(body, &request); err != nil || len(request) != 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return false
+	}
+	return true
+}
+
+func TransferAllAffQuota(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+	if !decodeEmptyJSONObject(c) {
+		return
+	}
+
+	result, err := model.TransferAllAffQuotaToQuota(c.GetInt("id"))
+	if errors.Is(err, model.ErrAffQuotaBelowMinimum) {
+		common.ApiErrorI18n(c, i18n.MsgUserTransferQuotaMinimum, map[string]any{"Min": "¥1"})
+		return
+	}
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserTransferFailed, map[string]any{"Error": ""})
+		return
+	}
+
+	common.ApiSuccessI18n(c, i18n.MsgUserTransferSuccess, TransferAllAffQuotaResponse{
+		Currency:       "CNY",
+		TransferredCNY: common.QuotaToPublicCNY(result.TransferredQuota),
+		BalanceCNY:     common.QuotaToPublicCNY(result.BalanceQuota),
+		AffBalanceCNY:  common.QuotaToPublicCNY(result.AffBalanceQuota),
+	})
 }
 
 func GetAffCode(c *gin.Context) {

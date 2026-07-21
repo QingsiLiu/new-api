@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -136,6 +138,127 @@ func TestGetSelfReturnsCNYBalancesWithoutRawQuota(t *testing.T) {
 	require.NotContains(t, response.Data, "used_quota")
 	require.NotContains(t, response.Data, "aff_quota")
 	require.NotContains(t, response.Data, "aff_history_quota")
+}
+
+func withPaymentCompliance(t *testing.T, enabled bool) {
+	t.Helper()
+	setting := operation_setting.GetPaymentSetting()
+	previous := *setting
+	setting.ComplianceConfirmed = enabled
+	if enabled {
+		setting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	} else {
+		setting.ComplianceTermsVersion = ""
+	}
+	t.Cleanup(func() { *setting = previous })
+}
+
+func TestTransferAllAffQuotaReturnsOnlyPublicCNY(t *testing.T) {
+	db := setupUserControllerTestDB(t)
+	withPaymentCompliance(t, true)
+	user := &model.User{Username: "aff-controller", Password: "hash", Status: common.UserStatusEnabled, Quota: 925000, AffQuota: 333333}
+	require.NoError(t, db.Create(user).Error)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/aff_transfer_all", strings.NewReader(`{}`))
+	ctx.Set("id", user.Id)
+	TransferAllAffQuota(ctx)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var response struct {
+		Success bool           `json:"success"`
+		Data    map[string]any `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, "CNY", response.Data["currency"])
+	require.InDelta(t, 3.3333, response.Data["transferred_cny"], 0.000001)
+	require.InDelta(t, 12.5833, response.Data["balance_cny"], 0.000001)
+	require.Zero(t, response.Data["aff_balance_cny"])
+	for _, forbidden := range []string{"quota", "aff_quota", "transferred_quota", "balance_quota"} {
+		require.NotContains(t, response.Data, forbidden)
+	}
+}
+
+func TestTransferAllAffQuotaRequiresPaymentComplianceWithoutMutation(t *testing.T) {
+	db := setupUserControllerTestDB(t)
+	withPaymentCompliance(t, false)
+	user := &model.User{Username: "aff-compliance", Password: "hash", Status: common.UserStatusEnabled, Quota: 125000, AffQuota: 250000}
+	require.NoError(t, db.Create(user).Error)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/aff_transfer_all", strings.NewReader(`{}`))
+	ctx.Set("id", user.Id)
+	TransferAllAffQuota(ctx)
+
+	var response struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.False(t, response.Success)
+
+	var stored model.User
+	require.NoError(t, db.First(&stored, user.Id).Error)
+	require.Equal(t, 125000, stored.Quota)
+	require.Equal(t, 250000, stored.AffQuota)
+}
+
+func TestTransferAllAffQuotaRejectsNonEmptyOrMalformedBodiesWithoutMutation(t *testing.T) {
+	for name, body := range map[string]string{
+		"client quota":  `{"quota":1}`,
+		"trailing JSON": `{} {}`,
+		"over one KiB":  "{" + strings.Repeat(" ", 1024) + "}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			db := setupUserControllerTestDB(t)
+			withPaymentCompliance(t, true)
+			user := &model.User{Username: "aff-invalid-" + strings.ReplaceAll(name, " ", "-"), Password: "hash", Status: common.UserStatusEnabled, Quota: 125000, AffQuota: 250000}
+			require.NoError(t, db.Create(user).Error)
+
+			rec := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(rec)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/aff_transfer_all", strings.NewReader(body))
+			ctx.Set("id", user.Id)
+			TransferAllAffQuota(ctx)
+
+			var response struct {
+				Success bool `json:"success"`
+			}
+			require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+			require.False(t, response.Success)
+
+			var stored model.User
+			require.NoError(t, db.First(&stored, user.Id).Error)
+			require.Equal(t, 125000, stored.Quota)
+			require.Equal(t, 250000, stored.AffQuota)
+		})
+	}
+}
+
+func TestTransferAllAffQuotaDoesNotExposeInternalErrors(t *testing.T) {
+	setupUserControllerTestDB(t)
+	withPaymentCompliance(t, true)
+	require.NoError(t, i18n.Init())
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/aff_transfer_all", strings.NewReader(`{}`))
+	ctx.Set("id", 999999)
+	TransferAllAffQuota(ctx)
+
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.False(t, response.Success)
+	require.NotEmpty(t, response.Message)
+	require.NotEqual(t, i18n.MsgUserTransferFailed, response.Message)
+	require.NotContains(t, response.Message, "record not found")
+	require.NotContains(t, response.Message, "<no value>")
+	require.NotContains(t, response.Message, "{{")
 }
 
 func TestSSOExchangeAcceptsAdminAccessTokenAndConsumesCode(t *testing.T) {

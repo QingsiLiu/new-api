@@ -480,6 +480,56 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	return tx.Commit().Error
 }
 
+var ErrAffQuotaBelowMinimum = errors.New("affiliate balance is below the minimum transfer amount")
+var ErrAffQuotaChanged = errors.New("affiliate balance changed during transfer")
+
+type AffTransferResult struct {
+	TransferredQuota int
+	BalanceQuota     int
+	AffBalanceQuota  int
+}
+
+func TransferAllAffQuotaToQuota(userID int) (AffTransferResult, error) {
+	var transferred AffTransferResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).
+			Select("id", "quota", "aff_quota").
+			First(&user, userID).Error; err != nil {
+			return err
+		}
+		if user.AffQuota < common.CNYToQuota(1) {
+			return ErrAffQuotaBelowMinimum
+		}
+
+		amount := user.AffQuota
+		update := tx.Model(&User{}).
+			Where("id = ? AND aff_quota = ?", userID, amount).
+			Updates(map[string]any{
+				"quota":     gorm.Expr("quota + ?", amount),
+				"aff_quota": 0,
+			})
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return ErrAffQuotaChanged
+		}
+		transferred = AffTransferResult{
+			TransferredQuota: amount,
+			BalanceQuota:     user.Quota + amount,
+			AffBalanceQuota:  0,
+		}
+		return nil
+	})
+	if err == nil {
+		if cacheErr := invalidateUserCache(userID); cacheErr != nil {
+			common.SysLog("failed to invalidate user cache after affiliate transfer: " + cacheErr.Error())
+		}
+	}
+	return transferred, err
+}
+
 func (user *User) prepareForInsert(tx *gorm.DB) error {
 	user.Email = NormalizeEmail(user.Email)
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
