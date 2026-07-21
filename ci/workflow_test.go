@@ -57,3 +57,13 @@ func TestGHCRPublicationUsesVerifiedImmutableCommit(t *testing.T) {
 		t.Errorf("candidate order invalid: build=%d verify=%d push=%d", build, verify, push)
 	}
 }
+
+func TestGHCRVerificationBuildsEmbeddedFrontendBeforeGoTests(t *testing.T) {
+	workflow := workflowSource(t)
+	install := strings.Index(workflow, "bun install --frozen-lockfile")
+	frontend := strings.Index(workflow, "VITE_REACT_APP_VERSION=$GITHUB_SHA bun run build")
+	goTests := strings.Index(workflow, "go test ./... -count=1")
+	if install < 0 || frontend < install || goTests < frontend {
+		t.Errorf("embedded frontend prerequisite order invalid: install=%d frontend=%d go_tests=%d", install, frontend, goTests)
+	}
+}
