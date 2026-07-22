@@ -1,8 +1,15 @@
 package model
 
 import (
+	"context"
+	"errors"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -19,6 +26,28 @@ const (
 	FunnelEventOpenStudio     = "open_studio"
 	FunnelEventPlaygroundFail = "playground_fail"
 )
+
+// FunnelEventInput is the storage-facing event contract. It deliberately has
+// no catch-all payload field: callers must choose one of the fixed event
+// shapes enforced by the service package.
+type FunnelEventInput struct {
+	Environment  string
+	EventID      string
+	EventName    string
+	EventVersion int
+	VisitorHMAC  string
+	Locale       string
+	ModelSlug    string
+	FailureCode  string
+	UserID       int
+	ReceivedAt   int64
+}
+
+type FunnelIngestResult struct {
+	Duplicate     bool
+	VisitorID     int64
+	IdentityState string
+}
 
 type FunnelVisitor struct {
 	ID             int64   `json:"-" gorm:"primaryKey"`
@@ -92,5 +121,185 @@ func (activity *FunnelActivityDay) BeforeCreate(_ *gorm.DB) error {
 
 func (activity *FunnelActivityDay) BeforeUpdate(_ *gorm.DB) error {
 	activity.UpdatedAt = common.GetTimestamp()
+	return nil
+}
+
+var (
+	errFunnelEventConflict = errors.New("funnel event conflict")
+	funnelSQLiteIngestMu   sync.Mutex
+)
+
+// IngestFunnelEventRecord persists one validated event and all of its derived
+// state in a single transaction. The small SQLite mutex keeps two goroutines
+// from turning SQLite's deferred writer lock into a spurious "database is
+// locked" error; server databases still rely on row locks and unique keys.
+func IngestFunnelEventRecord(ctx context.Context, input FunnelEventInput) (FunnelIngestResult, error) {
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		funnelSQLiteIngestMu.Lock()
+		defer funnelSQLiteIngestMu.Unlock()
+	}
+
+	var result FunnelIngestResult
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing FunnelEvent
+		err := tx.Where("environment = ? AND event_id = ?", input.Environment, input.EventID).First(&existing).Error
+		switch {
+		case err == nil:
+			result = funnelDuplicateResult(tx, existing)
+			return nil
+		case !errors.Is(err, gorm.ErrRecordNotFound):
+			return err
+		}
+
+		hash := input.VisitorHMAC
+		visitorSeed := FunnelVisitor{
+			Environment:   input.Environment,
+			VisitorHMAC:   &hash,
+			IdentityState: FunnelIdentityAnonymous,
+			FirstSeenAt:   input.ReceivedAt,
+			LastSeenAt:    input.ReceivedAt,
+		}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&visitorSeed).Error; err != nil {
+			return err
+		}
+
+		var visitor FunnelVisitor
+		if err := lockForUpdate(tx).Where("environment = ? AND visitor_hmac = ?", input.Environment, input.VisitorHMAC).First(&visitor).Error; err != nil {
+			return err
+		}
+		applyFunnelVisitorSeen(&visitor, input)
+		applyFunnelIdentity(&visitor, input)
+		if err := tx.Save(&visitor).Error; err != nil {
+			return err
+		}
+
+		if input.EventName == FunnelEventAccountActive && visitor.IdentityState == FunnelIdentityLinked && visitor.UserID != nil && *visitor.UserID == input.UserID {
+			if err := upsertFunnelActivityDay(tx, input.Environment, *visitor.UserID, input.ReceivedAt); err != nil {
+				return err
+			}
+		}
+
+		event := FunnelEvent{
+			Environment:  input.Environment,
+			EventID:      input.EventID,
+			VisitorID:    visitor.ID,
+			EventName:    input.EventName,
+			EventVersion: input.EventVersion,
+			ReceivedAt:   input.ReceivedAt,
+			Locale:       input.Locale,
+			ModelSlug:    input.ModelSlug,
+			FailureCode:  input.FailureCode,
+		}
+		created := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&event)
+		if created.Error != nil {
+			return created.Error
+		}
+		if created.RowsAffected == 0 {
+			return errFunnelEventConflict
+		}
+
+		if err := upsertFunnelCollectionStart(tx, input.Environment, input.ReceivedAt); err != nil {
+			return err
+		}
+		result = FunnelIngestResult{VisitorID: visitor.ID, IdentityState: visitor.IdentityState}
+		return nil
+	})
+	if err == nil {
+		return result, nil
+	}
+	if errors.Is(err, errFunnelEventConflict) {
+		var existing FunnelEvent
+		if lookupErr := DB.WithContext(ctx).Where("environment = ? AND event_id = ?", input.Environment, input.EventID).First(&existing).Error; lookupErr != nil {
+			return FunnelIngestResult{}, lookupErr
+		}
+		return funnelDuplicateResult(DB.WithContext(ctx), existing), nil
+	}
+	return FunnelIngestResult{}, err
+}
+
+func funnelDuplicateResult(db *gorm.DB, event FunnelEvent) FunnelIngestResult {
+	result := FunnelIngestResult{Duplicate: true, VisitorID: event.VisitorID}
+	var visitor FunnelVisitor
+	if err := db.Select("id", "identity_state").First(&visitor, event.VisitorID).Error; err == nil {
+		result.IdentityState = visitor.IdentityState
+	}
+	return result
+}
+
+func applyFunnelVisitorSeen(visitor *FunnelVisitor, input FunnelEventInput) {
+	if visitor.FirstSeenAt == 0 || input.ReceivedAt < visitor.FirstSeenAt {
+		visitor.FirstSeenAt = input.ReceivedAt
+	}
+	if input.ReceivedAt > visitor.LastSeenAt {
+		visitor.LastSeenAt = input.ReceivedAt
+	}
+	if input.EventName == FunnelEventSLPView && (visitor.FirstSLPAt == 0 || input.ReceivedAt < visitor.FirstSLPAt) {
+		visitor.FirstSLPAt = input.ReceivedAt
+		visitor.FirstSLPLocale = input.Locale
+		visitor.FirstSLPModel = input.ModelSlug
+	}
+}
+
+func applyFunnelIdentity(visitor *FunnelVisitor, input FunnelEventInput) {
+	if input.UserID <= 0 || !isFunnelTrustedEvent(input.EventName) {
+		return
+	}
+	if visitor.IdentityState == FunnelIdentityAmbiguous {
+		visitor.UserID = nil
+		return
+	}
+	if visitor.IdentityState == FunnelIdentityLinked && visitor.UserID != nil && *visitor.UserID != input.UserID {
+		visitor.IdentityState = FunnelIdentityAmbiguous
+		visitor.UserID = nil
+		return
+	}
+	userID := input.UserID
+	visitor.IdentityState = FunnelIdentityLinked
+	visitor.UserID = &userID
+}
+
+func isFunnelTrustedEvent(eventName string) bool {
+	switch eventName {
+	case FunnelEventIdentityLink, FunnelEventAccountActive, FunnelEventOpenStudio:
+		return true
+	default:
+		return false
+	}
+}
+
+func upsertFunnelActivityDay(tx *gorm.DB, environment string, userID int, receivedAt int64) error {
+	activityDate := time.Unix(receivedAt, 0).UTC().Truncate(24 * time.Hour).Unix()
+	seed := FunnelActivityDay{Environment: environment, UserID: userID, ActivityDate: activityDate, FirstSeenAt: receivedAt, LastSeenAt: receivedAt}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&seed).Error; err != nil {
+		return err
+	}
+	var activity FunnelActivityDay
+	if err := lockForUpdate(tx).Where("environment = ? AND user_id = ? AND activity_date = ?", environment, userID, activityDate).First(&activity).Error; err != nil {
+		return err
+	}
+	if activity.FirstSeenAt == 0 || receivedAt < activity.FirstSeenAt {
+		activity.FirstSeenAt = receivedAt
+	}
+	if receivedAt > activity.LastSeenAt {
+		activity.LastSeenAt = receivedAt
+	}
+	return tx.Save(&activity).Error
+}
+
+func upsertFunnelCollectionStart(tx *gorm.DB, environment string, receivedAt int64) error {
+	key := "GeiliFunnelCollectionStartedAt." + environment
+	seed := Option{Key: key, Value: strconv.FormatInt(receivedAt, 10)}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&seed).Error; err != nil {
+		return err
+	}
+	var option Option
+	if err := lockForUpdate(tx).Where("key = ?", key).First(&option).Error; err != nil {
+		return err
+	}
+	current, err := strconv.ParseInt(option.Value, 10, 64)
+	if err != nil || current <= 0 || receivedAt < current {
+		option.Value = strconv.FormatInt(receivedAt, 10)
+		return tx.Save(&option).Error
+	}
 	return nil
 }
