@@ -4,7 +4,7 @@ name: Publish image to GHCR (Geili)
 # - 使用内置 GITHUB_TOKEN（自带 packages:write），无需配置任何密钥。
 # - 只产出镜像，不自动部署到服务器；服务器改为 docker pull 拉取。
 # - 目标架构 linux/amd64，匹配伦敦生产机（x86_64）。
-# 与上游 docker-build.yml（推 Docker Hub、需 DOCKERHUB_* 密钥）互不影响。
+# 本 fork 的发布产物只进入 GHCR；上游 Docker Hub/Electron/native release workflow 已停用。
 
 on:
   workflow_dispatch:
