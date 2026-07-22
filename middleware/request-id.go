@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -9,10 +10,19 @@ import (
 
 func RequestId() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		id := common.NewRequestId()
+		id := strings.TrimSpace(c.GetHeader(common.ExternalRequestIdKey))
+		if !common.IsValidRequestId(id) {
+			id = strings.TrimSpace(c.GetHeader(common.RequestIdKey))
+		}
+		if !common.IsValidRequestId(id) {
+			id = common.NewRequestId()
+		}
 		c.Set(common.RequestIdKey, id)
 		ctx := context.WithValue(c.Request.Context(), common.RequestIdKey, id)
 		c.Request = c.Request.WithContext(ctx)
+		c.Request.Header.Set(common.ExternalRequestIdKey, id)
+		c.Request.Header.Set(common.RequestIdKey, id)
+		c.Header(common.ExternalRequestIdKey, id)
 		c.Header(common.RequestIdKey, id)
 		c.Next()
 	}

@@ -282,6 +282,20 @@ func NewRequestId() string {
 	return GetTimeString() + requestIdPrefix + GetRandomString(8)
 }
 
+func IsValidRequestId(id string) bool {
+	if len(id) < 8 || len(id) > 64 {
+		return false
+	}
+	for _, char := range id {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') || char == '-' || char == '_' || char == '.' || char == ':' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func Max(a int, b int) int {
 	if a >= b {
 		return a

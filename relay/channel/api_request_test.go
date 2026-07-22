@@ -33,6 +33,19 @@ func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	require.Empty(t, headers)
 }
 
+func TestApplyRequestIDHeadersOverridesUntrustedChannelValue(t *testing.T) {
+	t.Parallel()
+	header := http.Header{
+		"X-Request-Id":        []string{"channel-value"},
+		"X-Oneapi-Request-Id": []string{"channel-legacy-value"},
+	}
+
+	applyRequestIDHeaders(header, &relaycommon.RelayInfo{RequestId: "edge-0123456789"})
+
+	require.Equal(t, "edge-0123456789", header.Get("X-Request-ID"))
+	require.Equal(t, "edge-0123456789", header.Get("X-Oneapi-Request-Id"))
+}
+
 func TestProcessHeaderOverride_ChannelTestSkipsClientHeaderPlaceholder(t *testing.T) {
 	t.Parallel()
 
