@@ -1,14 +1,12 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -65,13 +63,9 @@ func ConfirmPaymentCompliance(c *gin.Context) {
 		}
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf(
-		"payment compliance confirmed user_id=%d ip=%s terms_version=%s confirmed_at=%d",
-		userId,
-		clientIP,
-		operation_setting.CurrentComplianceTermsVersion,
-		now,
-	))
+	logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "platform", "compliance_confirmed", paymentSecurityFields{
+		UserID: userId, ClientIP: clientIP, ResourceID: operation_setting.CurrentComplianceTermsVersion,
+	})
 
 	common.ApiSuccess(c, gin.H{
 		"confirmed":     true,

@@ -228,8 +228,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			}
 			if user.Id != 0 {
 				// Found user with legacy ID, migrate to new ID
-				common.SysLog(fmt.Sprintf("[OAuth] Migrating user %d from legacy_id=%s to new_id=%s",
-					user.Id, legacyID, oauthUser.ProviderUserID))
+				logAuthSecurityEvent(c.Request.Context(), authLogInfo, "oauth_identity_migration_started", authSecurityFields{
+					Provider: provider.GetName(), UserID: user.Id, Subject: oauthUser.ProviderUserID, Credential: legacyID,
+				})
 				if err := user.UpdateGitHubId(oauthUser.ProviderUserID); err != nil {
 					common.SysError(fmt.Sprintf("[OAuth] Failed to migrate user %d: %s", user.Id, err.Error()))
 					// Continue with login even if migration fails

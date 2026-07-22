@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -90,7 +89,9 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		Status:          common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建失败 user_id=%d plan_id=%d trade_no=%s error=%q", userId, plan.Id, tradeNo, err.Error()))
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "waffo_pancake", "subscription_order_create_failed", paymentSecurityFields{
+			UserID: userId, OrderID: tradeNo, PlanID: plan.Id, Money: plan.PriceAmount, Err: err,
+		})
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}
@@ -108,13 +109,17 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		OrderMerchantExternalID: tradeNo,
 	})
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅结账会话创建失败 user_id=%d plan_id=%d trade_no=%s error=%q", userId, plan.Id, tradeNo, err.Error()))
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "waffo_pancake", "subscription_checkout_create_failed", paymentSecurityFields{
+			UserID: userId, OrderID: tradeNo, PlanID: plan.Id, Money: plan.PriceAmount, Err: err,
+		})
 		order.Status = common.TopUpStatusFailed
 		_ = order.Update()
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建成功 user_id=%d plan_id=%d trade_no=%s session_id=%s money=%.2f", userId, plan.Id, tradeNo, session.SessionID, plan.PriceAmount))
+	logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "waffo_pancake", "subscription_checkout_created", paymentSecurityFields{
+		UserID: userId, OrderID: tradeNo, EventID: session.SessionID, Money: plan.PriceAmount,
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",

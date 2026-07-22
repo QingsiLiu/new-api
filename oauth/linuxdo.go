@@ -13,7 +13,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
@@ -47,7 +46,7 @@ func (p *LinuxDOProvider) ExchangeToken(ctx context.Context, code string, c *gin
 		return nil, NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] ExchangeToken: code=%s...", code[:min(len(code), 10)])
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "token_exchange_started", oauthSecurityFields{AuthorizationCode: code})
 
 	// Get access token using Basic auth
 	tokenEndpoint := common.GetEnvOrDefaultString("LINUX_DO_TOKEN_ENDPOINT", "https://connect.linux.do/oauth2/token")
@@ -61,7 +60,9 @@ func (p *LinuxDOProvider) ExchangeToken(ctx context.Context, code string, c *gin
 	}
 	redirectURI := fmt.Sprintf("%s://%s/api/oauth/linuxdo", scheme, c.Request.Host)
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] ExchangeToken: token_endpoint=%s, redirect_uri=%s", tokenEndpoint, redirectURI)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "token_request_prepared", oauthSecurityFields{
+		Endpoint: tokenEndpoint, RedirectURI: redirectURI,
+	})
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -79,28 +80,28 @@ func (p *LinuxDOProvider) ExchangeToken(ctx context.Context, code string, c *gin
 	client := http.Client{Timeout: 5 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-LinuxDO] ExchangeToken error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "linuxdo", "token_exchange_failed", oauthSecurityFields{Err: err})
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "Linux DO"}, err.Error())
 	}
 	defer res.Body.Close()
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] ExchangeToken response status: %d", res.StatusCode)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "token_response_received", oauthSecurityFields{StatusCode: res.StatusCode})
 
 	var tokenRes struct {
 		AccessToken string `json:"access_token"`
 		Message     string `json:"message"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&tokenRes); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-LinuxDO] ExchangeToken decode error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "linuxdo", "token_response_invalid", oauthSecurityFields{StatusCode: res.StatusCode, Err: err})
 		return nil, err
 	}
 
 	if tokenRes.AccessToken == "" {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-LinuxDO] ExchangeToken failed: %s", tokenRes.Message))
+		logOAuthSecurityEvent(ctx, oauthLogError, "linuxdo", "access_token_missing", oauthSecurityFields{StatusCode: res.StatusCode, Reason: "provider_error"})
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Linux DO"}, tokenRes.Message)
 	}
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] ExchangeToken success")
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "token_exchange_succeeded", oauthSecurityFields{})
 
 	return &OAuthToken{
 		AccessToken: tokenRes.AccessToken,
@@ -110,7 +111,7 @@ func (p *LinuxDOProvider) ExchangeToken(ctx context.Context, code string, c *gin
 func (p *LinuxDOProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
 	userEndpoint := common.GetEnvOrDefaultString("LINUX_DO_USER_ENDPOINT", "https://connect.linux.do/api/user")
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] GetUserInfo: user_endpoint=%s", userEndpoint)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "userinfo_request_started", oauthSecurityFields{Endpoint: userEndpoint})
 
 	req, err := http.NewRequestWithContext(ctx, "GET", userEndpoint, nil)
 	if err != nil {
@@ -122,38 +123,45 @@ func (p *LinuxDOProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*
 	client := http.Client{Timeout: 5 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-LinuxDO] GetUserInfo error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "linuxdo", "userinfo_request_failed", oauthSecurityFields{Err: err})
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "Linux DO"}, err.Error())
 	}
 	defer res.Body.Close()
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] GetUserInfo response status: %d", res.StatusCode)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "userinfo_response_received", oauthSecurityFields{StatusCode: res.StatusCode})
 
 	var linuxdoUser linuxdoUser
 	if err := json.NewDecoder(res.Body).Decode(&linuxdoUser); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-LinuxDO] GetUserInfo decode error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "linuxdo", "userinfo_response_invalid", oauthSecurityFields{StatusCode: res.StatusCode, Err: err})
 		return nil, err
 	}
 
 	if linuxdoUser.Id == 0 {
-		logger.LogError(ctx, "[OAuth-LinuxDO] GetUserInfo failed: invalid user id")
+		logOAuthSecurityEvent(ctx, oauthLogError, "linuxdo", "userinfo_identity_missing", oauthSecurityFields{})
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "Linux DO"})
 	}
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] GetUserInfo: id=%d, username=%s, name=%s, trust_level=%d, active=%v, silenced=%v",
-		linuxdoUser.Id, linuxdoUser.Username, linuxdoUser.Name, linuxdoUser.TrustLevel, linuxdoUser.Active, linuxdoUser.Silenced)
+	active := linuxdoUser.Active
+	silenced := linuxdoUser.Silenced
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "userinfo_received", oauthSecurityFields{
+		Subject: strconv.Itoa(linuxdoUser.Id), Username: linuxdoUser.Username, RequiredTrust: common.LinuxDOMinimumTrustLevel,
+		CurrentTrust: linuxdoUser.TrustLevel, Active: &active, Silenced: &silenced,
+	})
 
 	// Check trust level
 	if linuxdoUser.TrustLevel < common.LinuxDOMinimumTrustLevel {
-		logger.LogWarn(ctx, fmt.Sprintf("[OAuth-LinuxDO] GetUserInfo: trust level too low (required=%d, current=%d)",
-			common.LinuxDOMinimumTrustLevel, linuxdoUser.TrustLevel))
+		logOAuthSecurityEvent(ctx, oauthLogWarn, "linuxdo", "trust_level_rejected", oauthSecurityFields{
+			Subject: strconv.Itoa(linuxdoUser.Id), RequiredTrust: common.LinuxDOMinimumTrustLevel, CurrentTrust: linuxdoUser.TrustLevel,
+		})
 		return nil, &TrustLevelError{
 			Required: common.LinuxDOMinimumTrustLevel,
 			Current:  linuxdoUser.TrustLevel,
 		}
 	}
 
-	logger.LogDebug(ctx, "[OAuth-LinuxDO] GetUserInfo success: id=%d, username=%s", linuxdoUser.Id, linuxdoUser.Username)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "userinfo_succeeded", oauthSecurityFields{
+		Subject: strconv.Itoa(linuxdoUser.Id), Username: linuxdoUser.Username,
+	})
 
 	return &OAuthUser{
 		ProviderUserID: strconv.Itoa(linuxdoUser.Id),

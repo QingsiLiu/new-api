@@ -2,13 +2,11 @@ package controller
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
@@ -29,7 +27,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	// Keep body for debugging consistency (like RequestCreemPay)
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 订阅支付请求读取失败 error=%q", err.Error()))
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "creem", "subscription_request_read_failed", paymentSecurityFields{Err: err})
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "read query error"})
 		return
 	}
@@ -111,7 +109,9 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 
 	checkoutUrl, err := genCreemLink(c.Request.Context(), referenceId, product, user.Email, user.Username)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 订阅支付链接创建失败 trade_no=%s product_id=%s error=%q", referenceId, product.ProductId, err.Error()))
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "creem", "subscription_checkout_create_failed", paymentSecurityFields{
+			UserID: userId, OrderID: referenceId, PlanID: plan.Id, ResourceID: product.ProductId, Money: plan.PriceAmount, Err: err,
+		})
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}

@@ -12,7 +12,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
@@ -50,7 +49,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 		return nil, NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
 
-	logger.LogDebug(ctx, "[OAuth-GitHub] ExchangeToken: code=%s...", code[:min(len(code), 10)])
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "github", "token_exchange_started", oauthSecurityFields{AuthorizationCode: code})
 
 	values := map[string]string{
 		"client_id":     common.GitHubClientId,
@@ -74,26 +73,26 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] ExchangeToken error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "github", "token_exchange_failed", oauthSecurityFields{Err: err})
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "GitHub"}, err.Error())
 	}
 	defer res.Body.Close()
 
-	logger.LogDebug(ctx, "[OAuth-GitHub] ExchangeToken response status: %d", res.StatusCode)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "github", "token_response_received", oauthSecurityFields{StatusCode: res.StatusCode})
 
 	var oAuthResponse gitHubOAuthResponse
 	err = json.NewDecoder(res.Body).Decode(&oAuthResponse)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] ExchangeToken decode error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "github", "token_response_invalid", oauthSecurityFields{StatusCode: res.StatusCode, Err: err})
 		return nil, err
 	}
 
 	if oAuthResponse.AccessToken == "" {
-		logger.LogError(ctx, "[OAuth-GitHub] ExchangeToken failed: empty access token")
+		logOAuthSecurityEvent(ctx, oauthLogError, "github", "access_token_missing", oauthSecurityFields{StatusCode: res.StatusCode})
 		return nil, NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "GitHub"})
 	}
 
-	logger.LogDebug(ctx, "[OAuth-GitHub] ExchangeToken success: scope=%s", oAuthResponse.Scope)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "github", "token_exchange_succeeded", oauthSecurityFields{Scope: oAuthResponse.Scope})
 
 	return &OAuthToken{
 		AccessToken: oAuthResponse.AccessToken,
@@ -103,7 +102,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 }
 
 func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
-	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo: fetching user info")
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "github", "userinfo_request_started", oauthSecurityFields{})
 
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
 	if err != nil {
@@ -116,38 +115,37 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "github", "userinfo_request_failed", oauthSecurityFields{Err: err})
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "GitHub"}, err.Error())
 	}
 	defer res.Body.Close()
 
-	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo response status: %d", res.StatusCode)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "github", "userinfo_response_received", oauthSecurityFields{StatusCode: res.StatusCode})
 
 	// Check for non-200 status codes before attempting to decode
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
-		bodyStr := string(body)
-		if len(bodyStr) > 500 {
-			bodyStr = bodyStr[:500] + "..."
-		}
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo failed: status=%d, body=%s", res.StatusCode, bodyStr))
+		logOAuthSecurityEvent(ctx, oauthLogError, "github", "userinfo_response_rejected", oauthSecurityFields{
+			StatusCode: res.StatusCode, ResponseBody: body,
+		})
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthGetUserErr, map[string]any{"Provider": "GitHub"}, fmt.Sprintf("status %d", res.StatusCode))
 	}
 
 	var githubUser gitHubUser
 	err = json.NewDecoder(res.Body).Decode(&githubUser)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo decode error: %s", err.Error()))
+		logOAuthSecurityEvent(ctx, oauthLogError, "github", "userinfo_response_invalid", oauthSecurityFields{StatusCode: res.StatusCode, Err: err})
 		return nil, err
 	}
 
 	if githubUser.Id == 0 || githubUser.Login == "" {
-		logger.LogError(ctx, "[OAuth-GitHub] GetUserInfo failed: empty id or login field")
+		logOAuthSecurityEvent(ctx, oauthLogError, "github", "userinfo_identity_missing", oauthSecurityFields{})
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "GitHub"})
 	}
 
-	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo success: id=%d, login=%s, name=%s, email=%s",
-		githubUser.Id, githubUser.Login, githubUser.Name, githubUser.Email)
+	logOAuthSecurityEvent(ctx, oauthLogDebug, "github", "userinfo_succeeded", oauthSecurityFields{
+		Subject: strconv.FormatInt(githubUser.Id, 10), Username: githubUser.Login, Email: githubUser.Email,
+	})
 
 	return &OAuthUser{
 		ProviderUserID: strconv.FormatInt(githubUser.Id, 10), // Use numeric ID as primary identifier

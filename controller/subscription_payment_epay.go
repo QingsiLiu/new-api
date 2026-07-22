@@ -116,11 +116,22 @@ func SubscriptionRequestEpay(c *gin.Context) {
 }
 
 func SubscriptionEpayNotify(c *gin.Context) {
+	if !isEpayWebhookEnabled() {
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "subscription_webhook_rejected", paymentSecurityFields{
+			Method: c.Request.Method, Path: c.Request.URL.Path, ClientIP: c.ClientIP(), Reason: "webhook_disabled",
+		})
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
+	}
+
 	var params map[string]string
 
 	if c.Request.Method == "POST" {
 		// POST 请求：从 POST body 解析参数
 		if err := c.Request.ParseForm(); err != nil {
+			logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "epay", "subscription_payload_invalid", paymentSecurityFields{
+				Method: c.Request.Method, Path: c.Request.URL.Path, ClientIP: c.ClientIP(), Err: err,
+			})
 			_, _ = c.Writer.Write([]byte("fail"))
 			return
 		}
@@ -135,24 +146,38 @@ func SubscriptionEpayNotify(c *gin.Context) {
 			return r
 		}, map[string]string{})
 	}
+	encodedParams, _ := common.Marshal(params)
+	callbackFields := paymentSecurityFields{
+		Method: c.Request.Method, Path: c.Request.URL.Path, ClientIP: c.ClientIP(), Payload: encodedParams, Signature: params["sign"],
+	}
+	logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "subscription_webhook_received", callbackFields)
 
 	if len(params) == 0 {
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "subscription_payload_empty", callbackFields)
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
 	client := GetEpayClient()
 	if client == nil {
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "epay", "subscription_client_unavailable", callbackFields)
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 	verifyInfo, err := client.Verify(params)
 	if err != nil || !verifyInfo.VerifyStatus {
+		callbackFields.Err = err
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "subscription_signature_invalid", callbackFields)
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
+	callbackFields.OrderID = verifyInfo.ServiceTradeNo
+	callbackFields.CallbackType = verifyInfo.Type
+	callbackFields.OrderStatus = verifyInfo.TradeStatus
+	logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "subscription_signature_valid", callbackFields)
 
 	if verifyInfo.TradeStatus != epay.StatusTradeSuccess {
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "subscription_payment_pending", callbackFields)
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
@@ -161,10 +186,13 @@ func SubscriptionEpayNotify(c *gin.Context) {
 	defer UnlockOrder(verifyInfo.ServiceTradeNo)
 
 	if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
+		callbackFields.Err = err
+		logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "epay", "subscription_complete_failed", callbackFields)
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
+	logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "subscription_completed", callbackFields)
 	_, _ = c.Writer.Write([]byte("success"))
 }
 
