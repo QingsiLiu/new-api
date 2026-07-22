@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +16,19 @@ import (
 
 var RDB *redis.Client
 var RedisEnabled = true
+
+const redisGetAndDeleteScript = `
+local value = redis.call("GET", KEYS[1])
+if value then
+  redis.call("DEL", KEYS[1])
+end
+return value
+`
+
+func redisKeyHash(key string) string {
+	digest := sha256.Sum256([]byte(key))
+	return fmt.Sprintf("%x", digest[:6])
+}
 
 func RedisKeyCacheSeconds() int {
 	return SyncFrequency
@@ -63,7 +77,7 @@ func ParseRedisOption() *redis.Options {
 
 func RedisSet(key string, value string, expiration time.Duration) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis SET: key=%s, value=%s, expiration=%v", key, value, expiration))
+		SysLog(fmt.Sprintf("Redis SET: key_hash=%s, value_len=%d, expiration=%v", redisKeyHash(key), len(value), expiration))
 	}
 	ctx := context.Background()
 	return RDB.Set(ctx, key, value, expiration).Err()
@@ -71,11 +85,35 @@ func RedisSet(key string, value string, expiration time.Duration) error {
 
 func RedisGet(key string) (string, error) {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis GET: key=%s", key))
+		SysLog(fmt.Sprintf("Redis GET: key_hash=%s", redisKeyHash(key)))
 	}
 	ctx := context.Background()
 	val, err := RDB.Get(ctx, key).Result()
 	return val, err
+}
+
+// RedisGetDel atomically reads and consumes a value. It intentionally uses a
+// Lua script instead of GETDEL so older Redis/miniredis versions remain
+// supported while one-time tickets cannot be redeemed twice concurrently.
+func RedisGetDel(key string) (string, error) {
+	if RDB == nil {
+		return "", errors.New("redis client is not initialized")
+	}
+	if DebugEnabled {
+		SysLog(fmt.Sprintf("Redis GETDEL: key_hash=%s", redisKeyHash(key)))
+	}
+	result, err := RDB.Eval(context.Background(), redisGetAndDeleteScript, []string{key}).Result()
+	if err != nil {
+		return "", err
+	}
+	if result == nil {
+		return "", redis.Nil
+	}
+	value, ok := result.(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected Redis GETDEL result type %T", result)
+	}
+	return value, nil
 }
 
 //func RedisExpire(key string, expiration time.Duration) error {
@@ -90,7 +128,7 @@ func RedisGet(key string) (string, error) {
 
 func RedisDel(key string) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis DEL: key=%s", key))
+		SysLog(fmt.Sprintf("Redis DEL: key_hash=%s", redisKeyHash(key)))
 	}
 	ctx := context.Background()
 	return RDB.Del(ctx, key).Err()
@@ -98,7 +136,7 @@ func RedisDel(key string) error {
 
 func RedisDelKey(key string) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis DEL Key: key=%s", key))
+		SysLog(fmt.Sprintf("Redis DEL Key: key_hash=%s", redisKeyHash(key)))
 	}
 	ctx := context.Background()
 	return RDB.Del(ctx, key).Err()
