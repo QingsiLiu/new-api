@@ -25,7 +25,7 @@ func TestCreditsPriceMinorFormattingAndParsing(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	}
-	for _, input := range []string{"", "-1", "5.001", "five"} {
+	for _, input := range []string{"", "-1", "5.001", "five", "92233720368547758.08"} {
 		_, err := parsePriceMinor(input)
 		require.Error(t, err)
 	}

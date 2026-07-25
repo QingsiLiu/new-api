@@ -54,6 +54,7 @@ const (
 
 var (
 	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
+	ErrPaymentEventConflict  = errors.New("payment event belongs to another order")
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
@@ -659,9 +660,30 @@ func completeCreditsTopUp(tradeNo, eventID, storeID, environment, paymentMethod,
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
-			return ErrPaymentEventDuplicate
+			var existing PaymentEvent
+			if err := tx.Where("provider = ? AND event_id = ?", expectedProvider, eventID).
+				First(&existing).Error; err != nil {
+				return err
+			}
+			if existing.TradeNo == tradeNo {
+				return ErrPaymentEventDuplicate
+			}
+			if err := tx.Model(&TopUp{}).Where(refCol+" = ?", tradeNo).
+				Update("status", common.TopUpStatusManualReview).Error; err != nil {
+				return err
+			}
+			terminalErr = ErrPaymentEventConflict
+			return nil
 		}
 
+		var topUpOwner TopUp
+		if err := tx.Select("user_id").Where(refCol+" = ?", tradeNo).First(&topUpOwner).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		var user User
+		if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", topUpOwner.UserId).First(&user).Error; err != nil {
+			return err
+		}
 		topUp := &TopUp{}
 		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
 			return ErrTopUpNotFound
@@ -692,7 +714,7 @@ func completeCreditsTopUp(tradeNo, eventID, storeID, environment, paymentMethod,
 			return ErrTopUpStatusInvalid
 		}
 
-		if err := checkCreditTopUpCapacity(tx, topUp.UserId, topUp.QuotaAmount, false); err != nil {
+		if err := validateCreditTopUpCapacity(user.Quota, 0, topUp.QuotaAmount); err != nil {
 			if errors.Is(err, ErrCreditBalanceLimit) {
 				topUp.Status = common.TopUpStatusManualReview
 				if saveErr := tx.Save(topUp).Error; saveErr != nil {

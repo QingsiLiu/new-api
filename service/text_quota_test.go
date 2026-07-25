@@ -123,6 +123,11 @@ func TestCreditsTextQuotaUsesExactSnapshotAndIgnoresGroupMultiplier(t *testing.T
 	logRelayInfo.PriceData.PricingSource = "kie"
 	other := GenerateTextOtherInfo(ctx, logRelayInfo, 1, 6, 1, 0, 1, 0, 6)
 	require.Equal(t, "kie", other["pricing_source"])
+
+	ctx.Set("claude_web_search_requests", 1)
+	surchargeRelayInfo := newRelayInfo()
+	_ = calculateTextQuotaSummary(ctx, surchargeRelayInfo, &dto.Usage{PromptTokens: 1_000})
+	require.Equal(t, "geili", surchargeRelayInfo.PriceData.PricingSource)
 }
 
 func TestTextQuotaKeepsLegacyRatiosWithoutCreditsPricing(t *testing.T) {

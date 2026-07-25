@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -153,8 +154,8 @@ func requestCreditsWaffoPancakeCheckout(c *gin.Context, pkg model.CreditPackage)
 		OrderMerchantExternalID: tradeNo,
 	})
 	if err != nil {
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		// The provider may have created the session even when the client times
+		// out. Keep the reservation pending so a valid webhook can still settle it.
 		c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "failed to create checkout"})
 		return
 	}
@@ -243,6 +244,9 @@ func parsePriceMinor(amount string) (int64, error) {
 	fraction += strings.Repeat("0", 2-len(fraction))
 	minor, err := strconv.ParseInt(fraction, 10, 64)
 	if err != nil {
+		return 0, fmt.Errorf("invalid amount")
+	}
+	if whole > (math.MaxInt64-minor)/100 {
 		return 0, fmt.Errorf("invalid amount")
 	}
 	return whole*100 + minor, nil

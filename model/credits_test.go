@@ -157,6 +157,13 @@ func TestCompleteCreditsWaffoPancakeValidatesSnapshotAndEventIdempotency(t *test
 	require.True(t, errors.Is(err, ErrPaymentEventDuplicate))
 	require.Equal(t, 7+pkg.Quota, getUserQuotaForPaymentGuardTest(t, userID))
 
+	conflictingTopUp := creditTopUpForTest(userID, "credits-waffo-event-conflict", pkg)
+	require.NoError(t, conflictingTopUp.Insert())
+	err = CompleteCreditsWaffoPancake(conflictingTopUp.TradeNo, "evt-success", "store-prod", "prod", "USD", 500)
+	require.ErrorIs(t, err, ErrPaymentEventConflict)
+	require.Equal(t, common.TopUpStatusManualReview, getTopUpStatusForPaymentGuardTest(t, conflictingTopUp.TradeNo))
+	require.Equal(t, 7+pkg.Quota, getUserQuotaForPaymentGuardTest(t, userID))
+
 	err = CompleteCreditsWaffoPancake(topUp.TradeNo, "evt-second", "store-prod", "prod", "USD", 500)
 	require.ErrorIs(t, err, ErrTopUpStatusInvalid)
 	require.Equal(t, 7+pkg.Quota, getUserQuotaForPaymentGuardTest(t, userID))
