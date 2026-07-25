@@ -302,9 +302,26 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 			baseTokens = decimal.Zero
 		}
 
-		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
-		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
-		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio)
+		var quotaCalculateDecimal decimal.Decimal
+		if exact := relayInfo.PriceData.CreditsTextPricing; exact != nil {
+			inputRate := decimal.NewFromInt(exact.InputQuotaPerMillion)
+			outputRate := decimal.NewFromInt(exact.OutputQuotaPerMillion)
+			cachedRate := inputRate
+			if exact.CachedInputQuotaPerMillion > 0 {
+				cachedRate = decimal.NewFromInt(exact.CachedInputQuotaPerMillion)
+			}
+			inputQuota := baseTokens.Mul(inputRate)
+			inputQuota = inputQuota.Add(dCacheTokens.Mul(cachedRate))
+			inputQuota = inputQuota.Add(dCachedCreationTokens.Mul(inputRate))
+			inputQuota = inputQuota.Add(dImageTokens.Mul(inputRate).Mul(dImageRatio))
+			completionQuota := dCompletionTokens.Mul(outputRate)
+			quotaCalculateDecimal = inputQuota.Add(completionQuota).
+				Div(decimal.NewFromInt(1_000_000))
+		} else {
+			promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
+			completionQuota := dCompletionTokens.Mul(dCompletionRatio)
+			quotaCalculateDecimal = promptQuota.Add(completionQuota).Mul(ratio)
+		}
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)

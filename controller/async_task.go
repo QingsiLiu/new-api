@@ -86,19 +86,24 @@ type asyncTaskInput struct {
 }
 
 type asyncTaskResponse struct {
-	ID          string            `json:"id"`
-	Kind        string            `json:"kind"`
-	Action      string            `json:"action"`
-	Model       string            `json:"model"`
-	Status      string            `json:"status"`
-	Progress    string            `json:"progress,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	ChannelID   int               `json:"channelId,omitempty"`
-	ChannelName string            `json:"channelName,omitempty"`
-	Outputs     []asyncTaskOutput `json:"outputs,omitempty"`
-	CreatedAt   int64             `json:"createdAt"`
-	UpdatedAt   int64             `json:"updatedAt"`
-	CompletedAt int64             `json:"completedAt,omitempty"`
+	ID              string            `json:"id"`
+	Kind            string            `json:"kind"`
+	Action          string            `json:"action"`
+	Model           string            `json:"model"`
+	Status          string            `json:"status"`
+	Quota           *int              `json:"quota,omitempty"`
+	Credits         *string           `json:"credits,omitempty"`
+	ReservedQuota   *int              `json:"reserved_quota,omitempty"`
+	ReservedCredits *string           `json:"reserved_credits,omitempty"`
+	BillingState    string            `json:"billing_state,omitempty"`
+	Progress        string            `json:"progress,omitempty"`
+	Error           string            `json:"error,omitempty"`
+	ChannelID       int               `json:"channelId,omitempty"`
+	ChannelName     string            `json:"channelName,omitempty"`
+	Outputs         []asyncTaskOutput `json:"outputs,omitempty"`
+	CreatedAt       int64             `json:"createdAt"`
+	UpdatedAt       int64             `json:"updatedAt"`
+	CompletedAt     int64             `json:"completedAt,omitempty"`
 }
 
 type asyncTaskOutput struct {
@@ -109,31 +114,41 @@ type asyncTaskOutput struct {
 }
 
 type asyncTaskPricingEstimateResponse struct {
-	Kind      string                            `json:"kind"`
-	Action    string                            `json:"action"`
-	Model     string                            `json:"model"`
-	Quota     int                               `json:"-"`
-	AmountCNY float64                           `json:"amount_cny"`
-	Currency  string                            `json:"currency"`
-	Unit      string                            `json:"unit"`
-	Breakdown asyncTaskPricingEstimateBreakdown `json:"breakdown"`
+	Kind        string                            `json:"kind"`
+	Action      string                            `json:"action"`
+	Model       string                            `json:"model"`
+	Quota       int                               `json:"-"`
+	PublicQuota *int                              `json:"quota,omitempty"`
+	AmountCNY   float64                           `json:"amount_cny"`
+	Credits     *string                           `json:"credits,omitempty"`
+	Currency    string                            `json:"currency"`
+	Unit        string                            `json:"unit"`
+	Breakdown   asyncTaskPricingEstimateBreakdown `json:"breakdown"`
 }
 
 type asyncTaskPricingEstimateBreakdown struct {
-	ModelPrice   float64            `json:"model_price"`
-	ModelRatio   float64            `json:"model_ratio,omitempty"`
-	GroupRatio   float64            `json:"group_ratio"`
-	SpecUnitCNY  float64            `json:"spec_unit_cny,omitempty"`
-	SpecTotalCNY float64            `json:"spec_total_cny,omitempty"`
-	OtherRatios  map[string]float64 `json:"other_ratios,omitempty"`
-	FreeModel    bool               `json:"free_model"`
-	UsePrice     bool               `json:"use_price"`
+	ModelPrice       float64            `json:"model_price"`
+	ModelRatio       float64            `json:"model_ratio,omitempty"`
+	GroupRatio       float64            `json:"group_ratio"`
+	SpecUnitCNY      float64            `json:"spec_unit_cny,omitempty"`
+	SpecTotalCNY     float64            `json:"spec_total_cny,omitempty"`
+	SpecUnitCredits  string             `json:"spec_unit_credits,omitempty"`
+	SpecTotalCredits string             `json:"spec_total_credits,omitempty"`
+	PricingSource    string             `json:"pricing_source,omitempty"`
+	OtherRatios      map[string]float64 `json:"other_ratios,omitempty"`
+	FreeModel        bool               `json:"free_model"`
+	UsePrice         bool               `json:"use_price"`
 }
 
 type asyncBillingBalanceResponse struct {
-	UserID     int     `json:"user_id"`
-	BalanceCNY float64 `json:"balance_cny"`
-	Currency   string  `json:"currency"`
+	UserID         int     `json:"user_id"`
+	BalanceCNY     float64 `json:"balance_cny"`
+	BalanceCredits *string `json:"balance_credits,omitempty"`
+	UsedCredits    *string `json:"used_credits,omitempty"`
+	Quota          *int    `json:"quota,omitempty"`
+	UsedQuota      *int    `json:"used_quota,omitempty"`
+	QuotaPerCredit *int    `json:"quota_per_credit,omitempty"`
+	Currency       string  `json:"currency"`
 }
 
 type asyncBillingUsageResponse struct {
@@ -153,6 +168,8 @@ type asyncBillingUsageItem struct {
 	TokenName         string  `json:"token_name"`
 	ModelName         string  `json:"model_name"`
 	AmountCNY         float64 `json:"amount_cny"`
+	Credits           *string `json:"credits,omitempty"`
+	Quota             *int    `json:"quota,omitempty"`
 	PromptTokens      int     `json:"prompt_tokens"`
 	CompletionTokens  int     `json:"completion_tokens"`
 	UseTime           int     `json:"use_time"`
@@ -357,9 +374,14 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 	if relayInfo.PriceData.SpecPricing != nil && relayInfo.PriceData.SpecPricing.Priced {
 		breakdown.SpecUnitCNY = relayInfo.PriceData.SpecPricing.UnitCNY
 		breakdown.SpecTotalCNY = relayInfo.PriceData.SpecPricing.TotalCNY
+		if common.CreditsV1Enabled() {
+			breakdown.SpecUnitCredits = relayInfo.PriceData.SpecPricing.UnitCredits
+			breakdown.SpecTotalCredits = relayInfo.PriceData.SpecPricing.TotalCredits
+			breakdown.PricingSource = relayInfo.PriceData.SpecPricing.PricingSource
+		}
 	}
 
-	c.JSON(http.StatusOK, asyncTaskPricingEstimateResponse{
+	response := asyncTaskPricingEstimateResponse{
 		Kind:      request.Kind,
 		Action:    request.Action,
 		Model:     request.Model,
@@ -368,7 +390,14 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 		Currency:  "CNY",
 		Unit:      "CNY",
 		Breakdown: breakdown,
-	})
+	}
+	if common.CreditsV1Enabled() {
+		quota := relayInfo.PriceData.Quota
+		credits := common.QuotaToCreditsString(relayInfo.PriceData.Quota)
+		response.PublicQuota = &quota
+		response.Credits = &credits
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func GetAsyncBillingBalance(c *gin.Context) {
@@ -378,11 +407,27 @@ func GetAsyncBillingBalance(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to query user balance"}})
 		return
 	}
-	c.JSON(http.StatusOK, asyncBillingBalanceResponse{
+	user, userErr := model.GetUserById(userID, false)
+	if userErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to query user balance"}})
+		return
+	}
+	response := asyncBillingBalanceResponse{
 		UserID:     userID,
 		BalanceCNY: common.QuotaToPublicCNY(quota),
 		Currency:   "CNY",
-	})
+	}
+	if common.CreditsV1Enabled() {
+		balanceCredits := common.QuotaToCreditsString(quota)
+		usedCredits := common.QuotaToCreditsString(user.UsedQuota)
+		quotaPerCredit := common.CreditsQuotaUnit
+		response.BalanceCredits = &balanceCredits
+		response.UsedCredits = &usedCredits
+		response.Quota = &quota
+		response.UsedQuota = &user.UsedQuota
+		response.QuotaPerCredit = &quotaPerCredit
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func GetAsyncBillingUsage(c *gin.Context) {
@@ -444,7 +489,7 @@ func asyncBillingUsageItems(logs []*model.Log) []asyncBillingUsageItem {
 		if log == nil {
 			continue
 		}
-		items = append(items, asyncBillingUsageItem{
+		item := asyncBillingUsageItem{
 			ID:                log.Id,
 			UserID:            log.UserId,
 			CreatedAt:         log.CreatedAt,
@@ -467,7 +512,14 @@ func asyncBillingUsageItems(logs []*model.Log) []asyncBillingUsageItem {
 			RequestID:         log.RequestId,
 			UpstreamRequestID: log.UpstreamRequestId,
 			Other:             sanitizeAsyncBillingUsageOther(log.Other),
-		})
+		}
+		if common.CreditsV1Enabled() {
+			credits := common.QuotaToCreditsString(log.Quota)
+			quota := log.Quota
+			item.Credits = &credits
+			item.Quota = &quota
+		}
+		items = append(items, item)
 	}
 	return items
 }
@@ -865,7 +917,7 @@ func estimateAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel 
 		return nil, err
 	}
 	relayInfo.PriceData = priceData
-	if operation_setting.AsyncTaskSpecPricingEnabled {
+	if operation_setting.AsyncTaskSpecPricingEnabled || common.CreditsV1Enabled() {
 		if err := applyAsyncTaskSpecPricing(request, relayInfo); err != nil {
 			return nil, err
 		}
@@ -876,6 +928,15 @@ func estimateAsyncTaskBilling(c *gin.Context, request asyncTaskRequest, channel 
 func applyAsyncTaskSpecPricing(request asyncTaskRequest, relayInfo *relaycommon.RelayInfo) error {
 	if relayInfo == nil {
 		return nil
+	}
+	if common.CreditsV1Enabled() {
+		exact, ok, err := resolveCreditsV1AsyncSpec(request, relayInfo.OriginModelName)
+		if err != nil {
+			return err
+		}
+		if ok {
+			return applyCreditsV1AsyncSpecPricing(relayInfo, exact)
+		}
 	}
 
 	var result operation_setting.AsyncSpecQuotaResult
@@ -956,7 +1017,7 @@ func applyResolvedAsyncTaskSpecPricing(relayInfo *relaycommon.RelayInfo, result 
 
 	relayInfo.PriceData.Quota = result.Quota
 	relayInfo.PriceData.QuotaToPreConsume = result.Quota
-	relayInfo.PriceData.SpecPricing = &types.SpecPricingInfo{
+	specInfo := &types.SpecPricingInfo{
 		Priced:      true,
 		Kind:        result.Kind,
 		Model:       result.Model,
@@ -969,6 +1030,12 @@ func applyResolvedAsyncTaskSpecPricing(relayInfo *relaycommon.RelayInfo, result 
 		Quota:       result.Quota,
 		QuotaPerCNY: result.QuotaPerCNY,
 	}
+	if common.CreditsV1Enabled() {
+		specInfo.UnitCredits = common.QuotaToCreditsString(common.QuotaRound(result.UnitCNY * float64(common.QuotaPerUnit)))
+		specInfo.TotalCredits = common.QuotaToCreditsString(result.Quota)
+		specInfo.PricingSource = "geili"
+	}
+	relayInfo.PriceData.SpecPricing = specInfo
 	relayInfo.PriceData.ReplaceOtherRatios(map[string]float64{
 		"spec_priced": 1,
 	})
@@ -980,17 +1047,20 @@ func asyncTaskSpecPricingForTask(info *types.SpecPricingInfo) *model.TaskSpecPri
 		return nil
 	}
 	return &model.TaskSpecPricing{
-		Priced:      info.Priced,
-		Kind:        info.Kind,
-		Model:       info.Model,
-		SpecKey:     info.SpecKey,
-		Resolution:  info.Resolution,
-		Ratio:       info.Ratio,
-		Mode:        info.Mode,
-		UnitCNY:     info.UnitCNY,
-		TotalCNY:    info.TotalCNY,
-		Quota:       info.Quota,
-		QuotaPerCNY: info.QuotaPerCNY,
+		Priced:        info.Priced,
+		Kind:          info.Kind,
+		Model:         info.Model,
+		SpecKey:       info.SpecKey,
+		Resolution:    info.Resolution,
+		Ratio:         info.Ratio,
+		Mode:          info.Mode,
+		UnitCNY:       info.UnitCNY,
+		TotalCNY:      info.TotalCNY,
+		Quota:         info.Quota,
+		QuotaPerCNY:   info.QuotaPerCNY,
+		UnitCredits:   info.UnitCredits,
+		TotalCredits:  info.TotalCredits,
+		PricingSource: info.PricingSource,
 	}
 }
 
@@ -3082,12 +3152,13 @@ func asyncTaskModelToResponse(task *model.Task) asyncTaskResponse {
 		}
 		outputs = append(outputs, asyncTaskOutput{Index: index, MimeType: output.MimeType, Size: size, URL: output.URL})
 	}
-	return asyncTaskResponse{
+	status := asyncTaskStatusFromModelWithReason(task.Status, task.FailReason)
+	response := asyncTaskResponse{
 		ID:          task.TaskID,
 		Kind:        data.Kind,
 		Action:      data.Action,
 		Model:       firstAsyncNonEmpty(data.Model, task.Properties.OriginModelName),
-		Status:      asyncTaskStatusFromModelWithReason(task.Status, task.FailReason),
+		Status:      status,
 		Progress:    task.Progress,
 		Error:       task.FailReason,
 		ChannelID:   task.ChannelId,
@@ -3097,6 +3168,23 @@ func asyncTaskModelToResponse(task *model.Task) asyncTaskResponse {
 		UpdatedAt:   task.UpdatedAt,
 		CompletedAt: task.FinishTime,
 	}
+	if common.CreditsV1Enabled() {
+		reservedQuota := task.Quota
+		reservedCredits := common.QuotaToCreditsString(reservedQuota)
+		response.Quota = &reservedQuota
+		response.Credits = &reservedCredits
+		response.ReservedQuota = &reservedQuota
+		response.ReservedCredits = &reservedCredits
+		switch task.Status {
+		case model.TaskStatusSuccess:
+			response.BillingState = "settled"
+		case model.TaskStatusFailure:
+			response.BillingState = "refund_requested"
+		default:
+			response.BillingState = "reserved"
+		}
+	}
+	return response
 }
 
 func asyncTaskStatusFromModel(status model.TaskStatus) string {
@@ -3123,6 +3211,9 @@ func asyncTaskStatusFromModelWithReason(status model.TaskStatus, failReason stri
 }
 
 func asyncTaskChannelName(channelID int) string {
+	if channelID <= 0 {
+		return ""
+	}
 	channel, err := model.CacheGetChannel(channelID)
 	if err == nil && channel != nil {
 		return channel.Name

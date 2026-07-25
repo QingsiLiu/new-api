@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 func modelPriceNotConfiguredError(modelName string, userId int) error {
@@ -81,8 +82,10 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
 
-	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+	_, creditsExact := creditsV1TextPricing(info.OriginModelName)
+	// Credits V1 exact snapshots take precedence over mutable legacy billing
+	// expressions. Non-matching Geili models keep their configured mode.
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr && !creditsExact {
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
@@ -100,6 +103,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var modelPrice float64
 	var usePrice bool
 	var useModelPricingConfig bool
+	var creditsTextPricing *types.CreditsTextPricing
 
 	if cfg, ok := getModelPricingConfigForBilling(info.OriginModelName); ok {
 		switch cfg.Mode {
@@ -140,12 +144,27 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	if !useModelPricingConfig {
 		modelPrice, usePrice = ratio_setting.GetModelPrice(info.OriginModelName, false)
 	}
+	if exact, ok := creditsV1TextPricing(info.OriginModelName); ok {
+		creditsTextPricing = exact
+		usePrice = false
+		modelPrice = 0
+		modelRatio = float64(exact.InputQuotaPerMillion) / 1_000_000
+		completionRatio = float64(exact.OutputQuotaPerMillion) / float64(exact.InputQuotaPerMillion)
+		cacheRatio = 1
+		if exact.CachedInputQuotaPerMillion > 0 {
+			cacheRatio = float64(exact.CachedInputQuotaPerMillion) / float64(exact.InputQuotaPerMillion)
+		}
+		cacheCreationRatio = 1
+		groupRatioInfo.GroupRatio = 1
+		groupRatioInfo.GroupSpecialRatio = 1
+		groupRatioInfo.HasSpecialRatio = false
+	}
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
-		if meta.MaxTokens != 0 {
+		if creditsTextPricing == nil && meta.MaxTokens != 0 {
 			preConsumedTokens += meta.MaxTokens
 		}
-		if !useModelPricingConfig {
+		if creditsTextPricing == nil && !useModelPricingConfig {
 			var success bool
 			var matchName string
 			modelRatio, success, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
@@ -168,12 +187,27 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		cacheCreationRatio5m = cacheCreationRatio
 		// 固定1h和5min缓存写入价格的比例
 		cacheCreationRatio1h = cacheCreationRatio * claudeCacheCreation1hMultiplier
-		ratio := modelRatio * groupRatioInfo.GroupRatio
-		quota, err := common.QuotaFromFloatStrict(float64(preConsumedTokens) * ratio)
-		if err != nil {
-			return types.PriceData{}, err
+		if creditsTextPricing != nil {
+			inputQuota := decimal.NewFromInt(int64(preConsumedTokens)).
+				Mul(decimal.NewFromInt(creditsTextPricing.InputQuotaPerMillion))
+			maxOutputTokens := common.Max(meta.MaxTokens, 0)
+			outputQuota := decimal.NewFromInt(int64(maxOutputTokens)).
+				Mul(decimal.NewFromInt(creditsTextPricing.OutputQuotaPerMillion))
+			quota, clamp := common.QuotaFromDecimalChecked(
+				inputQuota.Add(outputQuota).Div(decimal.NewFromInt(1_000_000)),
+			)
+			if clamp != nil {
+				return types.PriceData{}, clamp
+			}
+			preConsumedQuota = quota
+		} else {
+			ratio := modelRatio * groupRatioInfo.GroupRatio
+			quota, err := common.QuotaFromFloatStrict(float64(preConsumedTokens) * ratio)
+			if err != nil {
+				return types.PriceData{}, err
+			}
+			preConsumedQuota = quota
 		}
-		preConsumedQuota = quota
 	} else {
 		if meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
@@ -214,6 +248,14 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
+		CreditsTextPricing:   creditsTextPricing,
+	}
+	if creditsTextPricing != nil {
+		priceData.PricingSource = creditsTextPricing.PricingSource
+	} else if common.CreditsV1Enabled() &&
+		((priceData.UsePrice && priceData.ModelPrice > 0) ||
+			(!priceData.UsePrice && priceData.ModelRatio > 0)) {
+		priceData.PricingSource = "geili"
 	}
 	if usePrice {
 		for name, ratio := range meta.BillingRatios {

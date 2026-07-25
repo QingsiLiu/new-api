@@ -1,10 +1,12 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -119,8 +121,37 @@ func GetTopUpInfo(c *gin.Context) {
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
+		"credits_v1_enabled":      common.CreditsV1Enabled(),
+		"quota_per_credit":        common.CreditsQuotaUnit,
+		"packages": func() interface{} {
+			if common.CreditsV1Enabled() {
+				return availableCreditPackages()
+			}
+			return []model.CreditPackage{}
+		}(),
 	}
 	common.ApiSuccess(c, data)
+}
+
+func availableCreditPackages() []model.CreditPackage {
+	packages := model.ListCreditPackages()
+	for i := range packages {
+		methods := make([]string, 0, len(packages[i].PaymentMethods))
+		for _, method := range packages[i].PaymentMethods {
+			switch method {
+			case model.PaymentMethodWaffoPancake:
+				if isWaffoPancakeTopUpEnabled() {
+					methods = append(methods, method)
+				}
+			case "alipay":
+				if isEpayMethodEnabled(method) {
+					methods = append(methods, method)
+				}
+			}
+		}
+		packages[i].PaymentMethods = methods
+	}
+	return packages
 }
 
 type EpayRequest struct {
@@ -348,15 +379,29 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 	verifyInfo, verifyErr := client.Verify(params)
+	creditsCallback := false
 	if verifyErr == nil && verifyInfo.VerifyStatus {
+		if strings.TrimSpace(params["pid"]) != strings.TrimSpace(operation_setting.EpayId) {
+			callbackFields.Reason = "merchant_mismatch"
+			logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "merchant_mismatch", callbackFields)
+			_, _ = c.Writer.Write([]byte("fail"))
+			return
+		}
 		callbackFields.OrderID = verifyInfo.ServiceTradeNo
 		callbackFields.CallbackType = verifyInfo.Type
 		callbackFields.OrderStatus = verifyInfo.TradeStatus
 		logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "signature_valid", callbackFields)
-		_, err := c.Writer.Write([]byte("success"))
-		if err != nil {
-			callbackFields.Err = err
-			logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "epay", "response_write_failed", callbackFields)
+		if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
+			if creditsOrder := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo); creditsOrder != nil && creditsOrder.PackageId != "" {
+				creditsCallback = true
+			}
+		}
+		if !creditsCallback {
+			_, err := c.Writer.Write([]byte("success"))
+			if err != nil {
+				callbackFields.Err = err
+				logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "epay", "response_write_failed", callbackFields)
+			}
 		}
 	} else {
 		_, writeErr := c.Writer.Write([]byte("fail"))
@@ -375,11 +420,55 @@ func EpayNotify(c *gin.Context) {
 		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
 		if topUp == nil {
 			logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "order_not_found", callbackFields)
+			if creditsCallback {
+				_, _ = c.Writer.Write([]byte("fail"))
+			}
 			return
 		}
 		if topUp.PaymentProvider != model.PaymentProviderEpay {
 			callbackFields.Reason = "provider_mismatch"
 			logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "provider_mismatch", callbackFields)
+			if creditsCallback {
+				_, _ = c.Writer.Write([]byte("fail"))
+			}
+			return
+		}
+		if topUp.PackageId != "" {
+			priceMinor, amountErr := parsePriceMinor(verifyInfo.Money)
+			if amountErr != nil {
+				callbackFields.Err = amountErr
+				logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "amount_invalid", callbackFields)
+				_, _ = c.Writer.Write([]byte("fail"))
+				return
+			}
+			eventID := strings.TrimSpace(verifyInfo.TradeNo)
+			if eventID == "" {
+				eventID = "merchant:" + verifyInfo.ServiceTradeNo
+			}
+			completeErr := model.CompleteCreditsEpay(
+				verifyInfo.ServiceTradeNo,
+				eventID,
+				params["pid"],
+				verifyInfo.Type,
+				"CNY",
+				priceMinor,
+			)
+			if errors.Is(completeErr, model.ErrPaymentEventDuplicate) {
+				_, _ = c.Writer.Write([]byte("success"))
+				return
+			}
+			if completeErr != nil {
+				callbackFields.Err = completeErr
+				logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "credits_topup_rejected", callbackFields)
+				if errors.Is(completeErr, model.ErrCreditsPaymentManualReview) {
+					_, _ = c.Writer.Write([]byte("success"))
+					return
+				}
+				_, _ = c.Writer.Write([]byte("fail"))
+				return
+			}
+			logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "topup_completed", callbackFields)
+			_, _ = c.Writer.Write([]byte("success"))
 			return
 		}
 		if topUp.Status == common.TopUpStatusPending {
@@ -414,6 +503,13 @@ func EpayNotify(c *gin.Context) {
 			callbackFields.Err = nil
 			logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "topup_completed", callbackFields)
 			model.RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), c.ClientIP(), topUp.PaymentMethod, "epay")
+		}
+		if creditsCallback {
+			if topUp.PackageId != "" && topUp.Status == common.TopUpStatusSuccess {
+				_, _ = c.Writer.Write([]byte("success"))
+			} else {
+				_, _ = c.Writer.Write([]byte("fail"))
+			}
 		}
 	} else {
 		logPaymentSecurityEvent(c.Request.Context(), paymentLogInfo, "epay", "event_ignored", callbackFields)

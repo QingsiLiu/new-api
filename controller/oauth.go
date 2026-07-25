@@ -275,6 +275,14 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+	if isTrustedSignupCreditOAuthProvider(provider) {
+		user.SignupCreditSource = "oauth:" + provider.GetName()
+		if user.Email != "" {
+			user.SignupCreditIdentity = "email:" + user.Email
+		} else {
+			user.SignupCreditIdentity = "oauth:" + provider.GetName() + ":" + oauthUser.ProviderUserID
+		}
+	}
 
 	// Handle affiliate code
 	affCode := session.Get("aff")
@@ -342,6 +350,17 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	return user, nil
+}
+
+func isTrustedSignupCreditOAuthProvider(provider oauth.Provider) bool {
+	switch provider.(type) {
+	case *oauth.GitHubProvider, *oauth.DiscordProvider, *oauth.LinuxDOProvider:
+		return true
+	case *oauth.OIDCProvider:
+		return common.GetEnvOrDefaultBool("GEILI_CREDITS_TRUST_OIDC", false)
+	default:
+		return false
+	}
 }
 
 // Error types for OAuth

@@ -122,17 +122,20 @@ type TaskBillingContext struct {
 }
 
 type TaskSpecPricing struct {
-	Priced      bool    `json:"spec_priced,omitempty"`
-	Kind        string  `json:"spec_kind,omitempty"`
-	Model       string  `json:"spec_model,omitempty"`
-	SpecKey     string  `json:"spec_key,omitempty"`
-	Resolution  string  `json:"spec_resolution,omitempty"`
-	Ratio       string  `json:"spec_ratio,omitempty"`
-	Mode        string  `json:"spec_mode,omitempty"`
-	UnitCNY     float64 `json:"spec_unit_cny,omitempty"`
-	TotalCNY    float64 `json:"spec_total_cny,omitempty"`
-	Quota       int     `json:"spec_quota,omitempty"`
-	QuotaPerCNY float64 `json:"quota_per_cny,omitempty"`
+	Priced        bool    `json:"spec_priced,omitempty"`
+	Kind          string  `json:"spec_kind,omitempty"`
+	Model         string  `json:"spec_model,omitempty"`
+	SpecKey       string  `json:"spec_key,omitempty"`
+	Resolution    string  `json:"spec_resolution,omitempty"`
+	Ratio         string  `json:"spec_ratio,omitempty"`
+	Mode          string  `json:"spec_mode,omitempty"`
+	UnitCNY       float64 `json:"spec_unit_cny,omitempty"`
+	TotalCNY      float64 `json:"spec_total_cny,omitempty"`
+	Quota         int     `json:"spec_quota,omitempty"`
+	QuotaPerCNY   float64 `json:"quota_per_cny,omitempty"`
+	UnitCredits   string  `json:"spec_unit_credits,omitempty"`
+	TotalCredits  string  `json:"spec_total_credits,omitempty"`
+	PricingSource string  `json:"pricing_source,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

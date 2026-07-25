@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Calcium-Ion/go-epay/epay"
@@ -112,12 +113,22 @@ func TestEpayNotifyCreditsQuotaAndIsIdempotent(t *testing.T) {
 		"trade_status": epay.StatusTradeSuccess,
 	}, operation_setting.EpayKey)
 
-	first := callEpayNotifyForTest(t, values)
-	require.Equal(t, http.StatusOK, first.Code)
-	require.Equal(t, "success", first.Body.String())
-	second := callEpayNotifyForTest(t, values)
-	require.Equal(t, http.StatusOK, second.Code)
-	require.Equal(t, "success", second.Body.String())
+	const callbackCount = 8
+	responses := make(chan *httptest.ResponseRecorder, callbackCount)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(callbackCount)
+	for range callbackCount {
+		go func() {
+			defer waitGroup.Done()
+			responses <- callEpayNotifyForTest(t, values)
+		}()
+	}
+	waitGroup.Wait()
+	close(responses)
+	for response := range responses {
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Equal(t, "success", response.Body.String())
+	}
 
 	var reloaded model.User
 	require.NoError(t, db.First(&reloaded, user.Id).Error)
@@ -131,4 +142,76 @@ func TestEpayNotifyCreditsQuotaAndIsIdempotent(t *testing.T) {
 	var topupLogs int64
 	require.NoError(t, db.Model(&model.Log{}).Where("user_id = ? AND type = ?", user.Id, model.LogTypeTopup).Count(&topupLogs).Error)
 	require.EqualValues(t, 1, topupLogs)
+}
+
+func TestEpayNotifyCreditsRejectsMerchantAndMethodMismatch(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.TopUp{}, &model.PaymentEvent{}, &model.Log{}))
+
+	originalPayAddress := operation_setting.PayAddress
+	originalEpayID := operation_setting.EpayId
+	originalEpayKey := operation_setting.EpayKey
+	originalPayMethods := operation_setting.PayMethods
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalComplianceConfirmed := paymentSetting.ComplianceConfirmed
+	originalComplianceTermsVersion := paymentSetting.ComplianceTermsVersion
+	t.Cleanup(func() {
+		operation_setting.PayAddress = originalPayAddress
+		operation_setting.EpayId = originalEpayID
+		operation_setting.EpayKey = originalEpayKey
+		operation_setting.PayMethods = originalPayMethods
+		paymentSetting.ComplianceConfirmed = originalComplianceConfirmed
+		paymentSetting.ComplianceTermsVersion = originalComplianceTermsVersion
+	})
+	operation_setting.PayAddress = "https://pay.example.test"
+	operation_setting.EpayId = "credits-merchant"
+	operation_setting.EpayKey = "credits-key"
+	operation_setting.PayMethods = []map[string]string{{"name": "Alipay", "type": "alipay"}}
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+
+	user := &model.User{Username: "credits-epay-guard", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(user).Error)
+	pkg, ok := model.FindCreditPackage("credits-cny-1000")
+	require.True(t, ok)
+	topUp := &model.TopUp{
+		UserId:          user.Id,
+		Amount:          pkg.Credits,
+		Money:           float64(pkg.PriceMinor) / 100,
+		TradeNo:         "credits-epay-callback-guard",
+		PaymentMethod:   "alipay",
+		PaymentProvider: model.PaymentProviderEpay,
+		CreateTime:      common.GetTimestamp() - model.CreditsCheckoutReservationTTLSeconds - 1,
+		Status:          common.TopUpStatusExpired,
+		PackageId:       pkg.PackageId,
+		Credits:         pkg.Credits,
+		QuotaAmount:     pkg.Quota,
+		Currency:        pkg.Currency,
+		PriceMinor:      pkg.PriceMinor,
+		BaseCredits:     pkg.BaseCredits,
+		BonusCredits:    pkg.BonusCredits,
+		PaymentStoreId:  operation_setting.EpayId,
+	}
+	require.NoError(t, db.Create(topUp).Error)
+
+	callback := func(pid, method, eventID string) *httptest.ResponseRecorder {
+		return callEpayNotifyForTest(t, signedEpayNotifyParams(map[string]string{
+			"pid":          pid,
+			"type":         method,
+			"out_trade_no": topUp.TradeNo,
+			"trade_no":     eventID,
+			"name":         "1000 Credits",
+			"money":        "36.00",
+			"trade_status": epay.StatusTradeSuccess,
+		}, operation_setting.EpayKey))
+	}
+
+	require.Equal(t, "fail", callback("other-merchant", "alipay", "evt-wrong-merchant").Body.String())
+	require.Equal(t, "fail", callback(operation_setting.EpayId, "wxpay", "evt-wrong-method").Body.String())
+	require.Equal(t, common.TopUpStatusExpired, model.GetTopUpByTradeNo(topUp.TradeNo).Status)
+
+	require.Equal(t, "success", callback(operation_setting.EpayId, "alipay", "evt-success").Body.String())
+	var updated model.User
+	require.NoError(t, db.First(&updated, user.Id).Error)
+	require.Equal(t, pkg.Quota, updated.Quota)
 }

@@ -159,6 +159,15 @@ func injectSpecPricingOther(other map[string]interface{}, info *types.SpecPricin
 	other["spec_key"] = info.SpecKey
 	other["spec_unit_cny"] = info.UnitCNY
 	other["spec_total_cny"] = info.TotalCNY
+	if info.UnitCredits != "" {
+		other["spec_unit_credits"] = info.UnitCredits
+	}
+	if info.TotalCredits != "" {
+		other["spec_total_credits"] = info.TotalCredits
+	}
+	if info.PricingSource != "" {
+		other["pricing_source"] = info.PricingSource
+	}
 }
 
 func injectTaskSpecPricingOther(other map[string]interface{}, info *model.TaskSpecPricing) {
@@ -171,6 +180,15 @@ func injectTaskSpecPricingOther(other map[string]interface{}, info *model.TaskSp
 	other["spec_key"] = info.SpecKey
 	other["spec_unit_cny"] = info.UnitCNY
 	other["spec_total_cny"] = info.TotalCNY
+	if info.UnitCredits != "" {
+		other["spec_unit_credits"] = info.UnitCredits
+	}
+	if info.TotalCredits != "" {
+		other["spec_total_credits"] = info.TotalCredits
+	}
+	if info.PricingSource != "" {
+		other["pricing_source"] = info.PricingSource
+	}
 }
 
 func isPublicTaskBillingRatioKey(key string) bool {

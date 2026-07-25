@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -377,6 +378,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 	expiresInSeconds := 45 * 60
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
 		ProductID:     setting.WaffoPancakeProductID,
+		Currency:      "CNY",
 		BuyerIdentity: getWaffoPancakeBuyerIdentity(user),
 		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
 			Amount:      formatWaffoPancakeAmount(payMoney),
@@ -520,10 +522,51 @@ func WaffoPancakeWebhook(c *gin.Context) {
 	LockOrder(tradeNo)
 	defer UnlockOrder(tradeNo)
 
-	if err := model.RechargeWaffoPancake(tradeNo); err != nil {
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	if topUp == nil {
+		c.String(http.StatusOK, "OK")
+		return
+	}
+	var completeErr error
+	if topUp.PackageId != "" {
+		priceMinor, err := parsePriceMinor(event.Data.Amount)
+		if err != nil {
+			logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "waffo_pancake", "amount_invalid", paymentSecurityFields{
+				ClientIP: c.ClientIP(), EventType: event.NormalizedEventType(), EventID: event.ID, OrderID: tradeNo, Err: err,
+			})
+			c.String(http.StatusOK, "OK")
+			return
+		}
+		eventID := strings.TrimSpace(event.EventID)
+		if eventID == "" {
+			eventID = strings.TrimSpace(event.ID)
+		}
+		completeErr = model.CompleteCreditsWaffoPancake(
+			tradeNo,
+			eventID,
+			event.StoreID,
+			event.Mode,
+			event.Data.Currency,
+			priceMinor,
+		)
+		if errors.Is(completeErr, model.ErrPaymentEventDuplicate) {
+			c.String(http.StatusOK, "OK")
+			return
+		}
+	} else {
+		completeErr = model.RechargeWaffoPancake(tradeNo)
+	}
+	if completeErr != nil {
 		logPaymentSecurityEvent(c.Request.Context(), paymentLogError, "waffo_pancake", "topup_complete_failed", paymentSecurityFields{
-			ClientIP: c.ClientIP(), EventType: event.NormalizedEventType(), EventID: event.ID, OrderID: tradeNo, Err: err,
+			ClientIP: c.ClientIP(), EventType: event.NormalizedEventType(), EventID: event.ID, OrderID: tradeNo, Err: completeErr,
 		})
+		if errors.Is(completeErr, model.ErrPaymentSnapshotMismatch) ||
+			errors.Is(completeErr, model.ErrPaymentMethodMismatch) ||
+			errors.Is(completeErr, model.ErrTopUpStatusInvalid) ||
+			errors.Is(completeErr, model.ErrCreditsPaymentManualReview) {
+			c.String(http.StatusOK, "OK")
+			return
+		}
 		c.String(http.StatusInternalServerError, "retry")
 		return
 	}

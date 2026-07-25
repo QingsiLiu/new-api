@@ -255,6 +255,8 @@ func Register(c *gin.Context) {
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
+		cleanUser.SignupCreditSource = "email_verified"
+		cleanUser.SignupCreditIdentity = "email:" + user.Email
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
@@ -713,6 +715,13 @@ func GetSelf(c *gin.Context) {
 		"stripe_customer": user.StripeCustomer,
 		"sidebar_modules": userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":     permissions,                // 新增权限字段
+	}
+	if common.CreditsV1Enabled() {
+		responseData["balance_credits"] = common.QuotaToCreditsString(user.Quota)
+		responseData["used_credits"] = common.QuotaToCreditsString(user.UsedQuota)
+		responseData["aff_balance_credits"] = common.QuotaToCreditsString(user.AffQuota)
+		responseData["aff_history_credits"] = common.QuotaToCreditsString(user.AffHistoryQuota)
+		responseData["quota_per_credit"] = common.CreditsQuotaUnit
 	}
 
 	c.JSON(http.StatusOK, gin.H{

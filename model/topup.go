@@ -3,25 +3,36 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	Money           float64 `json:"money"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id                 int     `json:"id"`
+	UserId             int     `json:"user_id" gorm:"index"`
+	Amount             int64   `json:"amount"`
+	Money              float64 `json:"money"`
+	TradeNo            string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod      string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider    string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	CreateTime         int64   `json:"create_time"`
+	CompleteTime       int64   `json:"complete_time"`
+	Status             string  `json:"status"`
+	PackageId          string  `json:"package_id,omitempty" gorm:"type:varchar(64);index"`
+	Credits            int64   `json:"credits,omitempty"`
+	QuotaAmount        int     `json:"quota,omitempty" gorm:"type:bigint;default:0"`
+	Currency           string  `json:"currency,omitempty" gorm:"type:varchar(3);default:''"`
+	PriceMinor         int64   `json:"price_minor,omitempty" gorm:"type:bigint;default:0"`
+	BaseCredits        int64   `json:"base_credits,omitempty"`
+	BonusCredits       int64   `json:"bonus_credits,omitempty"`
+	PaymentStoreId     string  `json:"-" gorm:"type:varchar(128);default:''"`
+	PaymentEnvironment string  `json:"-" gorm:"type:varchar(16);default:''"`
 }
 
 const (
@@ -344,15 +355,32 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return nil
 		}
 
-		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("订单状态不是待支付，无法补单")
+		creditsReviewable := topUp.PackageId != "" &&
+			(topUp.Status == common.TopUpStatusExpired || topUp.Status == common.TopUpStatusManualReview)
+		if topUp.Status != common.TopUpStatusPending && !creditsReviewable {
+			return errors.New("订单状态不可补单")
 		}
 
-		dAmount := decimal.NewFromInt(topUp.Amount)
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		if topUp.PackageId != "" {
+			if topUp.QuotaAmount <= 0 || topUp.Credits <= 0 ||
+				topUp.Currency == "" || topUp.PriceMinor <= 0 {
+				return ErrPaymentSnapshotMismatch
+			}
+			expectedQuota, ok := common.CreditsToQuota(topUp.Credits)
+			if !ok || expectedQuota != topUp.QuotaAmount {
+				return ErrPaymentSnapshotMismatch
+			}
+			quotaToAdd = topUp.QuotaAmount
+		} else {
+			dAmount := decimal.NewFromInt(topUp.Amount)
+			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+			quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		}
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值金额")
+		}
+		if err := checkCreditTopUpCapacity(tx, topUp.UserId, quotaToAdd, false); err != nil {
+			return err
 		}
 
 		// 标记完成
@@ -363,8 +391,13 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 增加用户额度（立即写库，保持一致性）
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
-			return err
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).
+			Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
 		}
 
 		userId = topUp.UserId
@@ -578,4 +611,115 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	return nil
+}
+
+// CompleteCreditsWaffoPancake validates the signed webhook payload against the
+// immutable package snapshot and records the provider event in the same
+// transaction as quota crediting.
+func CompleteCreditsWaffoPancake(tradeNo, eventID, storeID, environment, currency string, priceMinor int64) error {
+	return completeCreditsTopUp(
+		tradeNo,
+		eventID,
+		storeID,
+		environment,
+		PaymentMethodWaffoPancake,
+		currency,
+		priceMinor,
+		PaymentProviderWaffoPancake,
+	)
+}
+
+func CompleteCreditsEpay(tradeNo, eventID, merchantID, paymentMethod, currency string, priceMinor int64) error {
+	return completeCreditsTopUp(tradeNo, eventID, merchantID, "", paymentMethod, currency, priceMinor, PaymentProviderEpay)
+}
+
+func completeCreditsTopUp(tradeNo, eventID, storeID, environment, paymentMethod, currency string, priceMinor int64, expectedProvider string) error {
+	tradeNo = strings.TrimSpace(tradeNo)
+	eventID = strings.TrimSpace(eventID)
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if tradeNo == "" || eventID == "" {
+		return ErrPaymentSnapshotMismatch
+	}
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	var terminalErr error
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		event := PaymentEvent{
+			Provider:  expectedProvider,
+			EventId:   eventID,
+			TradeNo:   tradeNo,
+			CreatedAt: common.GetTimestamp(),
+		}
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&event)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrPaymentEventDuplicate
+		}
+
+		topUp := &TopUp{}
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if topUp.PaymentProvider != expectedProvider {
+			return ErrPaymentMethodMismatch
+		}
+		if paymentMethod != "" && topUp.PaymentMethod != paymentMethod {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.PackageId == "" || topUp.QuotaAmount <= 0 || topUp.Credits <= 0 {
+			return ErrPaymentSnapshotMismatch
+		}
+		if topUp.Currency != currency || topUp.PriceMinor != priceMinor {
+			return ErrPaymentSnapshotMismatch
+		}
+		if (expectedProvider == PaymentProviderWaffoPancake || expectedProvider == PaymentProviderEpay) &&
+			(strings.TrimSpace(topUp.PaymentStoreId) == "" ||
+				strings.TrimSpace(storeID) != strings.TrimSpace(topUp.PaymentStoreId)) {
+			return ErrPaymentSnapshotMismatch
+		}
+		if expectedProvider == PaymentProviderWaffoPancake &&
+			(strings.TrimSpace(topUp.PaymentEnvironment) == "" ||
+				!strings.EqualFold(strings.TrimSpace(environment), strings.TrimSpace(topUp.PaymentEnvironment))) {
+			return ErrPaymentSnapshotMismatch
+		}
+		if topUp.Status != common.TopUpStatusPending && topUp.Status != common.TopUpStatusExpired {
+			return ErrTopUpStatusInvalid
+		}
+
+		if err := checkCreditTopUpCapacity(tx, topUp.UserId, topUp.QuotaAmount, false); err != nil {
+			if errors.Is(err, ErrCreditBalanceLimit) {
+				topUp.Status = common.TopUpStatusManualReview
+				if saveErr := tx.Save(topUp).Error; saveErr != nil {
+					return saveErr
+				}
+				terminalErr = ErrCreditsPaymentManualReview
+				return nil
+			}
+			return err
+		}
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		result = tx.Model(&User{}).Where("id = ?", topUp.UserId).
+			Update("quota", gorm.Expr("quota + ?", topUp.QuotaAmount))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return terminalErr
 }

@@ -21,6 +21,7 @@ type WaffoPancakePriceSnapshot struct {
 // OrderMerchantExternalID = our trade_no; Pancake echoes it back in webhooks.
 type WaffoPancakeCreateSessionParams struct {
 	ProductID               string
+	Currency                string
 	BuyerIdentity           string
 	PriceSnapshot           *WaffoPancakePriceSnapshot
 	BuyerEmail              string
@@ -111,10 +112,14 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 		return nil, fmt.Errorf("build Waffo Pancake client: %w", err)
 	}
 
+	currency := strings.ToUpper(strings.TrimSpace(params.Currency))
+	if currency == "" {
+		currency = "CNY"
+	}
 	sdkParams := pancake.AuthenticatedCheckoutParams{
 		CreateCheckoutSessionParams: pancake.CreateCheckoutSessionParams{
 			ProductID:               params.ProductID,
-			Currency:                "CNY",
+			Currency:                currency,
 			BuyerEmail:              optionalString(params.BuyerEmail),
 			ExpiresInSeconds:        params.ExpiresInSeconds,
 			OrderMerchantExternalID: optionalString(params.OrderMerchantExternalID),

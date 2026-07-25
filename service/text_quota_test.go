@@ -70,6 +70,80 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, 1488, chatSummary.Quota)
 }
 
+func TestCreditsTextQuotaUsesExactSnapshotAndIgnoresGroupMultiplier(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	pricing := &types.CreditsTextPricing{
+		InputQuotaPerMillion:       140 * int64(common.CreditsQuotaUnit),
+		OutputQuotaPerMillion:      840 * int64(common.CreditsQuotaUnit),
+		CachedInputQuotaPerMillion: 14 * int64(common.CreditsQuotaUnit),
+		PricingSource:              "kie",
+	}
+	newRelayInfo := func() *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			OriginModelName: "gpt-5.5",
+			PriceData: types.PriceData{
+				ModelRatio:         99,
+				CompletionRatio:    99,
+				CacheRatio:         99,
+				CreditsTextPricing: pricing,
+				GroupRatioInfo: types.GroupRatioInfo{
+					GroupRatio: 6,
+				},
+			},
+			StartTime:   time.Now(),
+			ChannelMeta: &relaycommon.ChannelMeta{},
+		}
+	}
+
+	input := calculateTextQuotaSummary(ctx, newRelayInfo(), &dto.Usage{PromptTokens: 1_000_000})
+	require.Equal(t, 140*common.CreditsQuotaUnit, input.Quota)
+
+	output := calculateTextQuotaSummary(ctx, newRelayInfo(), &dto.Usage{CompletionTokens: 1_000_000})
+	require.Equal(t, 840*common.CreditsQuotaUnit, output.Quota)
+
+	cached := calculateTextQuotaSummary(ctx, newRelayInfo(), &dto.Usage{
+		PromptTokens: 1_000_000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 1_000_000,
+		},
+	})
+	require.Equal(t, 14*common.CreditsQuotaUnit, cached.Quota)
+
+	mixed := calculateTextQuotaSummary(ctx, newRelayInfo(), &dto.Usage{
+		PromptTokens:     1_000_000,
+		CompletionTokens: 500_000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 200_000,
+		},
+	})
+	require.Equal(t, 1_925_280, mixed.Quota)
+
+	logRelayInfo := newRelayInfo()
+	logRelayInfo.PriceData.PricingSource = "kie"
+	other := GenerateTextOtherInfo(ctx, logRelayInfo, 1, 6, 1, 0, 1, 0, 6)
+	require.Equal(t, "kie", other["pricing_source"])
+}
+
+func TestTextQuotaKeepsLegacyRatiosWithoutCreditsPricing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.5",
+		PriceData: types.PriceData{
+			ModelRatio:      2.5,
+			CompletionRatio: 6,
+			CacheRatio:      0.1,
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: 6,
+			},
+		},
+		StartTime: time.Now(),
+	}
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1_000_000})
+	require.Equal(t, 15_000_000, summary.Quota)
+}
+
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

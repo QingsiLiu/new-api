@@ -3,6 +3,7 @@ package controller
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -81,15 +82,29 @@ func isWaffoPancakeTopUpEnabled() bool {
 	// the SDK; mode (test/prod) is read from each event.
 	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
-		strings.TrimSpace(setting.WaffoPancakeProductID) != ""
+		strings.TrimSpace(setting.WaffoPancakeProductID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakeStoreID) != "" &&
+		waffoPancakeEnvironment() != ""
+}
+
+func waffoPancakeEnvironment() string {
+	environment := strings.ToLower(strings.TrimSpace(
+		common.GetEnvOrDefaultString("WAFFO_PANCAKE_ENV", "prod"),
+	))
+	if environment != "test" && environment != "prod" {
+		return ""
+	}
+	return environment
 }
 
 func isWaffoPancakeWebhookConfigured() bool {
-	return isWaffoPancakeTopUpEnabled()
+	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
+		waffoPancakeEnvironment() != ""
 }
 
 func isWaffoPancakeWebhookEnabled() bool {
-	return isWaffoPancakeTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isWaffoPancakeWebhookConfigured()
 }
 
 func isEpayTopUpEnabled() bool {
@@ -97,6 +112,10 @@ func isEpayTopUpEnabled() bool {
 		return false
 	}
 	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
+}
+
+func isEpayMethodEnabled(method string) bool {
+	return isEpayTopUpEnabled() && operation_setting.ContainsPayMethod(strings.TrimSpace(method))
 }
 
 func isEpayWebhookConfigured() bool {
