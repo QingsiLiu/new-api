@@ -164,9 +164,19 @@ func TestCompleteCreditsWaffoPancakeValidatesSnapshotAndEventIdempotency(t *test
 	require.Equal(t, common.TopUpStatusManualReview, getTopUpStatusForPaymentGuardTest(t, conflictingTopUp.TradeNo))
 	require.Equal(t, 7+pkg.Quota, getUserQuotaForPaymentGuardTest(t, userID))
 
+	successfulTarget := creditTopUpForTest(userID, "credits-waffo-success-conflict", pkg)
+	require.NoError(t, successfulTarget.Insert())
+	require.NoError(t, CompleteCreditsWaffoPancake(successfulTarget.TradeNo, "evt-success-target", "store-prod", "prod", "USD", 500))
+	quotaAfterSuccessfulTarget := getUserQuotaForPaymentGuardTest(t, userID)
+	err = CompleteCreditsWaffoPancake(successfulTarget.TradeNo, "evt-success", "store-prod", "prod", "USD", 500)
+	require.ErrorIs(t, err, ErrPaymentEventConflict)
+	require.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, successfulTarget.TradeNo))
+	require.NoError(t, ManualCompleteTopUp(successfulTarget.TradeNo, "127.0.0.1"))
+	require.Equal(t, quotaAfterSuccessfulTarget, getUserQuotaForPaymentGuardTest(t, userID))
+
 	err = CompleteCreditsWaffoPancake(topUp.TradeNo, "evt-second", "store-prod", "prod", "USD", 500)
 	require.ErrorIs(t, err, ErrTopUpStatusInvalid)
-	require.Equal(t, 7+pkg.Quota, getUserQuotaForPaymentGuardTest(t, userID))
+	require.Equal(t, quotaAfterSuccessfulTarget, getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestCompleteCreditsTopUpEnforcesBalanceLimit(t *testing.T) {

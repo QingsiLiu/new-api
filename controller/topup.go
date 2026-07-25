@@ -460,7 +460,8 @@ func EpayNotify(c *gin.Context) {
 			if completeErr != nil {
 				callbackFields.Err = completeErr
 				logPaymentSecurityEvent(c.Request.Context(), paymentLogWarn, "epay", "credits_topup_rejected", callbackFields)
-				if errors.Is(completeErr, model.ErrCreditsPaymentManualReview) {
+				if errors.Is(completeErr, model.ErrCreditsPaymentManualReview) ||
+					errors.Is(completeErr, model.ErrPaymentEventConflict) {
 					_, _ = c.Writer.Write([]byte("success"))
 					return
 				}

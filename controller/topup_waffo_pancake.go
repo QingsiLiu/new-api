@@ -563,7 +563,8 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		if errors.Is(completeErr, model.ErrPaymentSnapshotMismatch) ||
 			errors.Is(completeErr, model.ErrPaymentMethodMismatch) ||
 			errors.Is(completeErr, model.ErrTopUpStatusInvalid) ||
-			errors.Is(completeErr, model.ErrCreditsPaymentManualReview) {
+			errors.Is(completeErr, model.ErrCreditsPaymentManualReview) ||
+			errors.Is(completeErr, model.ErrPaymentEventConflict) {
 			c.String(http.StatusOK, "OK")
 			return
 		}

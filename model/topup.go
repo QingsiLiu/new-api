@@ -668,7 +668,11 @@ func completeCreditsTopUp(tradeNo, eventID, storeID, environment, paymentMethod,
 			if existing.TradeNo == tradeNo {
 				return ErrPaymentEventDuplicate
 			}
-			if err := tx.Model(&TopUp{}).Where(refCol+" = ?", tradeNo).
+			if err := tx.Model(&TopUp{}).
+				Where(refCol+" = ? AND status IN ?", tradeNo, []string{
+					common.TopUpStatusPending,
+					common.TopUpStatusExpired,
+				}).
 				Update("status", common.TopUpStatusManualReview).Error; err != nil {
 				return err
 			}
