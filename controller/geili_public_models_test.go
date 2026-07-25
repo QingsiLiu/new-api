@@ -21,6 +21,7 @@ import (
 func setupModelRegistryTestDB(t *testing.T) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
+	t.Setenv(common.CreditsFeatureFlagEnv, "false")
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 
@@ -88,6 +89,7 @@ var publicModelAllowedKeys = map[string]bool{
 	"slug": true, "model": true, "modality": true, "vendor": true,
 	"display_name": true, "vendor_display": true, "aliases": true,
 	"capability_tags": true, "price_unit": true, "price_from_cny": true,
+	"price_from_credits": true, "price_from_quota": true, "pricing_source": true, "credits_pricing": true,
 	"official_price": true, "params_schema": true, "example_params": true,
 	"faq": true, "seo": true, "spec_pricing": true,
 	"text_category": true, "category_multiplier": true,
@@ -104,6 +106,67 @@ func assertNoLeak(t *testing.T, body string) {
 	for _, forbidden := range publicModelForbiddenSubstrings {
 		require.NotContains(t, lower, forbidden, "公开模型 API 响应泄露了内部字段: %s", forbidden)
 	}
+}
+
+func getPublicModelListForTest(t *testing.T) []map[string]interface{} {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models", nil)
+	GetPublicModels(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assertNoLeak(t, rec.Body.String())
+	var response struct {
+		Success bool                     `json:"success"`
+		Data    []map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	return response.Data
+}
+
+func getPublicModelDetailForTest(t *testing.T, slug string) map[string]interface{} {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models/"+slug, nil)
+	ctx.Params = gin.Params{{Key: "slug", Value: slug}}
+	GetPublicModelBySlug(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assertNoLeak(t, rec.Body.String())
+	var response struct {
+		Success bool                   `json:"success"`
+		Data    map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	return response.Data
+}
+
+func requirePublicCreditsSpec(
+	t *testing.T,
+	detail map[string]interface{},
+	key string,
+	credits string,
+	source string,
+) map[string]interface{} {
+	t.Helper()
+	pricing, ok := detail["credits_pricing"].(map[string]interface{})
+	require.True(t, ok, "credits_pricing must be an object")
+	specs, ok := pricing["specs"].([]interface{})
+	require.True(t, ok, "credits_pricing.specs must be an array")
+	for _, item := range specs {
+		spec := item.(map[string]interface{})
+		if spec["key"] == key {
+			require.Equal(t, credits, spec["credits"])
+			require.Equal(t, source, spec["pricing_source"])
+			quota := int(spec["quota"].(float64))
+			require.Equal(t, credits, common.QuotaToCreditsString(quota))
+			return spec
+		}
+	}
+	require.FailNow(t, "missing public Credits specification", "key=%s specs=%v", key, specs)
+	return nil
 }
 
 func TestGetPublicModelsListOnlyEnabledAndNoLeak(t *testing.T) {
@@ -168,6 +231,244 @@ func TestGetPublicModelBySlugDetailAndNoLeak(t *testing.T) {
 	ctx404.Params = gin.Params{{Key: "slug", Value: "disabled-model"}}
 	GetPublicModelBySlug(ctx404)
 	require.Equal(t, http.StatusNotFound, rec404.Code)
+}
+
+func TestPublicModelCreditsContractIsAdditiveAndCacheSeparatesFeatureFlag(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	seedModelRegistryFixtures(t)
+
+	legacy := getPublicModelListForTest(t)
+	require.Len(t, legacy, 1)
+	require.NotContains(t, legacy[0], "price_from_credits")
+	require.NotContains(t, legacy[0], "pricing_source")
+	legacyDetail := getPublicModelDetailForTest(t, "seedance-2-0")
+	require.NotContains(t, legacyDetail, "credits_pricing")
+
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	withCredits := getPublicModelListForTest(t)
+	require.Len(t, withCredits, 1)
+	require.Equal(t, "9", withCredits[0]["price_from_credits"])
+	require.EqualValues(t, 32400, withCredits[0]["price_from_quota"])
+	require.Equal(t, "kie", withCredits[0]["pricing_source"])
+	detail := getPublicModelDetailForTest(t, "seedance-2-0")
+	require.Equal(t, "9", detail["price_from_credits"])
+	require.EqualValues(t, 32400, detail["price_from_quota"])
+	requirePublicCreditsSpec(t, detail, "480p:no_video_input", "15.5", "kie")
+	requirePublicCreditsSpec(t, detail, "480p:with_video_input", "9", "kie")
+	requirePublicCreditsSpec(t, detail, "720p:no_video_input", "33", "kie")
+	requirePublicCreditsSpec(t, detail, "720p:with_video_input", "20", "kie")
+}
+
+func TestPublicModelSeedanceExactCreditsDoNotDependOnLegacyCNYTable(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	require.NoError(t, model.DB.Create(&model.ModelRegistry{
+		ModelName: "seedance-2.0-mini", Slug: "seedance-2-0-mini", Modality: "video",
+		DisplayNameEn: "Seedance 2.0 Mini", Enabled: true,
+	}).Error)
+
+	originalPricing := operation_setting.AsyncSpecPricing2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(originalPricing))
+	})
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{"currency":"CNY"}`))
+
+	detail := getPublicModelDetailForTest(t, "seedance-2-0-mini")
+	require.Equal(t, "6", detail["price_from_credits"])
+	require.Equal(t, "kie", detail["pricing_source"])
+	requirePublicCreditsSpec(t, detail, "480p:no_video_input", "9.5", "kie")
+	requirePublicCreditsSpec(t, detail, "480p:with_video_input", "6", "kie")
+	requirePublicCreditsSpec(t, detail, "720p:no_video_input", "20.5", "kie")
+	requirePublicCreditsSpec(t, detail, "720p:with_video_input", "12.5", "kie")
+}
+
+func TestPublicModelSeedanceMergesExactAndGeiliFallbackSpecifications(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	require.NoError(t, model.DB.Create(&model.ModelRegistry{
+		ModelName: "seedance-2.0", Slug: "seedance-2-0", Modality: "video",
+		DisplayNameEn: "Seedance 2.0", Enabled: true,
+	}).Error)
+
+	originalPricing := operation_setting.AsyncSpecPricing2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(originalPricing))
+	})
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{
+		"currency":"CNY",
+		"video":{"seedance-2.0":{"unit":"per_second","prices":{
+			"480p":{"16:9":{"no_video_input":{"cny_per_second":0.01}}},
+			"720p":{"16:9":{"with_video_input":{"cny_per_second":0.01}}},
+			"1080p":{"16:9":{"no_video_input":{"cny_per_second":1.8}}},
+			"4k":{"9:16":{"with_video_input":{"cny_per_second":2.16}}}
+		}}}
+	}`))
+
+	detail := getPublicModelDetailForTest(t, "seedance-2-0")
+	require.Equal(t, "9", detail["price_from_credits"])
+	require.Equal(t, "kie", detail["pricing_source"], "summary source must match the minimum specification")
+	requirePublicCreditsSpec(t, detail, "480p:with_video_input", "9", "kie")
+	requirePublicCreditsSpec(t, detail, "720p:no_video_input", "33", "kie")
+	requirePublicCreditsSpec(t, detail, "1080p:16:9:no_video_input", "50", "geili")
+	requirePublicCreditsSpec(t, detail, "4k:9:16:with_video_input", "60", "geili")
+}
+
+func TestFinalizePublicCreditsPricingUsesMinimumSpecificationSource(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	kieMinimum := finalizePublicCreditsPricing("per_image", []quotaPriceSpec{
+		makeQuotaPriceSpec("kie", 3600, "kie"),
+		makeQuotaPriceSpec("geili", 7200, "geili"),
+	})
+	require.Equal(t, "1", kieMinimum.PriceFromCredits)
+	require.Equal(t, "kie", kieMinimum.PricingSource)
+
+	geiliMinimum := finalizePublicCreditsPricing("per_image", []quotaPriceSpec{
+		makeQuotaPriceSpec("kie", 7200, "kie"),
+		makeQuotaPriceSpec("geili", 1800, "geili"),
+	})
+	require.Equal(t, "0.5", geiliMinimum.PriceFromCredits)
+	require.Equal(t, "geili", geiliMinimum.PricingSource)
+}
+
+func TestPublicModelCreditsUseExactKIESettlementPrices(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+
+	entries := []model.ModelRegistry{
+		{
+			ModelName: "gpt-image-2", Slug: "gpt-image-2", Modality: "image",
+			DisplayNameEn: "GPT Image 2", Enabled: true,
+		},
+		{
+			ModelName: "gpt-5.5", Slug: "gpt-5-5", Modality: "text",
+			DisplayNameEn: "GPT-5.5", TextCategory: "gpt",
+			OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":999,"cached_input":999,"output":999},"source_url":"https://example.com/pricing"}`,
+			Enabled:       true,
+		},
+	}
+	require.NoError(t, model.DB.Create(&entries).Error)
+
+	image := getPublicModelDetailForTest(t, "gpt-image-2")
+	require.Equal(t, "3", image["price_from_credits"])
+	require.EqualValues(t, 10800, image["price_from_quota"])
+	require.Equal(t, "kie", image["pricing_source"])
+	requirePublicCreditsSpec(t, image, "resolution:1k", "3", "kie")
+	requirePublicCreditsSpec(t, image, "resolution:2k", "5", "kie")
+	requirePublicCreditsSpec(t, image, "resolution:4k", "8", "kie")
+
+	text := getPublicModelDetailForTest(t, "gpt-5-5")
+	require.Equal(t, "14", text["price_from_credits"])
+	require.Equal(t, "kie", text["pricing_source"])
+	requirePublicCreditsSpec(t, text, "input", "140", "kie")
+	requirePublicCreditsSpec(t, text, "cached_input", "14", "kie")
+	requirePublicCreditsSpec(t, text, "output", "840", "kie")
+}
+
+func TestPublicModelExactTextCacheFallsBackToInputSettlementRate(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	require.NoError(t, model.DB.Create(&model.ModelRegistry{
+		ModelName: "gpt-5.4", Slug: "gpt-5-4", Modality: "text",
+		DisplayNameEn: "GPT-5.4", TextCategory: "gpt",
+		OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":999,"output":999},"source_url":"https://example.com/pricing"}`,
+		Enabled:       true,
+	}).Error)
+
+	detail := getPublicModelDetailForTest(t, "gpt-5-4")
+	input := requirePublicCreditsSpec(t, detail, "input", "70", "kie")
+	cached := requirePublicCreditsSpec(t, detail, "cached_input", "70", "kie")
+	require.Equal(t, input["quota"], cached["quota"], "settlement charges undiscounted cache tokens at the input rate")
+	requirePublicCreditsSpec(t, detail, "output", "560", "kie")
+}
+
+func TestPublicModelCreditsProjectGeiliFallbackFromAuthoritativeQuota(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+
+	originalPricing := operation_setting.AsyncSpecPricing2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(originalPricing))
+	})
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{
+		"currency":"CNY",
+		"image":{"seedream-5.0":{"unit":"per_image","resolutions":{
+			"2k":{"cny_per_image":0.72},"4k":{"cny_per_image":1.44}
+		}}}
+	}`))
+
+	entries := []model.ModelRegistry{
+		{
+			ModelName: "seedream-5.0", Slug: "seedream-5-0", Modality: "image",
+			DisplayNameEn: "Seedream 5.0", Enabled: true,
+		},
+		{
+			ModelName: "gpt-5.4-mini", Slug: "gpt-5-4-mini", Modality: "text",
+			DisplayNameEn: "GPT-5.4 mini", TextCategory: "gpt",
+			OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":0.25,"cached_input":0.025,"output":2},"source_url":"https://example.com/pricing"}`,
+			Enabled:       true,
+		},
+	}
+	require.NoError(t, model.DB.Create(&entries).Error)
+	require.NoError(t, model.DB.Create(&model.TextCategoryPricing{
+		Category: "gpt", Multiplier: 0.8,
+	}).Error)
+
+	image := getPublicModelDetailForTest(t, "seedream-5-0")
+	require.Equal(t, "20", image["price_from_credits"])
+	require.Equal(t, "geili", image["pricing_source"])
+	requirePublicCreditsSpec(t, image, "resolution:2k", "20", "geili")
+	requirePublicCreditsSpec(t, image, "resolution:4k", "40", "geili")
+
+	text := getPublicModelDetailForTest(t, "gpt-5-4-mini")
+	require.Equal(t, "4", text["price_from_credits"])
+	require.Equal(t, "geili", text["pricing_source"])
+	requirePublicCreditsSpec(t, text, "input", "40", "geili")
+	requirePublicCreditsSpec(t, text, "cached_input", "4", "geili")
+	requirePublicCreditsSpec(t, text, "output", "320", "geili")
+}
+
+func TestPublicModelCreditsListPreservesTwentyOneModelCatalog(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+
+	entries := make([]model.ModelRegistry, 0, 21)
+	for index := 0; index < 21; index++ {
+		entries = append(entries, model.ModelRegistry{
+			ModelName: fmt.Sprintf("catalog-model-%02d", index),
+			Slug:      fmt.Sprintf("catalog-model-%02d", index),
+			Modality:  "image",
+			Enabled:   true,
+		})
+	}
+	entries[0].ModelName = "gpt-image-2"
+	entries[0].Slug = "gpt-image-2"
+	entries[1].ModelName = "gpt-5.4-mini"
+	entries[1].Slug = "gpt-5-4-mini"
+	entries[1].Modality = "text"
+	entries[1].TextCategory = "gpt"
+	entries[1].OfficialPrice = `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":0.25,"output":2},"source_url":"https://example.com/pricing"}`
+	require.NoError(t, model.DB.Create(&entries).Error)
+	require.NoError(t, model.DB.Create(&model.TextCategoryPricing{
+		Category: "gpt", Multiplier: 0.8,
+	}).Error)
+
+	list := getPublicModelListForTest(t)
+	require.Len(t, list, 21)
+	byModel := make(map[string]map[string]interface{}, len(list))
+	for _, item := range list {
+		byModel[item["model"].(string)] = item
+		if _, hasCredits := item["price_from_credits"]; hasCredits {
+			require.NotEmpty(t, item["price_unit"], "Credits-priced list entries must publish their billing unit")
+		}
+		for key := range item {
+			require.True(t, publicModelAllowedKeys[key], "公开列表出现白名单外字段: %s", key)
+		}
+	}
+	require.Equal(t, "3", byModel["gpt-image-2"]["price_from_credits"])
+	require.Equal(t, "kie", byModel["gpt-image-2"]["pricing_source"])
+	require.Equal(t, "40", byModel["gpt-5.4-mini"]["price_from_credits"])
+	require.Equal(t, "geili", byModel["gpt-5.4-mini"]["pricing_source"])
+	require.Equal(t, "per_1M_tokens", byModel["gpt-5.4-mini"]["price_unit"])
 }
 
 func TestAdminUpsertModelRegistryIdempotent(t *testing.T) {

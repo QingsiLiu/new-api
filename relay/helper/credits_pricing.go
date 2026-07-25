@@ -47,6 +47,12 @@ func creditsV1TextPricing(modelName string) (*types.CreditsTextPricing, bool) {
 	}, true
 }
 
+// CreditsV1TextPricingForPublicCatalog exposes the same immutable KIE snapshot
+// used by settlement. Public catalog pricing must not maintain a second table.
+func CreditsV1TextPricingForPublicCatalog(modelName string) (*types.CreditsTextPricing, bool) {
+	return creditsV1TextPricing(modelName)
+}
+
 func isCreditsClaudeAlias(modelName, base string) bool {
 	if modelName == base {
 		return true

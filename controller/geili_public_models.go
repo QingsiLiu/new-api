@@ -32,6 +32,9 @@ type publicModelSummary struct {
 	CapabilityTags     []string          `json:"capability_tags,omitempty"`
 	PriceUnit          string            `json:"price_unit,omitempty"`     // per_image | per_second
 	PriceFromCNY       float64           `json:"price_from_cny,omitempty"` // "¥x 起"
+	PriceFromCredits   string            `json:"price_from_credits,omitempty"`
+	PriceFromQuota     int               `json:"price_from_quota,omitempty"`
+	PricingSource      string            `json:"pricing_source,omitempty"`
 	OfficialPrice      json.RawMessage   `json:"official_price,omitempty"` // 官方价（对比列）
 	TextCategory       string            `json:"text_category,omitempty"`
 	CategoryMultiplier *float64          `json:"category_multiplier,omitempty"`
@@ -39,11 +42,12 @@ type publicModelSummary struct {
 
 type publicModelDetail struct {
 	publicModelSummary
-	ParamsSchema  json.RawMessage            `json:"params_schema,omitempty"`
-	ExampleParams json.RawMessage            `json:"example_params,omitempty"`
-	Faq           map[string]json.RawMessage `json:"faq,omitempty"`
-	Seo           map[string]string          `json:"seo,omitempty"`
-	SpecPricing   json.RawMessage            `json:"spec_pricing,omitempty"` // 我方完整规格价（CNY）
+	ParamsSchema   json.RawMessage            `json:"params_schema,omitempty"`
+	ExampleParams  json.RawMessage            `json:"example_params,omitempty"`
+	Faq            map[string]json.RawMessage `json:"faq,omitempty"`
+	Seo            map[string]string          `json:"seo,omitempty"`
+	SpecPricing    json.RawMessage            `json:"spec_pricing,omitempty"` // 我方完整规格价（CNY）
+	CreditsPricing *publicCreditsPricing      `json:"credits_pricing,omitempty"`
 }
 
 // ---- 公开端点进程内响应缓存 ----
@@ -54,8 +58,9 @@ type publicModelDetail struct {
 const geiliPublicModelCacheTTL = 60 * time.Second
 
 type geiliCachedBody struct {
-	body    []byte
-	expires time.Time
+	body      []byte
+	expires   time.Time
+	creditsV1 bool
 }
 
 var (
@@ -250,7 +255,7 @@ func buildPublicModelSummary(entry model.ModelRegistry, pricing operation_settin
 	if multiplier, ok := multipliers[entry.TextCategory]; ok && entry.Modality == "text" {
 		categoryMultiplier = &multiplier
 	}
-	return publicModelSummary{
+	summary := publicModelSummary{
 		Slug:     entry.Slug,
 		Model:    entry.ModelName,
 		Modality: entry.Modality,
@@ -271,6 +276,15 @@ func buildPublicModelSummary(entry model.ModelRegistry, pricing operation_settin
 		TextCategory:       entry.TextCategory,
 		CategoryMultiplier: categoryMultiplier,
 	}
+	if creditsPricing := buildPublicCreditsPricing(entry, pricing, categoryMultiplier); creditsPricing != nil {
+		if summary.PriceUnit == "" {
+			summary.PriceUnit = creditsPricing.Unit
+		}
+		summary.PriceFromCredits = creditsPricing.PriceFromCredits
+		summary.PriceFromQuota = creditsPricing.PriceFromQuota
+		summary.PricingSource = creditsPricing.PricingSource
+	}
+	return summary
 }
 
 // GetPublicModels GET /v1/public/models
@@ -278,7 +292,8 @@ func GetPublicModels(c *gin.Context) {
 	geiliPublicModelCacheMu.RLock()
 	cached := geiliPublicModelListCache
 	geiliPublicModelCacheMu.RUnlock()
-	if cached.body != nil && time.Now().Before(cached.expires) {
+	creditsV1 := common.CreditsV1Enabled()
+	if cached.body != nil && cached.creditsV1 == creditsV1 && time.Now().Before(cached.expires) {
 		writeGeiliPublicJSON(c, cached.body)
 		return
 	}
@@ -304,7 +319,9 @@ func GetPublicModels(c *gin.Context) {
 		return
 	}
 	geiliPublicModelCacheMu.Lock()
-	geiliPublicModelListCache = geiliCachedBody{body: body, expires: time.Now().Add(geiliPublicModelCacheTTL)}
+	geiliPublicModelListCache = geiliCachedBody{
+		body: body, expires: time.Now().Add(geiliPublicModelCacheTTL), creditsV1: creditsV1,
+	}
 	geiliPublicModelCacheMu.Unlock()
 	writeGeiliPublicJSON(c, body)
 }
@@ -315,7 +332,8 @@ func GetPublicModelBySlug(c *gin.Context) {
 	geiliPublicModelCacheMu.RLock()
 	cached, ok := geiliPublicModelDetailCache[slug]
 	geiliPublicModelCacheMu.RUnlock()
-	if ok && cached.body != nil && time.Now().Before(cached.expires) {
+	creditsV1 := common.CreditsV1Enabled()
+	if ok && cached.body != nil && cached.creditsV1 == creditsV1 && time.Now().Before(cached.expires) {
 		writeGeiliPublicJSON(c, cached.body)
 		return
 	}
@@ -332,6 +350,10 @@ func GetPublicModelBySlug(c *gin.Context) {
 		return
 	}
 	_, _, specRaw := specPriceSummary(pricing, entry.Modality, entry.ModelName)
+	var categoryMultiplier *float64
+	if multiplier, ok := multipliers[entry.TextCategory]; ok && entry.Modality == "text" {
+		categoryMultiplier = &multiplier
+	}
 	detail := publicModelDetail{
 		publicModelSummary: buildPublicModelSummary(*entry, pricing, multipliers),
 		ParamsSchema:       rawJSONOrNil(entry.ParamsSchema),
@@ -344,7 +366,8 @@ func GetPublicModelBySlug(c *gin.Context) {
 			"zh": entry.SeoZh,
 			"en": entry.SeoEn,
 		},
-		SpecPricing: specRaw,
+		SpecPricing:    specRaw,
+		CreditsPricing: buildPublicCreditsPricing(*entry, pricing, categoryMultiplier),
 	}
 	body, err := json.Marshal(gin.H{"success": true, "data": detail})
 	if err != nil {
@@ -352,7 +375,9 @@ func GetPublicModelBySlug(c *gin.Context) {
 		return
 	}
 	geiliPublicModelCacheMu.Lock()
-	geiliPublicModelDetailCache[slug] = geiliCachedBody{body: body, expires: time.Now().Add(geiliPublicModelCacheTTL)}
+	geiliPublicModelDetailCache[slug] = geiliCachedBody{
+		body: body, expires: time.Now().Add(geiliPublicModelCacheTTL), creditsV1: creditsV1,
+	}
 	geiliPublicModelCacheMu.Unlock()
 	writeGeiliPublicJSON(c, body)
 }
