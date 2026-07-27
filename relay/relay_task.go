@@ -548,7 +548,7 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 }
 
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
-	return &dto.TaskDto{
+	result := &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,
 		UpdatedAt:  task.UpdatedAt,
@@ -570,4 +570,33 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Username:   task.Username,
 		Data:       task.Data,
 	}
+	if !common.CreditsV1Enabled() {
+		return result
+	}
+
+	quota := task.Quota
+	credits := common.QuotaToCreditsString(quota)
+	quotaPerCredit := common.CreditsQuotaUnit
+	result.Credits = &credits
+	result.QuotaPerCredit = &quotaPerCredit
+
+	switch task.Status {
+	case model.TaskStatusSuccess:
+		result.SettledQuota = &quota
+		result.SettledCredits = &credits
+		result.BillingState = "settled"
+	case model.TaskStatusFailure:
+		settledQuota := 0
+		settledCredits := common.QuotaToCreditsString(settledQuota)
+		result.ReservedQuota = &quota
+		result.ReservedCredits = &credits
+		result.SettledQuota = &settledQuota
+		result.SettledCredits = &settledCredits
+		result.BillingState = "refund_requested"
+	default:
+		result.ReservedQuota = &quota
+		result.ReservedCredits = &credits
+		result.BillingState = "reserved"
+	}
+	return result
 }

@@ -140,14 +140,22 @@ func GetLogsSelfStat(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
-		"data": gin.H{
-			"quota": quotaNum.Quota,
-			"rpm":   quotaNum.Rpm,
-			"tpm":   quotaNum.Tpm,
-			//"token": tokenNum,
-		},
+		"data":    userLogStatData(quotaNum),
 	})
 	return
+}
+
+func userLogStatData(stat model.Stat) gin.H {
+	data := gin.H{
+		"quota": stat.Quota,
+		"rpm":   stat.Rpm,
+		"tpm":   stat.Tpm,
+	}
+	if common.CreditsV1Enabled() {
+		data["credits"] = common.QuotaToCreditsString(stat.Quota)
+		data["quota_per_credit"] = common.CreditsQuotaUnit
+	}
+	return data
 }
 
 // DeleteHistoryLogs is the legacy synchronous log cleanup endpoint (DELETE /api/log/).

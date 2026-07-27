@@ -66,6 +66,8 @@ type Log struct {
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
 	ModelName         string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
 	Quota             int    `json:"quota" gorm:"type:bigint;default:0"`
+	Credits           string `json:"credits,omitempty" gorm:"-"`
+	QuotaPerCredit    int    `json:"quota_per_credit,omitempty" gorm:"-"`
 	PromptTokens      int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens  int    `json:"completion_tokens" gorm:"default:0"`
 	UseTime           int    `json:"use_time" gorm:"default:0"`
@@ -117,6 +119,10 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelName = ""
+		if common.CreditsV1Enabled() {
+			logs[i].Credits = common.QuotaToCreditsString(logs[i].Quota)
+			logs[i].QuotaPerCredit = common.CreditsQuotaUnit
+		}
 		logs[i].GroupDisplay = ResolveGroupDisplay(logs[i].Group)
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
