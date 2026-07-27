@@ -118,3 +118,41 @@ func TestGetUserTopUpsReturnsContractDTO(t *testing.T) {
 		require.NotContains(t, legacy, creditsOnly)
 	}
 }
+
+func TestGetTopUpInfoExposesCanonicalCreditsState(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(t *testing.T) {
+			if enabled {
+				t.Setenv(common.CreditsFeatureFlagEnv, "true")
+			} else {
+				t.Setenv(common.CreditsFeatureFlagEnv, "false")
+			}
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/topup/info", nil)
+			GetTopUpInfo(ctx)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			var response struct {
+				Success bool `json:"success"`
+				Data    struct {
+					CreditsEnabled   bool                  `json:"credits_enabled"`
+					CreditsV1Enabled bool                  `json:"credits_v1_enabled"`
+					QuotaPerCredit   int                   `json:"quota_per_credit"`
+					Packages         []model.CreditPackage `json:"packages"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+			require.True(t, response.Success)
+			require.Equal(t, enabled, response.Data.CreditsEnabled)
+			require.Equal(t, enabled, response.Data.CreditsV1Enabled)
+			require.Equal(t, common.CreditsQuotaUnit, response.Data.QuotaPerCredit)
+			if enabled {
+				require.Len(t, response.Data.Packages, 10)
+			} else {
+				require.Empty(t, response.Data.Packages)
+			}
+		})
+	}
+}

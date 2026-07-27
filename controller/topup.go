@@ -121,6 +121,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
+		"credits_enabled":         common.CreditsV1Enabled(),
 		"credits_v1_enabled":      common.CreditsV1Enabled(),
 		"quota_per_credit":        common.CreditsQuotaUnit,
 		"packages": func() interface{} {
