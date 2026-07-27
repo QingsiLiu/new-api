@@ -97,6 +97,7 @@ func TestManageUserQuotaIsIdempotentWithRequestID(t *testing.T) {
 }
 
 func TestGetSelfReturnsCNYBalancesWithoutRawQuota(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "false")
 	db := setupUserControllerTestDB(t)
 
 	user := &model.User{
@@ -140,6 +141,50 @@ func TestGetSelfReturnsCNYBalancesWithoutRawQuota(t *testing.T) {
 	require.NotContains(t, response.Data, "aff_history_quota")
 }
 
+func TestGetSelfReturnsAffiliateCreditsWhenEnabled(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	db := setupUserControllerTestDB(t)
+
+	user := &model.User{
+		Username:        "credits-self-user",
+		Password:        "hash",
+		Role:            common.RoleCommonUser,
+		Status:          common.UserStatusEnabled,
+		Quota:           110000,
+		UsedQuota:       242550,
+		AffQuota:        333333,
+		AffHistoryQuota: 444444,
+		Group:           "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self", nil)
+	ctx.Set("id", user.Id)
+	ctx.Set("role", common.RoleCommonUser)
+
+	GetSelf(ctx)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool                   `json:"success"`
+		Data    map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, "30.555556", response.Data["balance_credits"])
+	require.Equal(t, "67.375", response.Data["used_credits"])
+	require.Equal(t, "92.5925", response.Data["aff_balance_credits"])
+	require.Equal(t, "123.456667", response.Data["aff_history_credits"])
+	require.Equal(t, true, response.Data["aff_transfer_available"])
+	require.Equal(t, "27.777778", response.Data["aff_transfer_min_credits"])
+	require.EqualValues(t, common.CreditsQuotaUnit, response.Data["quota_per_credit"])
+	require.NotContains(t, response.Data, "quota")
+	require.NotContains(t, response.Data, "aff_quota")
+	require.NotContains(t, response.Data, "aff_history_quota")
+}
+
 func withPaymentCompliance(t *testing.T, enabled bool) {
 	t.Helper()
 	setting := operation_setting.GetPaymentSetting()
@@ -153,7 +198,8 @@ func withPaymentCompliance(t *testing.T, enabled bool) {
 	t.Cleanup(func() { *setting = previous })
 }
 
-func TestTransferAllAffQuotaReturnsOnlyPublicCNY(t *testing.T) {
+func TestTransferAllAffQuotaKeepsLegacyCNYWhenCreditsAreDisabled(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "false")
 	db := setupUserControllerTestDB(t)
 	withPaymentCompliance(t, true)
 	user := &model.User{Username: "aff-controller", Password: "hash", Status: common.UserStatusEnabled, Quota: 925000, AffQuota: 333333}
@@ -176,6 +222,42 @@ func TestTransferAllAffQuotaReturnsOnlyPublicCNY(t *testing.T) {
 	require.InDelta(t, 3.3333, response.Data["transferred_cny"], 0.000001)
 	require.InDelta(t, 12.5833, response.Data["balance_cny"], 0.000001)
 	require.Zero(t, response.Data["aff_balance_cny"])
+	require.Equal(t, false, response.Data["credits_enabled"])
+	for _, absent := range []string{"transferred_credits", "balance_credits", "aff_balance_credits", "quota_per_credit"} {
+		require.NotContains(t, response.Data, absent)
+	}
+	for _, forbidden := range []string{"quota", "aff_quota", "transferred_quota", "balance_quota"} {
+		require.NotContains(t, response.Data, forbidden)
+	}
+}
+
+func TestTransferAllAffQuotaReturnsCreditsSnapshotWhenEnabled(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	db := setupUserControllerTestDB(t)
+	withPaymentCompliance(t, true)
+	user := &model.User{Username: "aff-credits-controller", Password: "hash", Status: common.UserStatusEnabled, Quota: 925000, AffQuota: 333333}
+	require.NoError(t, db.Create(user).Error)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/aff_transfer_all", strings.NewReader(`{}`))
+	ctx.Set("id", user.Id)
+	TransferAllAffQuota(ctx)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var response struct {
+		Success bool           `json:"success"`
+		Data    map[string]any `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, true, response.Data["credits_enabled"])
+	require.Equal(t, "92.5925", response.Data["transferred_credits"])
+	require.Equal(t, "349.536944", response.Data["balance_credits"])
+	require.Equal(t, "0", response.Data["aff_balance_credits"])
+	require.EqualValues(t, common.CreditsQuotaUnit, response.Data["quota_per_credit"])
+	require.InDelta(t, 3.3333, response.Data["transferred_cny"], 0.000001)
+	require.InDelta(t, 12.5833, response.Data["balance_cny"], 0.000001)
 	for _, forbidden := range []string{"quota", "aff_quota", "transferred_quota", "balance_quota"} {
 		require.NotContains(t, response.Data, forbidden)
 	}

@@ -595,10 +595,15 @@ func TransferAffQuota(c *gin.Context) {
 }
 
 type TransferAllAffQuotaResponse struct {
-	Currency       string  `json:"currency"`
-	TransferredCNY float64 `json:"transferred_cny"`
-	BalanceCNY     float64 `json:"balance_cny"`
-	AffBalanceCNY  float64 `json:"aff_balance_cny"`
+	Currency           string  `json:"currency"`
+	TransferredCNY     float64 `json:"transferred_cny"`
+	BalanceCNY         float64 `json:"balance_cny"`
+	AffBalanceCNY      float64 `json:"aff_balance_cny"`
+	CreditsEnabled     bool    `json:"credits_enabled"`
+	TransferredCredits string  `json:"transferred_credits,omitempty"`
+	BalanceCredits     string  `json:"balance_credits,omitempty"`
+	AffBalanceCredits  string  `json:"aff_balance_credits,omitempty"`
+	QuotaPerCredit     int     `json:"quota_per_credit,omitempty"`
 }
 
 func decodeEmptyJSONObject(c *gin.Context) bool {
@@ -635,12 +640,20 @@ func TransferAllAffQuota(c *gin.Context) {
 		return
 	}
 
-	common.ApiSuccessI18n(c, i18n.MsgUserTransferSuccess, TransferAllAffQuotaResponse{
+	response := TransferAllAffQuotaResponse{
 		Currency:       "CNY",
 		TransferredCNY: common.QuotaToPublicCNY(result.TransferredQuota),
 		BalanceCNY:     common.QuotaToPublicCNY(result.BalanceQuota),
 		AffBalanceCNY:  common.QuotaToPublicCNY(result.AffBalanceQuota),
-	})
+		CreditsEnabled: common.CreditsV1Enabled(),
+	}
+	if response.CreditsEnabled {
+		response.TransferredCredits = common.QuotaToCreditsString(result.TransferredQuota)
+		response.BalanceCredits = common.QuotaToCreditsString(result.BalanceQuota)
+		response.AffBalanceCredits = common.QuotaToCreditsString(result.AffBalanceQuota)
+		response.QuotaPerCredit = common.CreditsQuotaUnit
+	}
+	common.ApiSuccessI18n(c, i18n.MsgUserTransferSuccess, response)
 }
 
 func GetAffCode(c *gin.Context) {
@@ -721,6 +734,8 @@ func GetSelf(c *gin.Context) {
 		responseData["used_credits"] = common.QuotaToCreditsString(user.UsedQuota)
 		responseData["aff_balance_credits"] = common.QuotaToCreditsString(user.AffQuota)
 		responseData["aff_history_credits"] = common.QuotaToCreditsString(user.AffHistoryQuota)
+		responseData["aff_transfer_available"] = user.AffQuota >= common.CNYToQuota(1)
+		responseData["aff_transfer_min_credits"] = common.QuotaToCreditsString(common.CNYToQuota(1))
 		responseData["quota_per_credit"] = common.CreditsQuotaUnit
 	}
 
