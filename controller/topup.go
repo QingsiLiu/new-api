@@ -564,8 +564,54 @@ func GetUserTopUps(c *gin.Context) {
 	}
 
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(topups)
+	pageInfo.SetItems(buildUserTopUpRecords(topups))
 	common.ApiSuccess(c, pageInfo)
+}
+
+type userTopUpRecord struct {
+	Id            int     `json:"id"`
+	PackageId     string  `json:"package_id,omitempty"`
+	Credits       string  `json:"credits,omitempty"`
+	Quota         int     `json:"quota,omitempty"`
+	Currency      string  `json:"currency,omitempty"`
+	PriceMinor    int64   `json:"price_minor,omitempty"`
+	Amount        int64   `json:"amount"`
+	Money         float64 `json:"money"`
+	TradeNo       string  `json:"trade_no"`
+	PaymentMethod string  `json:"payment_method,omitempty"`
+	CreateTime    int64   `json:"create_time"`
+	Status        string  `json:"status"`
+}
+
+func buildUserTopUpRecords(topups []*model.TopUp) []userTopUpRecord {
+	records := make([]userTopUpRecord, 0, len(topups))
+	for _, topup := range topups {
+		if topup == nil {
+			continue
+		}
+		paymentMethod := strings.TrimSpace(topup.PaymentMethod)
+		if paymentMethod == "" {
+			paymentMethod = strings.TrimSpace(topup.PaymentProvider)
+		}
+		record := userTopUpRecord{
+			Id:            topup.Id,
+			PackageId:     topup.PackageId,
+			Amount:        topup.Amount,
+			Money:         topup.Money,
+			TradeNo:       topup.TradeNo,
+			PaymentMethod: paymentMethod,
+			CreateTime:    topup.CreateTime,
+			Status:        topup.Status,
+		}
+		if topup.PackageId != "" && topup.QuotaAmount > 0 {
+			record.Credits = common.QuotaToCreditsString(topup.QuotaAmount)
+			record.Quota = topup.QuotaAmount
+			record.Currency = topup.Currency
+			record.PriceMinor = topup.PriceMinor
+		}
+		records = append(records, record)
+	}
+	return records
 }
 
 // GetAllTopUps 管理员获取全平台充值记录
