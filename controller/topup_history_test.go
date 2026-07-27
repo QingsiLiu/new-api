@@ -139,6 +139,7 @@ func TestGetTopUpInfoExposesCanonicalCreditsState(t *testing.T) {
 				Data    struct {
 					CreditsEnabled   bool                  `json:"credits_enabled"`
 					CreditsV1Enabled bool                  `json:"credits_v1_enabled"`
+					EnableRedemption *bool                 `json:"enable_redemption"`
 					QuotaPerCredit   int                   `json:"quota_per_credit"`
 					Packages         []model.CreditPackage `json:"packages"`
 				} `json:"data"`
@@ -147,6 +148,7 @@ func TestGetTopUpInfoExposesCanonicalCreditsState(t *testing.T) {
 			require.True(t, response.Success)
 			require.Equal(t, enabled, response.Data.CreditsEnabled)
 			require.Equal(t, enabled, response.Data.CreditsV1Enabled)
+			require.NotNil(t, response.Data.EnableRedemption)
 			require.Equal(t, common.CreditsQuotaUnit, response.Data.QuotaPerCredit)
 			if enabled {
 				require.Len(t, response.Data.Packages, 10)
