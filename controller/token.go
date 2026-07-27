@@ -18,18 +18,31 @@ import (
 
 const studioOnlineTokenName = "Geili Studio Online"
 
-func buildMaskedTokenResponse(token *model.Token) *model.Token {
+type maskedTokenResponse struct {
+	*model.Token
+	RemainCredits *string `json:"remain_credits,omitempty"`
+	UsedCredits   *string `json:"used_credits,omitempty"`
+}
+
+func buildMaskedTokenResponse(token *model.Token) *maskedTokenResponse {
 	if token == nil {
 		return nil
 	}
 	maskedToken := *token
 	maskedToken.Key = token.GetMaskedKey()
 	maskedToken.GroupDisplay = model.ResolveGroupDisplay(token.Group)
-	return &maskedToken
+	response := &maskedTokenResponse{Token: &maskedToken}
+	if common.CreditsV1Enabled() {
+		remainCredits := common.QuotaToCreditsString(token.RemainQuota)
+		usedCredits := common.QuotaToCreditsString(token.UsedQuota)
+		response.RemainCredits = &remainCredits
+		response.UsedCredits = &usedCredits
+	}
+	return response
 }
 
-func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
-	maskedTokens := make([]*model.Token, 0, len(tokens))
+func buildMaskedTokenResponses(tokens []*model.Token) []*maskedTokenResponse {
+	maskedTokens := make([]*maskedTokenResponse, 0, len(tokens))
 	for _, token := range tokens {
 		maskedTokens = append(maskedTokens, buildMaskedTokenResponse(token))
 	}
@@ -289,7 +302,7 @@ func mintOrReuseStudioOnlineToken(userID int) (*model.Token, bool, error) {
 		// 空分组=鉴权时随用户分组走（middleware/auth.go 对空 token 分组跳过弃用检查）。
 		// 曾硬编码 "default"：分组注册表弃用 default 后所有 studio-online token 403
 		//（Phase3 挂账的「SSO token 分组 403」缺陷根因，2026-07-16 修复+存量数据同步修正）。
-		Group:          "",
+		Group: "",
 	}
 	if err := token.Insert(); err != nil {
 		return nil, false, err

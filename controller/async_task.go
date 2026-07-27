@@ -185,6 +185,33 @@ type asyncBillingUsageItem struct {
 	Other             string  `json:"other"`
 }
 
+func applyCreditsV1PricingEstimateProjection(response *asyncTaskPricingEstimateResponse) {
+	if response == nil || !common.CreditsV1Enabled() {
+		return
+	}
+	quota := response.Quota
+	credits := common.QuotaToCreditsString(quota)
+	response.PublicQuota = &quota
+	response.Credits = &credits
+	response.Currency = "CREDITS"
+	response.Unit = "CREDITS"
+}
+
+func applyCreditsV1BillingBalanceProjection(response *asyncBillingBalanceResponse, quota int, usedQuota int) {
+	if response == nil || !common.CreditsV1Enabled() {
+		return
+	}
+	balanceCredits := common.QuotaToCreditsString(quota)
+	usedCredits := common.QuotaToCreditsString(usedQuota)
+	quotaPerCredit := common.CreditsQuotaUnit
+	response.BalanceCredits = &balanceCredits
+	response.UsedCredits = &usedCredits
+	response.Quota = &quota
+	response.UsedQuota = &usedQuota
+	response.QuotaPerCredit = &quotaPerCredit
+	response.Currency = "CREDITS"
+}
+
 type asyncTaskData struct {
 	Kind    string                  `json:"kind"`
 	Action  string                  `json:"action"`
@@ -391,12 +418,7 @@ func EstimateAsyncTaskPricing(c *gin.Context) {
 		Unit:      "CNY",
 		Breakdown: breakdown,
 	}
-	if common.CreditsV1Enabled() {
-		quota := relayInfo.PriceData.Quota
-		credits := common.QuotaToCreditsString(relayInfo.PriceData.Quota)
-		response.PublicQuota = &quota
-		response.Credits = &credits
-	}
+	applyCreditsV1PricingEstimateProjection(&response)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -417,16 +439,7 @@ func GetAsyncBillingBalance(c *gin.Context) {
 		BalanceCNY: common.QuotaToPublicCNY(quota),
 		Currency:   "CNY",
 	}
-	if common.CreditsV1Enabled() {
-		balanceCredits := common.QuotaToCreditsString(quota)
-		usedCredits := common.QuotaToCreditsString(user.UsedQuota)
-		quotaPerCredit := common.CreditsQuotaUnit
-		response.BalanceCredits = &balanceCredits
-		response.UsedCredits = &usedCredits
-		response.Quota = &quota
-		response.UsedQuota = &user.UsedQuota
-		response.QuotaPerCredit = &quotaPerCredit
-	}
+	applyCreditsV1BillingBalanceProjection(&response, quota, user.UsedQuota)
 	c.JSON(http.StatusOK, response)
 }
 

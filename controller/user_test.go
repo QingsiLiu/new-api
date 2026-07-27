@@ -97,6 +97,7 @@ func TestManageUserQuotaIsIdempotentWithRequestID(t *testing.T) {
 }
 
 func TestGetSelfReturnsCNYBalancesWithoutRawQuota(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "false")
 	db := setupUserControllerTestDB(t)
 
 	user := &model.User{
@@ -138,6 +139,50 @@ func TestGetSelfReturnsCNYBalancesWithoutRawQuota(t *testing.T) {
 	require.NotContains(t, response.Data, "used_quota")
 	require.NotContains(t, response.Data, "aff_quota")
 	require.NotContains(t, response.Data, "aff_history_quota")
+}
+
+func TestGetSelfReturnsCreditsProjectionWhenEnabled(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	db := setupUserControllerTestDB(t)
+
+	user := &model.User{
+		Username:        "credits-self-user",
+		Password:        "hash",
+		DisplayName:     "Credits User",
+		Role:            common.RoleCommonUser,
+		Status:          common.UserStatusEnabled,
+		Quota:           45000,
+		UsedQuota:       11000,
+		AffQuota:        23400,
+		AffHistoryQuota: 3600,
+		Group:           "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self", nil)
+	ctx.Set("id", user.Id)
+	ctx.Set("role", common.RoleCommonUser)
+
+	GetSelf(ctx)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool                   `json:"success"`
+		Data    map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, "CREDITS", response.Data["currency"])
+	require.Equal(t, "12.5", response.Data["balance_credits"])
+	require.Equal(t, "3.055556", response.Data["used_credits"])
+	require.Equal(t, "6.5", response.Data["aff_balance_credits"])
+	require.Equal(t, "1", response.Data["aff_history_credits"])
+	require.EqualValues(t, common.CreditsQuotaUnit, response.Data["quota_per_credit"])
+	require.InDelta(t, 0.45, response.Data["balance_cny"], 0.000001)
+	require.NotContains(t, response.Data, "quota")
+	require.NotContains(t, response.Data, "used_quota")
 }
 
 func withPaymentCompliance(t *testing.T, enabled bool) {

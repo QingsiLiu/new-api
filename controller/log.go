@@ -10,6 +10,39 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type userLogResponse struct {
+	*model.Log
+	Credits *string `json:"credits,omitempty"`
+}
+
+func buildUserLogResponses(logs []*model.Log) []*userLogResponse {
+	responses := make([]*userLogResponse, 0, len(logs))
+	for _, log := range logs {
+		if log == nil {
+			continue
+		}
+		response := &userLogResponse{Log: log}
+		if common.CreditsV1Enabled() {
+			credits := common.QuotaToCreditsString(log.Quota)
+			response.Credits = &credits
+		}
+		responses = append(responses, response)
+	}
+	return responses
+}
+
+func buildUserLogStatResponse(stat model.Stat) gin.H {
+	response := gin.H{
+		"quota": stat.Quota,
+		"rpm":   stat.Rpm,
+		"tpm":   stat.Tpm,
+	}
+	if common.CreditsV1Enabled() {
+		response["credits"] = common.QuotaToCreditsString(stat.Quota)
+	}
+	return response
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -50,7 +83,7 @@ func GetUserLogs(c *gin.Context) {
 		return
 	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(logs)
+	pageInfo.SetItems(buildUserLogResponses(logs))
 	common.ApiSuccess(c, pageInfo)
 	return
 }
@@ -91,7 +124,7 @@ func GetLogByKey(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
-		"data":    logs,
+		"data":    buildUserLogResponses(logs),
 	})
 }
 
@@ -140,12 +173,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
-		"data": gin.H{
-			"quota": quotaNum.Quota,
-			"rpm":   quotaNum.Rpm,
-			"tpm":   quotaNum.Tpm,
-			//"token": tokenNum,
-		},
+		"data":    buildUserLogStatResponse(quotaNum),
 	})
 	return
 }

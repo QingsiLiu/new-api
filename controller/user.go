@@ -722,6 +722,7 @@ func GetSelf(c *gin.Context) {
 		responseData["aff_balance_credits"] = common.QuotaToCreditsString(user.AffQuota)
 		responseData["aff_history_credits"] = common.QuotaToCreditsString(user.AffHistoryQuota)
 		responseData["quota_per_credit"] = common.CreditsQuotaUnit
+		responseData["currency"] = "CREDITS"
 	}
 
 	c.JSON(http.StatusOK, gin.H{
