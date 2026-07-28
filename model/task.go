@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -190,6 +192,44 @@ type SyncTaskQueryParams struct {
 	UserIDs        []int
 }
 
+// ResolveTaskStatusFilter maps the customer-facing task groups to the raw
+// persisted states while preserving exact raw-state filters for existing
+// callers.
+func ResolveTaskStatusFilter(status string) []TaskStatus {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return nil
+	}
+	switch strings.ToLower(status) {
+	case "running":
+		return []TaskStatus{
+			TaskStatusNotStart,
+			TaskStatusSubmitted,
+			TaskStatusQueued,
+			TaskStatusInProgress,
+			TaskStatusUnknown,
+		}
+	case "success":
+		return []TaskStatus{TaskStatusSuccess}
+	case "failure":
+		return []TaskStatus{TaskStatusFailure}
+	default:
+		return []TaskStatus{TaskStatus(status)}
+	}
+}
+
+func applyTaskStatusFilter(query *gorm.DB, status string) *gorm.DB {
+	statuses := ResolveTaskStatusFilter(status)
+	switch len(statuses) {
+	case 0:
+		return query
+	case 1:
+		return query.Where("status = ?", statuses[0])
+	default:
+		return query.Where("status IN ?", statuses)
+	}
+}
+
 func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) *Task {
 	properties := Properties{}
 	privateData := TaskPrivateData{}
@@ -242,9 +282,7 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
-		query = query.Where("status = ?", queryParams.Status)
-	}
+	query = applyTaskStatusFilter(query, queryParams.Status)
 	if queryParams.Platform != "" {
 		query = query.Where("platform = ?", queryParams.Platform)
 	}
@@ -291,9 +329,7 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 	if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
-		query = query.Where("status = ?", queryParams.Status)
-	}
+	query = applyTaskStatusFilter(query, queryParams.Status)
 	if queryParams.StartTimestamp != 0 {
 		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
 	}
@@ -515,9 +551,7 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 	if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
-		query = query.Where("status = ?", queryParams.Status)
-	}
+	query = applyTaskStatusFilter(query, queryParams.Status)
 	if queryParams.StartTimestamp != 0 {
 		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
 	}
@@ -538,9 +572,7 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	if queryParams.Action != "" {
 		query = query.Where("action = ?", queryParams.Action)
 	}
-	if queryParams.Status != "" {
-		query = query.Where("status = ?", queryParams.Status)
-	}
+	query = applyTaskStatusFilter(query, queryParams.Status)
 	if queryParams.Platform != "" {
 		query = query.Where("platform = ?", queryParams.Platform)
 	}
