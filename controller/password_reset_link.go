@@ -29,8 +29,17 @@ func passwordResetLink(email string, token string) string {
 	}
 
 	query := base.Query()
-	query.Set("email", email)
-	query.Set("token", token)
-	base.RawQuery = query.Encode()
+	if passwordResetV2Enabled() {
+		query.Del("email")
+		query.Del("token")
+		query.Del("ticket")
+		base.RawQuery = query.Encode()
+		base.Fragment = "ticket=" + token
+		base.RawFragment = ""
+	} else {
+		query.Set("email", email)
+		query.Set("token", token)
+		base.RawQuery = query.Encode()
+	}
 	return base.String()
 }

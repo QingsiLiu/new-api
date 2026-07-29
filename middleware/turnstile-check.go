@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/url"
 
@@ -14,16 +13,36 @@ type turnstileCheckResponse struct {
 	Success bool `json:"success"`
 }
 
+const GeiliTurnstileHeader = "X-Geili-Turnstile"
+
+var (
+	turnstileVerifyURL    = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+	turnstileVerifyClient = http.DefaultClient
+)
+
 func TurnstileCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if common.TurnstileCheckEnabled {
+			headerResponse := c.GetHeader(GeiliTurnstileHeader)
+			queryResponse := c.Query("turnstile")
+			if headerResponse != "" && queryResponse != "" && headerResponse != queryResponse {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "Turnstile token 冲突",
+				})
+				c.Abort()
+				return
+			}
 			session := sessions.Default(c)
 			turnstileChecked := session.Get("turnstile")
 			if turnstileChecked != nil {
 				c.Next()
 				return
 			}
-			response := c.Query("turnstile")
+			response := headerResponse
+			if response == "" {
+				response = queryResponse
+			}
 			if response == "" {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
@@ -32,7 +51,7 @@ func TurnstileCheck() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
-			rawRes, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
+			rawRes, err := turnstileVerifyClient.PostForm(turnstileVerifyURL, url.Values{
 				"secret":   {common.TurnstileSecretKey},
 				"response": {response},
 				"remoteip": {c.ClientIP()},
@@ -48,7 +67,7 @@ func TurnstileCheck() gin.HandlerFunc {
 			}
 			defer rawRes.Body.Close()
 			var res turnstileCheckResponse
-			err = json.NewDecoder(rawRes.Body).Decode(&res)
+			err = common.DecodeJson(rawRes.Body, &res)
 			if err != nil {
 				common.SysLog(err.Error())
 				c.JSON(http.StatusOK, gin.H{

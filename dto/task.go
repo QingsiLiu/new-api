@@ -39,12 +39,12 @@ type TaskDto struct {
 	Group           string          `json:"group"`
 	ChannelId       int             `json:"channel_id"`
 	Quota           int             `json:"quota"`
-	Credits         string          `json:"credits,omitempty"`
-	QuotaPerCredit  int             `json:"quota_per_credit,omitempty"`
+	Credits         *string         `json:"credits,omitempty"`
+	QuotaPerCredit  *int            `json:"quota_per_credit,omitempty"`
 	ReservedQuota   *int            `json:"reserved_quota,omitempty"`
-	ReservedCredits string          `json:"reserved_credits,omitempty"`
+	ReservedCredits *string         `json:"reserved_credits,omitempty"`
 	SettledQuota    *int            `json:"settled_quota,omitempty"`
-	SettledCredits  string          `json:"settled_credits,omitempty"`
+	SettledCredits  *string         `json:"settled_credits,omitempty"`
 	BillingState    string          `json:"billing_state,omitempty"`
 	Action          string          `json:"action"`
 	Status          string          `json:"status"`

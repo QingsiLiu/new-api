@@ -82,38 +82,7 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 				task.Username = user.Username
 			}
 		}
-		item := relay.TaskModel2Dto(task)
-		applyTaskCreditsProjection(task, item)
-		result[i] = item
+		result[i] = relay.TaskModel2Dto(task)
 	}
 	return result
-}
-
-func applyTaskCreditsProjection(task *model.Task, item *dto.TaskDto) {
-	if task == nil || item == nil || !common.CreditsV1Enabled() {
-		return
-	}
-
-	quota := task.Quota
-	credits := common.QuotaToCreditsString(quota)
-	item.Credits = credits
-	item.QuotaPerCredit = common.CreditsQuotaUnit
-
-	switch task.Status {
-	case model.TaskStatusSuccess:
-		item.SettledQuota = &quota
-		item.SettledCredits = credits
-		item.BillingState = "settled"
-	case model.TaskStatusFailure:
-		zero := 0
-		item.ReservedQuota = &quota
-		item.ReservedCredits = credits
-		item.SettledQuota = &zero
-		item.SettledCredits = "0"
-		item.BillingState = "refund_requested"
-	default:
-		item.ReservedQuota = &quota
-		item.ReservedCredits = credits
-		item.BillingState = "reserved"
-	}
 }

@@ -10,39 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type userLogResponse struct {
-	*model.Log
-	Credits *string `json:"credits,omitempty"`
-}
-
-func buildUserLogResponses(logs []*model.Log) []*userLogResponse {
-	responses := make([]*userLogResponse, 0, len(logs))
-	for _, log := range logs {
-		if log == nil {
-			continue
-		}
-		response := &userLogResponse{Log: log}
-		if common.CreditsV1Enabled() {
-			credits := common.QuotaToCreditsString(log.Quota)
-			response.Credits = &credits
-		}
-		responses = append(responses, response)
-	}
-	return responses
-}
-
-func buildUserLogStatResponse(stat model.Stat) gin.H {
-	response := gin.H{
-		"quota": stat.Quota,
-		"rpm":   stat.Rpm,
-		"tpm":   stat.Tpm,
-	}
-	if common.CreditsV1Enabled() {
-		response["credits"] = common.QuotaToCreditsString(stat.Quota)
-	}
-	return response
-}
-
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -83,7 +50,7 @@ func GetUserLogs(c *gin.Context) {
 		return
 	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(buildUserLogResponses(logs))
+	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 	return
 }
@@ -124,7 +91,7 @@ func GetLogByKey(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
-		"data":    buildUserLogResponses(logs),
+		"data":    logs,
 	})
 }
 
@@ -173,9 +140,22 @@ func GetLogsSelfStat(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
-		"data":    buildUserLogStatResponse(quotaNum),
+		"data":    userLogStatData(quotaNum),
 	})
 	return
+}
+
+func userLogStatData(stat model.Stat) gin.H {
+	data := gin.H{
+		"quota": stat.Quota,
+		"rpm":   stat.Rpm,
+		"tpm":   stat.Tpm,
+	}
+	if common.CreditsV1Enabled() {
+		data["credits"] = common.QuotaToCreditsString(stat.Quota)
+		data["quota_per_credit"] = common.CreditsQuotaUnit
+	}
+	return data
 }
 
 // DeleteHistoryLogs is the legacy synchronous log cleanup endpoint (DELETE /api/log/).

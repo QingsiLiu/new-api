@@ -11,35 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUserLogCreditsProjectionFollowsFeatureFlag(t *testing.T) {
-	logs := []*model.Log{{Id: 1, Quota: 11000, ModelName: "gpt-5.5"}}
-
-	t.Run("disabled", func(t *testing.T) {
-		t.Setenv(common.CreditsFeatureFlagEnv, "false")
-		response := buildUserLogResponses(logs)
-		require.Len(t, response, 1)
-		require.Nil(t, response[0].Credits)
-		encoded, err := common.Marshal(response)
-		require.NoError(t, err)
-		require.NotContains(t, string(encoded), `"credits"`)
-
-		stat := buildUserLogStatResponse(model.Stat{Quota: 23400, Rpm: 4, Tpm: 80})
-		require.NotContains(t, stat, "credits")
-	})
-
-	t.Run("enabled", func(t *testing.T) {
-		t.Setenv(common.CreditsFeatureFlagEnv, "true")
-		response := buildUserLogResponses(logs)
-		require.Len(t, response, 1)
-		require.NotNil(t, response[0].Credits)
-		require.Equal(t, "3.055556", *response[0].Credits)
-
-		stat := buildUserLogStatResponse(model.Stat{Quota: 23400, Rpm: 4, Tpm: 80})
-		require.Equal(t, "6.5", stat["credits"])
-		require.Equal(t, 23400, stat["quota"])
-	})
-}
-
 func TestUserLogEndpointsReturnCreditsProjectionWhenEnabled(t *testing.T) {
 	t.Setenv(common.CreditsFeatureFlagEnv, "true")
 	db := setupUserControllerTestDB(t)

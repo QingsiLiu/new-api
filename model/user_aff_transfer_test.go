@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -132,11 +131,9 @@ func TestTransferAllAffQuotaToQuotaInvalidatesCachedBalance(t *testing.T) {
 
 	_, err = TransferAllAffQuotaToQuota(user.Id)
 	require.NoError(t, err)
-	cachedAfter, err := GetUserQuota(user.Id, false)
-	require.NoError(t, err)
-	require.Equal(t, 375000, cachedAfter)
-	require.Eventually(t, func() bool {
-		cached, err := getUserQuotaCache(user.Id)
-		return err == nil && cached == 375000
-	}, time.Second, 10*time.Millisecond)
+	require.False(t, server.Exists(getUserCacheKey(user.Id)))
+
+	var quota int
+	require.NoError(t, db.Model(&User{}).Where("id = ?", user.Id).Select("quota").Scan(&quota).Error)
+	require.Equal(t, 375000, quota)
 }
