@@ -8,9 +8,16 @@ import (
 )
 
 type creditsTextRate struct {
-	inputCredits       int64
-	outputCredits      int64
-	cachedInputCredits int64
+	inputCentiCredits        int64
+	outputCentiCredits       int64
+	cachedInputCentiCredits  int64
+	cacheWriteCentiCredits   int64
+	cacheWrite5mCentiCredits int64
+	cacheWrite1hCentiCredits int64
+}
+
+func quotaPerMillionFromCentiCredits(centiCredits int64) int64 {
+	return centiCredits * int64(common.CreditsQuotaUnit) / 100
 }
 
 func creditsV1TextPricing(modelName string) (*types.CreditsTextPricing, bool) {
@@ -21,29 +28,69 @@ func creditsV1TextPricing(modelName string) (*types.CreditsTextPricing, bool) {
 	var rate creditsTextRate
 	switch {
 	case normalized == "gpt-5.4" || strings.HasPrefix(normalized, "gpt-5.4-2026-"):
-		rate = creditsTextRate{inputCredits: 70, outputCredits: 560}
+		rate = creditsTextRate{inputCentiCredits: 7000, outputCentiCredits: 56000}
 	case normalized == "gpt-5.5" || strings.HasPrefix(normalized, "gpt-5.5-2026-"):
-		rate = creditsTextRate{cachedInputCredits: 14, inputCredits: 140, outputCredits: 840}
+		rate = creditsTextRate{cachedInputCentiCredits: 1400, inputCentiCredits: 14000, outputCentiCredits: 84000}
+	case normalized == "gpt-5.6-sol":
+		rate = creditsTextRate{
+			inputCentiCredits: 28000, outputCentiCredits: 168000,
+			cachedInputCentiCredits: 2800, cacheWriteCentiCredits: 35000,
+		}
+	case normalized == "gpt-5.6-terra":
+		rate = creditsTextRate{
+			inputCentiCredits: 14000, outputCentiCredits: 84000,
+			cachedInputCentiCredits: 1400, cacheWriteCentiCredits: 17500,
+		}
+	case normalized == "gpt-5.6-luna":
+		rate = creditsTextRate{
+			inputCentiCredits: 5600, outputCentiCredits: 33600,
+			cachedInputCentiCredits: 560, cacheWriteCentiCredits: 7000,
+		}
 	case normalized == "gemini-2.5-flash":
-		rate = creditsTextRate{inputCredits: 9, outputCredits: 75}
+		rate = creditsTextRate{inputCentiCredits: 900, outputCentiCredits: 7500}
 	case normalized == "gemini-3.1-pro-preview":
-		rate = creditsTextRate{inputCredits: 100, outputCredits: 700}
+		rate = creditsTextRate{inputCentiCredits: 10000, outputCentiCredits: 70000}
 	case isCreditsClaudeAlias(normalized, "claude-opus-4-6"):
-		rate = creditsTextRate{inputCredits: 285, outputCredits: 1430}
+		rate = creditsTextRate{
+			inputCentiCredits: 28500, outputCentiCredits: 143000,
+			cachedInputCentiCredits: 2850, cacheWrite5mCentiCredits: 35625, cacheWrite1hCentiCredits: 57000,
+		}
 	case isCreditsClaudeAlias(normalized, "claude-opus-4-8"):
-		rate = creditsTextRate{inputCredits: 400, outputCredits: 2000}
+		rate = creditsTextRate{
+			inputCentiCredits: 40000, outputCentiCredits: 200000,
+			cachedInputCentiCredits: 4000, cacheWrite5mCentiCredits: 50000, cacheWrite1hCentiCredits: 80000,
+		}
+	case isCreditsClaudeAlias(normalized, "claude-opus-5"):
+		rate = creditsTextRate{
+			inputCentiCredits: 40000, outputCentiCredits: 200000,
+			cachedInputCentiCredits: 4000, cacheWrite5mCentiCredits: 50000, cacheWrite1hCentiCredits: 80000,
+		}
 	case isCreditsClaudeAlias(normalized, "claude-sonnet-4-6"):
-		rate = creditsTextRate{inputCredits: 170, outputCredits: 855}
+		rate = creditsTextRate{
+			inputCentiCredits: 17000, outputCentiCredits: 85500,
+			cachedInputCentiCredits: 1700, cacheWrite5mCentiCredits: 21250, cacheWrite1hCentiCredits: 34000,
+		}
+	case isCreditsClaudeAlias(normalized, "claude-sonnet-5"):
+		rate = creditsTextRate{
+			inputCentiCredits: 17000, outputCentiCredits: 85500,
+			cachedInputCentiCredits: 1700, cacheWrite5mCentiCredits: 21250, cacheWrite1hCentiCredits: 34000,
+		}
 	case isCreditsClaudeAlias(normalized, "claude-fable-5"):
-		rate = creditsTextRate{inputCredits: 800, outputCredits: 4000}
+		rate = creditsTextRate{
+			inputCentiCredits: 80000, outputCentiCredits: 400000,
+			cachedInputCentiCredits: 8000, cacheWrite5mCentiCredits: 100000, cacheWrite1hCentiCredits: 160000,
+		}
 	default:
 		return nil, false
 	}
 	return &types.CreditsTextPricing{
-		InputQuotaPerMillion:       rate.inputCredits * int64(common.CreditsQuotaUnit),
-		OutputQuotaPerMillion:      rate.outputCredits * int64(common.CreditsQuotaUnit),
-		CachedInputQuotaPerMillion: rate.cachedInputCredits * int64(common.CreditsQuotaUnit),
-		PricingSource:              "kie",
+		InputQuotaPerMillion:        quotaPerMillionFromCentiCredits(rate.inputCentiCredits),
+		OutputQuotaPerMillion:       quotaPerMillionFromCentiCredits(rate.outputCentiCredits),
+		CachedInputQuotaPerMillion:  quotaPerMillionFromCentiCredits(rate.cachedInputCentiCredits),
+		CacheWriteQuotaPerMillion:   quotaPerMillionFromCentiCredits(rate.cacheWriteCentiCredits),
+		CacheWrite5mQuotaPerMillion: quotaPerMillionFromCentiCredits(rate.cacheWrite5mCentiCredits),
+		CacheWrite1hQuotaPerMillion: quotaPerMillionFromCentiCredits(rate.cacheWrite1hCentiCredits),
+		PricingSource:               "kie",
 	}, true
 }
 

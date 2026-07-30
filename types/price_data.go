@@ -36,10 +36,13 @@ type PriceData struct {
 }
 
 type CreditsTextPricing struct {
-	InputQuotaPerMillion       int64
-	OutputQuotaPerMillion      int64
-	CachedInputQuotaPerMillion int64
-	PricingSource              string
+	InputQuotaPerMillion        int64
+	OutputQuotaPerMillion       int64
+	CachedInputQuotaPerMillion  int64
+	CacheWriteQuotaPerMillion   int64
+	CacheWrite5mQuotaPerMillion int64
+	CacheWrite1hQuotaPerMillion int64
+	PricingSource               string
 }
 
 type SpecPricingInfo struct {

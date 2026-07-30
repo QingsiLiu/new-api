@@ -345,6 +345,18 @@ func TestPublicModelCreditsUseExactKIESettlementPrices(t *testing.T) {
 			OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":999,"cached_input":999,"output":999},"source_url":"https://example.com/pricing"}`,
 			Enabled:       true,
 		},
+		{
+			ModelName: "gpt-5.6-luna", Slug: "gpt-5-6-luna", Modality: "text",
+			DisplayNameEn: "GPT-5.6 Luna", TextCategory: "gpt",
+			OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":999,"cached_input":999,"output":999},"source_url":"https://example.com/pricing"}`,
+			Enabled:       true,
+		},
+		{
+			ModelName: "claude-opus-5", Slug: "claude-opus-5", Modality: "text",
+			DisplayNameEn: "Claude Opus 5", TextCategory: "claude",
+			OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":999,"cache_read":999,"cache_write_5m":999,"cache_write_1h":999,"output":999},"source_url":"https://example.com/pricing"}`,
+			Enabled:       true,
+		},
 	}
 	require.NoError(t, model.DB.Create(&entries).Error)
 
@@ -362,6 +374,30 @@ func TestPublicModelCreditsUseExactKIESettlementPrices(t *testing.T) {
 	requirePublicCreditsSpec(t, text, "input", "140", "kie")
 	requirePublicCreditsSpec(t, text, "cached_input", "14", "kie")
 	requirePublicCreditsSpec(t, text, "output", "840", "kie")
+
+	luna := getPublicModelDetailForTest(t, "gpt-5-6-luna")
+	requirePublicCreditsSpec(t, luna, "cached_input", "5.6", "kie")
+	requirePublicCreditsSpec(t, luna, "cache_write", "70", "kie")
+	requirePublicCreditsSpec(t, luna, "input", "56", "kie")
+	requirePublicCreditsSpec(t, luna, "output", "336", "kie")
+
+	opus := getPublicModelDetailForTest(t, "claude-opus-5")
+	requirePublicCreditsSpec(t, opus, "cached_input", "40", "kie")
+	requirePublicCreditsSpec(t, opus, "cache_write_5m", "500", "kie")
+	requirePublicCreditsSpec(t, opus, "cache_write_1h", "800", "kie")
+	requirePublicCreditsSpec(t, opus, "input", "400", "kie")
+	requirePublicCreditsSpec(t, opus, "output", "2000", "kie")
+
+	list := getPublicModelListForTest(t)
+	var listedLuna map[string]interface{}
+	for _, item := range list {
+		if item["slug"] == "gpt-5-6-luna" {
+			listedLuna = item
+			break
+		}
+	}
+	require.NotNil(t, listedLuna)
+	requirePublicCreditsSpec(t, listedLuna, "cached_input", "5.6", "kie")
 }
 
 func TestPublicModelExactTextCacheFallsBackToInputSettlementRate(t *testing.T) {

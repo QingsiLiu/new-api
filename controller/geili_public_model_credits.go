@@ -266,8 +266,17 @@ func buildPublicTextCreditsPricing(entry model.ModelRegistry, categoryMultiplier
 		specs := []quotaPriceSpec{
 			textQuotaPriceSpec("input", exact.InputQuotaPerMillion, "kie", ""),
 			textQuotaPriceSpec("cached_input", cachedInputQuota, "kie", ""),
-			textQuotaPriceSpec("output", exact.OutputQuotaPerMillion, "kie", ""),
 		}
+		if exact.CacheWriteQuotaPerMillion > 0 {
+			specs = append(specs, textQuotaPriceSpec("cache_write", exact.CacheWriteQuotaPerMillion, "kie", ""))
+		}
+		if exact.CacheWrite5mQuotaPerMillion > 0 {
+			specs = append(specs, textQuotaPriceSpec("cache_write_5m", exact.CacheWrite5mQuotaPerMillion, "kie", ""))
+		}
+		if exact.CacheWrite1hQuotaPerMillion > 0 {
+			specs = append(specs, textQuotaPriceSpec("cache_write_1h", exact.CacheWrite1hQuotaPerMillion, "kie", ""))
+		}
+		specs = append(specs, textQuotaPriceSpec("output", exact.OutputQuotaPerMillion, "kie", ""))
 		return finalizePublicCreditsPricing("per_1M_tokens", specs)
 	}
 	if categoryMultiplier == nil || *categoryMultiplier <= 0 || *categoryMultiplier > 1 {

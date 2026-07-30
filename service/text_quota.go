@@ -310,9 +310,35 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 			if exact.CachedInputQuotaPerMillion > 0 {
 				cachedRate = decimal.NewFromInt(exact.CachedInputQuotaPerMillion)
 			}
+			cacheWriteRate := inputRate
+			if exact.CacheWriteQuotaPerMillion > 0 {
+				cacheWriteRate = decimal.NewFromInt(exact.CacheWriteQuotaPerMillion)
+			}
+			cacheWrite5mRate := cacheWriteRate
+			if exact.CacheWrite5mQuotaPerMillion > 0 {
+				cacheWrite5mRate = decimal.NewFromInt(exact.CacheWrite5mQuotaPerMillion)
+			}
+			cacheWrite1hRate := cacheWriteRate
+			if exact.CacheWrite1hQuotaPerMillion > 0 {
+				cacheWrite1hRate = decimal.NewFromInt(exact.CacheWrite1hQuotaPerMillion)
+			}
+			cacheWriteQuota := dCachedCreationTokens.Mul(cacheWriteRate)
+			if hasSplitCacheCreationTokens {
+				remaining := summary.CacheCreationTokens - summary.CacheCreationTokens5m - summary.CacheCreationTokens1h
+				if remaining < 0 {
+					remaining = 0
+				}
+				cacheWriteQuota = decimal.NewFromInt(int64(remaining)).Mul(cacheWriteRate)
+				cacheWriteQuota = cacheWriteQuota.Add(
+					decimal.NewFromInt(int64(summary.CacheCreationTokens5m)).Mul(cacheWrite5mRate),
+				)
+				cacheWriteQuota = cacheWriteQuota.Add(
+					decimal.NewFromInt(int64(summary.CacheCreationTokens1h)).Mul(cacheWrite1hRate),
+				)
+			}
 			inputQuota := baseTokens.Mul(inputRate)
 			inputQuota = inputQuota.Add(dCacheTokens.Mul(cachedRate))
-			inputQuota = inputQuota.Add(dCachedCreationTokens.Mul(inputRate))
+			inputQuota = inputQuota.Add(cacheWriteQuota)
 			inputQuota = inputQuota.Add(dImageTokens.Mul(inputRate).Mul(dImageRatio))
 			completionQuota := dCompletionTokens.Mul(outputRate)
 			quotaCalculateDecimal = inputQuota.Add(completionQuota).

@@ -130,6 +130,65 @@ func TestCreditsTextQuotaUsesExactSnapshotAndIgnoresGroupMultiplier(t *testing.T
 	require.Equal(t, "geili", surchargeRelayInfo.PriceData.PricingSource)
 }
 
+func TestCreditsTextQuotaUsesExactCacheWriteRates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	openAIPricing := &types.CreditsTextPricing{
+		InputQuotaPerMillion:       56 * int64(common.CreditsQuotaUnit),
+		OutputQuotaPerMillion:      336 * int64(common.CreditsQuotaUnit),
+		CachedInputQuotaPerMillion: 20160,
+		CacheWriteQuotaPerMillion:  70 * int64(common.CreditsQuotaUnit),
+		PricingSource:              "kie",
+	}
+	openAI := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.6-luna",
+		PriceData: types.PriceData{
+			CreditsTextPricing: openAIPricing,
+			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime:   time.Now(),
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+	openAISummary := calculateTextQuotaSummary(ctx, openAI, &dto.Usage{
+		PromptTokens: 1_000_000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         200_000,
+			CachedCreationTokens: 100_000,
+		},
+	})
+	require.Equal(t, 170352, openAISummary.Quota)
+
+	claudePricing := &types.CreditsTextPricing{
+		InputQuotaPerMillion:        400 * int64(common.CreditsQuotaUnit),
+		OutputQuotaPerMillion:       2000 * int64(common.CreditsQuotaUnit),
+		CachedInputQuotaPerMillion:  40 * int64(common.CreditsQuotaUnit),
+		CacheWrite5mQuotaPerMillion: 500 * int64(common.CreditsQuotaUnit),
+		CacheWrite1hQuotaPerMillion: 800 * int64(common.CreditsQuotaUnit),
+		PricingSource:               "kie",
+	}
+	claude := &relaycommon.RelayInfo{
+		RelayFormat:             types.RelayFormatClaude,
+		FinalRequestRelayFormat: types.RelayFormatClaude,
+		OriginModelName:         "claude-opus-5",
+		PriceData: types.PriceData{
+			CreditsTextPricing: claudePricing,
+			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime:   time.Now(),
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+	claudeSummary := calculateTextQuotaSummary(ctx, claude, &dto.Usage{
+		PromptTokens: 1000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         100,
+			CachedCreationTokens: 30,
+		},
+		ClaudeCacheCreation5mTokens: 10,
+		ClaudeCacheCreation1hTokens: 20,
+	})
+	require.Equal(t, 1530, claudeSummary.Quota)
+}
+
 func TestTextQuotaKeepsLegacyRatiosWithoutCreditsPricing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

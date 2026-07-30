@@ -14,27 +14,38 @@ import (
 func TestCreditsV1TextPricingSnapshotAndAliases(t *testing.T) {
 	t.Setenv(common.CreditsFeatureFlagEnv, "true")
 	tests := []struct {
-		model  string
-		input  int64
-		output int64
-		cache  int64
+		model      string
+		input      int64
+		output     int64
+		cache      int64
+		cacheWrite int64
+		cache5m    int64
+		cache1h    int64
 	}{
-		{"gpt-5.4", 70, 560, 0},
-		{"gpt-5.5", 140, 840, 14},
-		{"gemini-2.5-flash", 9, 75, 0},
-		{"gemini-3.1-pro-preview", 100, 700, 0},
-		{"claude-opus-4-6-high", 285, 1430, 0},
-		{"claude-opus-4-8", 400, 2000, 0},
-		{"claude-sonnet-4-6-thinking", 170, 855, 0},
-		{"claude-fable-5", 800, 4000, 0},
+		{"gpt-5.4", 7000, 56000, 0, 0, 0, 0},
+		{"gpt-5.5", 14000, 84000, 1400, 0, 0, 0},
+		{"gpt-5.6-sol", 28000, 168000, 2800, 35000, 0, 0},
+		{"gpt-5.6-terra", 14000, 84000, 1400, 17500, 0, 0},
+		{"gpt-5.6-luna", 5600, 33600, 560, 7000, 0, 0},
+		{"gemini-2.5-flash", 900, 7500, 0, 0, 0, 0},
+		{"gemini-3.1-pro-preview", 10000, 70000, 0, 0, 0, 0},
+		{"claude-opus-4-6-high", 28500, 143000, 2850, 0, 35625, 57000},
+		{"claude-opus-4-8", 40000, 200000, 4000, 0, 50000, 80000},
+		{"claude-opus-5", 40000, 200000, 4000, 0, 50000, 80000},
+		{"claude-sonnet-4-6-thinking", 17000, 85500, 1700, 0, 21250, 34000},
+		{"claude-sonnet-5", 17000, 85500, 1700, 0, 21250, 34000},
+		{"claude-fable-5", 80000, 400000, 8000, 0, 100000, 160000},
 	}
 	for _, test := range tests {
 		t.Run(test.model, func(t *testing.T) {
 			pricing, ok := creditsV1TextPricing(test.model)
 			require.True(t, ok)
-			require.Equal(t, test.input*int64(common.CreditsQuotaUnit), pricing.InputQuotaPerMillion)
-			require.Equal(t, test.output*int64(common.CreditsQuotaUnit), pricing.OutputQuotaPerMillion)
-			require.Equal(t, test.cache*int64(common.CreditsQuotaUnit), pricing.CachedInputQuotaPerMillion)
+			require.Equal(t, quotaPerMillionFromCentiCredits(test.input), pricing.InputQuotaPerMillion)
+			require.Equal(t, quotaPerMillionFromCentiCredits(test.output), pricing.OutputQuotaPerMillion)
+			require.Equal(t, quotaPerMillionFromCentiCredits(test.cache), pricing.CachedInputQuotaPerMillion)
+			require.Equal(t, quotaPerMillionFromCentiCredits(test.cacheWrite), pricing.CacheWriteQuotaPerMillion)
+			require.Equal(t, quotaPerMillionFromCentiCredits(test.cache5m), pricing.CacheWrite5mQuotaPerMillion)
+			require.Equal(t, quotaPerMillionFromCentiCredits(test.cache1h), pricing.CacheWrite1hQuotaPerMillion)
 			require.Equal(t, "kie", pricing.PricingSource)
 		})
 	}
