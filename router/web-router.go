@@ -33,7 +33,7 @@ func isLegacyModeMidjourneyPath(path string) bool {
 
 func isGeiliAdminPublicPath(path string) bool {
 	switch path {
-	case "/login", "/logo.png", "/favicon.ico", "/manifest.json", "/manifest.webmanifest":
+	case "/sign-in", "/otp", "/forgot-password", "/reset", "/logo.png", "/favicon.ico", "/manifest.json", "/manifest.webmanifest":
 		return true
 	}
 
@@ -43,6 +43,8 @@ func isGeiliAdminPublicPath(path string) bool {
 		"/api",
 		"/assets",
 		"/static",
+		"/oauth",
+		"/user/reset",
 		"/mj",
 		"/pg",
 		"/suno",
@@ -72,6 +74,11 @@ func geiliAdminOnlyUIGuard() gin.HandlerFunc {
 			return
 		}
 		p := c.Request.URL.Path
+		if p == "/" || p == "/login" {
+			c.Redirect(http.StatusFound, "/sign-in")
+			c.Abort()
+			return
+		}
 		if isGeiliAdminPublicPath(p) {
 			c.Next()
 			return
