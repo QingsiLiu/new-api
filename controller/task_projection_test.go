@@ -14,7 +14,15 @@ func TestTasksToDtoProjectsCreditsLifecycle(t *testing.T) {
 	items := tasksToDto([]*model.Task{
 		{TaskID: "task_running", Quota: 7200, Status: model.TaskStatusInProgress},
 		{TaskID: "task_success", Quota: 11000, Status: model.TaskStatusSuccess},
-		{TaskID: "task_failure", Quota: 30000, Status: model.TaskStatusFailure},
+		{
+			TaskID:     "task_failure",
+			Quota:      30000,
+			Status:     model.TaskStatusFailure,
+			FailReason: `upstream failed: {"message":"no available image quota","request_id":"secret"}`,
+			PrivateData: model.TaskPrivateData{
+				ResultURL: `{"error":{"message":"legacy provider failure","request_id":"secret"}}`,
+			},
+		},
 	}, false)
 	require.Len(t, items, 3)
 
@@ -49,6 +57,10 @@ func TestTasksToDtoProjectsCreditsLifecycle(t *testing.T) {
 	require.NotNil(t, items[2].SettledCredits)
 	require.Equal(t, "0", *items[2].SettledCredits)
 	require.Equal(t, "refund_requested", items[2].BillingState)
+	require.Equal(t, "The task could not be completed. Reserved Credits are being returned.", items[2].FailReason)
+	require.Empty(t, items[2].ResultURL)
+	require.NotContains(t, items[2].FailReason, "no available image quota")
+	require.NotContains(t, items[2].FailReason, "secret")
 }
 
 func TestTasksToDtoKeepsCreditsFieldsOffByDefault(t *testing.T) {

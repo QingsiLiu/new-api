@@ -337,6 +337,9 @@ func CreateAsyncTask(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to create async task"}})
 		return
 	}
+	if relayInfo != nil && relayInfo.TaskRelayInfo != nil {
+		relayInfo.TaskRelayInfo.PublicTaskID = task.TaskID
+	}
 	service.LogTaskConsumption(c, relayInfo)
 
 	execution := asyncTaskExecution{Request: request, Multipart: cloneAsyncMultipartForm(c.Request.MultipartForm), RelayInfo: relayInfo}
@@ -3173,7 +3176,7 @@ func asyncTaskModelToResponse(task *model.Task) asyncTaskResponse {
 		Model:       firstAsyncNonEmpty(data.Model, task.Properties.OriginModelName),
 		Status:      status,
 		Progress:    task.Progress,
-		Error:       task.FailReason,
+		Error:       customerAsyncTaskError(task.FailReason),
 		ChannelID:   task.ChannelId,
 		ChannelName: asyncTaskChannelName(task.ChannelId),
 		Outputs:     outputs,
@@ -3198,6 +3201,24 @@ func asyncTaskModelToResponse(task *model.Task) asyncTaskResponse {
 		}
 	}
 	return response
+}
+
+func customerAsyncTaskError(reason string) string {
+	normalized := strings.ToLower(strings.TrimSpace(reason))
+	switch {
+	case normalized == "":
+		return ""
+	case normalized == asyncTaskStatusCanceled || strings.Contains(normalized, "cancel"):
+		return "Task canceled."
+	case normalized == asyncTaskStatusTimeout || strings.Contains(normalized, "timeout"):
+		return "The task timed out. Please retry."
+	case strings.Contains(normalized, "policy"),
+		strings.Contains(normalized, "rejected"),
+		strings.Contains(normalized, "moderation"):
+		return "The request was rejected. Try adjusting the prompt."
+	default:
+		return "The task could not be completed. Reserved Credits are being returned."
+	}
 }
 
 func asyncTaskStatusFromModel(status model.TaskStatus) string {

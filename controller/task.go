@@ -83,6 +83,12 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 			}
 		}
 		result[i] = relay.TaskModel2Dto(task)
+		if !fillUser && result[i] != nil {
+			result[i].FailReason = customerAsyncTaskError(result[i].FailReason)
+			if task.Status == model.TaskStatusFailure {
+				result[i].ResultURL = ""
+			}
+		}
 	}
 	return result
 }

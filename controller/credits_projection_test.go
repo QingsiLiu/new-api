@@ -47,6 +47,175 @@ func TestUserLogEndpointsReturnCreditsProjectionWhenEnabled(t *testing.T) {
 	require.Contains(t, statRecorder.Body.String(), `"quota":11000`)
 }
 
+func TestSettledUserUsageExcludesFullyRefundedTaskReservations(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	db := setupUserControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}, &model.Task{}, &model.Token{}))
+
+	user := &model.User{
+		Username: "settled-usage-user",
+		Password: "hash",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+	token := &model.Token{UserId: user.Id, Name: "production", Key: "test-token"}
+	require.NoError(t, db.Create(token).Error)
+
+	require.NoError(t, db.Create(&model.Log{
+		UserId:    user.Id,
+		Username:  user.Username,
+		CreatedAt: 100,
+		Type:      model.LogTypeConsume,
+		ModelName: "gpt-5.5",
+		TokenName: token.Name,
+		Quota:     3_600,
+		RequestId: "req_sync",
+		Other:     "{}",
+	}).Error)
+
+	success := &model.Task{
+		TaskID:     "task_success",
+		UserId:     user.Id,
+		Group:      "default",
+		Quota:      10_800,
+		Status:     model.TaskStatusSuccess,
+		SubmitTime: 200,
+		CreatedAt:  200,
+		Properties: model.Properties{OriginModelName: "gemini-2.5-flash-image"},
+		PrivateData: model.TaskPrivateData{
+			TokenId: token.Id,
+		},
+	}
+	failed := &model.Task{
+		TaskID:     "task_failed",
+		UserId:     user.Id,
+		Group:      "default",
+		Quota:      10_800,
+		Status:     model.TaskStatusFailure,
+		SubmitTime: 300,
+		CreatedAt:  300,
+		Properties: model.Properties{OriginModelName: "gpt-image-2"},
+		PrivateData: model.TaskPrivateData{
+			TokenId: token.Id,
+		},
+	}
+	failedWithoutRefund := &model.Task{
+		TaskID:     "task_failed_without_refund",
+		UserId:     user.Id,
+		Group:      "default",
+		Quota:      7_200,
+		Status:     model.TaskStatusFailure,
+		SubmitTime: 400,
+		CreatedAt:  400,
+		Properties: model.Properties{OriginModelName: "gpt-image-2"},
+		PrivateData: model.TaskPrivateData{
+			TokenId: token.Id,
+		},
+	}
+	pending := &model.Task{
+		TaskID:     "task_pending",
+		UserId:     user.Id,
+		Group:      "default",
+		Quota:      3_600,
+		Status:     model.TaskStatusInProgress,
+		SubmitTime: 500,
+		CreatedAt:  500,
+		Properties: model.Properties{OriginModelName: "gpt-image-2"},
+		PrivateData: model.TaskPrivateData{
+			TokenId: token.Id,
+		},
+	}
+	require.NoError(t, db.Create(success).Error)
+	require.NoError(t, db.Create(failed).Error)
+	require.NoError(t, db.Create(failedWithoutRefund).Error)
+	require.NoError(t, db.Create(pending).Error)
+	require.NoError(t, db.Create(&model.Log{
+		UserId:    user.Id,
+		Username:  user.Username,
+		CreatedAt: 200,
+		Type:      model.LogTypeConsume,
+		ModelName: "gemini-2.5-flash-image",
+		TokenName: token.Name,
+		Quota:     10_800,
+		RequestId: "req_success_reservation",
+		Other:     `{"is_task":true,"task_id":"task_success"}`,
+	}).Error)
+	require.NoError(t, db.Create(&model.Log{
+		UserId:    user.Id,
+		Username:  user.Username,
+		CreatedAt: 300,
+		Type:      model.LogTypeConsume,
+		ModelName: "gpt-image-2",
+		TokenName: token.Name,
+		Quota:     10_800,
+		RequestId: "req_failed_reservation",
+		Other:     `{"is_task":true,"task_id":"task_failed"}`,
+	}).Error)
+	require.NoError(t, db.Create(&model.Log{
+		UserId:    user.Id,
+		Username:  user.Username,
+		CreatedAt: 301,
+		Type:      model.LogTypeRefund,
+		ModelName: "gpt-image-2",
+		TokenName: token.Name,
+		Quota:     10_800,
+		RequestId: "req_failed_refund",
+		Other:     `{"task_id":"task_failed"}`,
+	}).Error)
+	require.NoError(t, db.Create(&model.Log{
+		UserId:    user.Id,
+		Username:  user.Username,
+		CreatedAt: 400,
+		Type:      model.LogTypeConsume,
+		ModelName: "gpt-image-2",
+		TokenName: token.Name,
+		Quota:     7_200,
+		RequestId: "req_failed_without_refund",
+		Other:     `{"is_task":true,"task_id":"task_failed_without_refund"}`,
+	}).Error)
+	require.NoError(t, db.Create(&model.Log{
+		UserId:    user.Id,
+		Username:  user.Username,
+		CreatedAt: 500,
+		Type:      model.LogTypeConsume,
+		ModelName: "gpt-image-2",
+		TokenName: token.Name,
+		Quota:     3_600,
+		RequestId: "req_pending",
+		Other:     `{"is_task":true,"task_id":"task_pending"}`,
+	}).Error)
+
+	logRecorder := httptest.NewRecorder()
+	logContext, _ := gin.CreateTestContext(logRecorder)
+	logContext.Request = httptest.NewRequest(http.MethodGet, "/api/log/self?p=1&page_size=10&type=2&settled=true&start_timestamp=1&end_timestamp=999", nil)
+	logContext.Set("id", user.Id)
+	GetUserLogs(logContext)
+
+	require.Equal(t, http.StatusOK, logRecorder.Code, logRecorder.Body.String())
+	require.Contains(t, logRecorder.Body.String(), `"total":3`)
+	require.Contains(t, logRecorder.Body.String(), `"request_id":"task_success"`)
+	require.Contains(t, logRecorder.Body.String(), `"request_id":"task_failed_without_refund"`)
+	require.Contains(t, logRecorder.Body.String(), `"request_id":"req_sync"`)
+	require.NotContains(t, logRecorder.Body.String(), `"request_id":"task_failed"`)
+	require.NotContains(t, logRecorder.Body.String(), "req_failed_reservation")
+	require.NotContains(t, logRecorder.Body.String(), "req_failed_refund")
+	require.NotContains(t, logRecorder.Body.String(), "task_pending")
+	require.NotContains(t, logRecorder.Body.String(), "req_pending")
+
+	statRecorder := httptest.NewRecorder()
+	statContext, _ := gin.CreateTestContext(statRecorder)
+	statContext.Request = httptest.NewRequest(http.MethodGet, "/api/log/self/stat?type=2&settled=true&start_timestamp=1&end_timestamp=999", nil)
+	statContext.Set("id", user.Id)
+	statContext.Set("username", user.Username)
+	GetLogsSelfStat(statContext)
+
+	require.Equal(t, http.StatusOK, statRecorder.Code, statRecorder.Body.String())
+	require.Contains(t, statRecorder.Body.String(), `"quota":21600`)
+	require.Contains(t, statRecorder.Body.String(), `"credits":"6"`)
+}
+
 func TestTokenCreditsProjectionFollowsFeatureFlag(t *testing.T) {
 	token := &model.Token{
 		Id:          7,

@@ -339,7 +339,9 @@ func TestAsyncImageArchiveFailureFailsTaskWithoutLeakingUpstreamURL(t *testing.T
 	require.Contains(t, statusBody, `"status":"failed"`)
 
 	require.NotContains(t, statusBody, upstreamDomain)
-	require.Contains(t, statusBody, "failed to archive async image output")
+	require.Contains(t, statusBody, "The task could not be completed")
+	require.NotContains(t, statusBody, "failed to archive async image output")
+	require.Contains(t, task.FailReason, "failed to archive async image output")
 	require.NotContains(t, string(task.Data), upstreamDomain)
 	require.Empty(t, task.PrivateData.ResultURL)
 	var user model.User
@@ -1606,6 +1608,21 @@ func TestSafeAsyncTaskErrorRedactsSecretsAndInternalURLs(t *testing.T) {
 	require.NotContains(t, message, "api.internal.example")
 	require.NotContains(t, message, "relay-cli-proxy")
 	require.Contains(t, message, "[redacted")
+}
+
+func TestCustomerAsyncTaskErrorDoesNotExposeProviderDiagnostics(t *testing.T) {
+	raw := `upstream image task failed: {"error":{"message":"no available image quota","type":"insufficient_quota","request_id":"upstream-secret"}}`
+	response := asyncTaskModelToResponse(&model.Task{
+		TaskID:     "task_failed",
+		Status:     model.TaskStatusFailure,
+		FailReason: raw,
+		Data:       []byte(`{"kind":"image","action":"generate","model":"gpt-image-2"}`),
+	})
+
+	require.NotContains(t, response.Error, "no available image quota")
+	require.NotContains(t, response.Error, "insufficient_quota")
+	require.NotContains(t, response.Error, "upstream-secret")
+	require.Equal(t, "The task could not be completed. Reserved Credits are being returned.", response.Error)
 }
 
 func TestAsyncBillingBalanceAndUsageAreReadOnly(t *testing.T) {

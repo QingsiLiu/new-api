@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -44,7 +45,25 @@ func GetUserLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	var logs []*model.Log
+	var total int64
+	var err error
+	if settledUsageRequested(c) {
+		logs, total, err = model.GetUserSettledUsageLogs(
+			userId,
+			startTimestamp,
+			endTimestamp,
+			modelName,
+			tokenName,
+			pageInfo.GetStartIdx(),
+			pageInfo.GetPageSize(),
+			group,
+			requestId,
+			upstreamRequestId,
+		)
+	} else {
+		logs, total, err = model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -124,6 +143,7 @@ func GetLogsStat(c *gin.Context) {
 
 func GetLogsSelfStat(c *gin.Context) {
 	username := c.GetString("username")
+	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -131,7 +151,13 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	var quotaNum model.Stat
+	var err error
+	if settledUsageRequested(c) {
+		quotaNum, err = model.SumUserSettledUsage(userId, startTimestamp, endTimestamp, modelName, tokenName, group)
+	} else {
+		quotaNum, err = model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -143,6 +169,11 @@ func GetLogsSelfStat(c *gin.Context) {
 		"data":    userLogStatData(quotaNum),
 	})
 	return
+}
+
+func settledUsageRequested(c *gin.Context) bool {
+	value := strings.TrimSpace(c.Query("settled"))
+	return value == "1" || strings.EqualFold(value, "true")
 }
 
 func userLogStatData(stat model.Stat) gin.H {
