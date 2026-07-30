@@ -22,9 +22,43 @@ type ThemeAssets struct {
 	DefaultIndexPage []byte
 }
 
+func pathAtOrBelow(path string, prefix string) bool {
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
+}
+
+func isLegacyModeMidjourneyPath(path string) bool {
+	parts := strings.SplitN(strings.TrimPrefix(path, "/"), "/", 3)
+	return len(parts) >= 2 && parts[0] != "" && parts[1] == "mj"
+}
+
+func isGeiliAdminPublicPath(path string) bool {
+	switch path {
+	case "/login", "/logo.png", "/favicon.ico", "/manifest.json", "/manifest.webmanifest":
+		return true
+	}
+
+	for _, prefix := range []string{
+		"/v1",
+		"/v1beta",
+		"/api",
+		"/assets",
+		"/static",
+		"/mj",
+		"/pg",
+		"/suno",
+		"/kling",
+		"/jimeng",
+	} {
+		if pathAtOrBelow(path, prefix) {
+			return true
+		}
+	}
+	return isLegacyModeMidjourneyPath(path)
+}
+
 // geiliAdminOnlyUIGuard M3-A 开关（默认关）：GEILI_ADMIN_ONLY_UI=true 时原生 UI 退居
 // admin-only——非管理员会话的页面请求 302 到门户（GEILI_PORTAL_URL，默认 geiliapi.com）。
-// 放行：API 命名空间、静态资产、/login（管理员登录入口）。默认关=零行为变化，
+// 放行：机器 API 命名空间、登录壳所需静态资产、/login（管理员登录入口）。默认关=零行为变化，
 // 翻转属终局典礼动作（建造目标 §2 冻结面）。
 func geiliAdminOnlyUIGuard() gin.HandlerFunc {
 	enabled := strings.EqualFold(os.Getenv("GEILI_ADMIN_ONLY_UI"), "true")
@@ -38,8 +72,7 @@ func geiliAdminOnlyUIGuard() gin.HandlerFunc {
 			return
 		}
 		p := c.Request.URL.Path
-		if strings.HasPrefix(p, "/v1") || strings.HasPrefix(p, "/api") || strings.HasPrefix(p, "/assets") ||
-			strings.HasPrefix(p, "/mj") || strings.HasPrefix(p, "/pg") || p == "/login" {
+		if isGeiliAdminPublicPath(p) {
 			c.Next()
 			return
 		}
