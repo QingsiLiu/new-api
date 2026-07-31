@@ -251,6 +251,13 @@ func CreateAsyncTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "unsupported async task kind"}})
 		return
 	}
+	if service.ContainsSensitivePrompt(request.Input.Prompt) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
+			"message": "request contains prohibited content",
+			"code":    "sensitive_words_detected",
+		}})
+		return
+	}
 	requestHash := asyncTaskRequestHash(request)
 	unlockIdempotency := lockAsyncTaskIdempotency(c.GetInt("id"), request.IdempotencyKey)
 	if unlockIdempotency != nil {

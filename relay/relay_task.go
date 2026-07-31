@@ -19,6 +19,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,6 +29,30 @@ type TaskSubmitResult struct {
 	Platform       constant.TaskPlatform
 	Quota          int
 	//PerCallPrice   types.PriceData
+}
+
+func validateTaskPromptSafety(c *gin.Context) *dto.TaskError {
+	if !setting.ShouldCheckPromptSensitive() {
+		return nil
+	}
+
+	texts := make([]string, 0, 4)
+	if req, err := relaycommon.GetTaskRequest(c); err == nil {
+		texts = append(texts, req.Prompt)
+	}
+	if raw, exists := c.Get("task_request"); exists {
+		if req, ok := raw.(*dto.SunoSubmitReq); ok && req != nil {
+			texts = append(texts, req.Prompt, req.GptDescriptionPrompt, req.Title, req.Tags)
+		}
+	}
+	if !service.ContainsSensitivePrompt(texts...) {
+		return nil
+	}
+	return service.TaskErrorWrapperLocal(
+		errors.New("request contains prohibited content"),
+		"sensitive_words_detected",
+		http.StatusBadRequest,
+	)
 }
 
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
@@ -156,6 +181,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	adaptor.Init(info)
 	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		return nil, taskErr
+	}
+	if taskErr := validateTaskPromptSafety(c); taskErr != nil {
 		return nil, taskErr
 	}
 

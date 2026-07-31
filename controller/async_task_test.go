@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
@@ -79,6 +80,45 @@ func TestAsyncTaskHTTPClientDefaultsToFiveMinutes(t *testing.T) {
 		t.Skip("default timeout assertion requires ASYNC_TASK_HTTP_TIMEOUT_SECONDS to be unset")
 	}
 	require.Equal(t, 300*time.Second, asyncTaskHTTPClient.Timeout)
+}
+
+func TestCreateAsyncTaskRejectsSensitivePromptBeforeScheduling(t *testing.T) {
+	db := setupAsyncTaskTestDB(t)
+	previousEnabled := setting.CheckSensitiveEnabled
+	previousPromptEnabled := setting.CheckSensitiveOnPromptEnabled
+	previousWords := append([]string(nil), setting.SensitiveWords...)
+	setting.CheckSensitiveEnabled = true
+	setting.CheckSensitiveOnPromptEnabled = true
+	setting.SensitiveWords = []string{"blocked media prompt"}
+	t.Cleanup(func() {
+		setting.CheckSensitiveEnabled = previousEnabled
+		setting.CheckSensitiveOnPromptEnabled = previousPromptEnabled
+		setting.SensitiveWords = previousWords
+	})
+
+	engine := gin.New()
+	asyncRouter := engine.Group("/v1/async")
+	asyncRouter.Use(middleware.TokenAuth())
+	asyncRouter.POST("/tasks", CreateAsyncTask)
+
+	body, err := common.Marshal(map[string]interface{}{
+		"kind":   "image",
+		"action": "generate",
+		"model":  "gpt-image-2",
+		"input":  map[string]interface{}{"prompt": "create a blocked media prompt"},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/async/tasks", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer sk-cavas")
+	request.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "sensitive_words_detected")
+	var count int64
+	require.NoError(t, db.Model(&model.Task{}).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestAsyncTaskHTTPClientUsesConfiguredTimeoutFromEnv(t *testing.T) {

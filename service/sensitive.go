@@ -36,6 +36,18 @@ func CheckSensitiveText(text string) (bool, []string) {
 	return SensitiveWordContains(text)
 }
 
+func ContainsSensitivePrompt(texts ...string) bool {
+	if !setting.ShouldCheckPromptSensitive() {
+		return false
+	}
+	for _, text := range texts {
+		if ok, _ := CheckSensitiveText(text); ok {
+			return true
+		}
+	}
+	return false
+}
+
 // SensitiveWordContains 是否包含敏感词，返回是否包含敏感词和敏感词列表
 func SensitiveWordContains(text string) (bool, []string) {
 	if len(setting.SensitiveWords) == 0 {
