@@ -19,8 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod'
 
+import {
+  getAuthenticatedSignInRedirect,
+  isGeiliAdminHostname,
+} from '@/features/auth/lib/sign-in-redirect'
+import { removeUserId } from '@/features/auth/lib/storage'
 import { SignIn } from '@/features/auth/sign-in'
-import { useAuthStore } from '@/stores/auth-store'
+import { getSelf } from '@/lib/api'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -31,12 +37,43 @@ export const Route = createFileRoute('/(auth)/sign-in')({
   validateSearch: searchSchema,
   beforeLoad: async ({ search }) => {
     const { auth } = useAuthStore.getState()
+    const hostname =
+      typeof window === 'undefined' ? '' : window.location.hostname
 
-    // 如果已经有用户信息，说明已登录
-    if (auth.user) {
-      // 优先使用 redirect 参数（用户之前想去的地方）
-      // 否则跳转到 dashboard
-      throw redirect({ to: search?.redirect || '/dashboard' })
+    if (isGeiliAdminHostname(hostname)) {
+      let currentUser: AuthUser | null = null
+      try {
+        const response = await getSelf()
+        if (response?.success && response.data) {
+          currentUser = response.data as AuthUser
+        }
+      } catch {
+        // An expired or missing session should leave the admin login available.
+      }
+
+      const target = getAuthenticatedSignInRedirect(
+        currentUser,
+        search?.redirect,
+        hostname
+      )
+      if (!target) {
+        auth.reset()
+        removeUserId()
+        return
+      }
+
+      auth.setUser(currentUser)
+      throw redirect({ to: target })
+    }
+
+    const target = getAuthenticatedSignInRedirect(
+      auth.user,
+      search?.redirect,
+      hostname
+    )
+
+    if (target) {
+      throw redirect({ to: target })
     }
   },
 })
