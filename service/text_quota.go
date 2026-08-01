@@ -303,7 +303,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		}
 
 		var quotaCalculateDecimal decimal.Decimal
-		if exact := relayInfo.PriceData.CreditsTextPricing; exact != nil {
+		if exact := relayInfo.PriceData.CreditsTextPricing.ForPromptTokens(summary.PromptTokens); exact != nil {
 			inputRate := decimal.NewFromInt(exact.InputQuotaPerMillion)
 			outputRate := decimal.NewFromInt(exact.OutputQuotaPerMillion)
 			cachedRate := inputRate

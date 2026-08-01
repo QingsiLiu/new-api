@@ -43,6 +43,50 @@ type CreditsTextPricing struct {
 	CacheWrite5mQuotaPerMillion int64
 	CacheWrite1hQuotaPerMillion int64
 	PricingSource               string
+	Tiers                       []CreditsTextPricingTier
+}
+
+// CreditsTextPricingTier contains a context-length-specific price. A zero
+// boundary means that the corresponding side is unbounded. The settlement
+// path selects a tier from prompt tokens, while the base fields above remain
+// the short-context compatibility projection.
+type CreditsTextPricingTier struct {
+	Label                       string
+	MinPromptTokens             int
+	MaxPromptTokens             int
+	InputQuotaPerMillion        int64
+	OutputQuotaPerMillion       int64
+	CachedInputQuotaPerMillion  int64
+	CacheWriteQuotaPerMillion   int64
+	CacheWrite5mQuotaPerMillion int64
+	CacheWrite1hQuotaPerMillion int64
+}
+
+// ForPromptTokens returns the applicable immutable pricing projection. It
+// deliberately does not mutate the shared catalog object because the same
+// pointer is used by pre-consumption, final settlement, and public pricing.
+func (p *CreditsTextPricing) ForPromptTokens(promptTokens int) *CreditsTextPricing {
+	if p == nil || len(p.Tiers) == 0 {
+		return p
+	}
+	for _, tier := range p.Tiers {
+		if tier.MinPromptTokens > 0 && promptTokens < tier.MinPromptTokens {
+			continue
+		}
+		if tier.MaxPromptTokens > 0 && promptTokens > tier.MaxPromptTokens {
+			continue
+		}
+		return &CreditsTextPricing{
+			InputQuotaPerMillion:        tier.InputQuotaPerMillion,
+			OutputQuotaPerMillion:       tier.OutputQuotaPerMillion,
+			CachedInputQuotaPerMillion:  tier.CachedInputQuotaPerMillion,
+			CacheWriteQuotaPerMillion:   tier.CacheWriteQuotaPerMillion,
+			CacheWrite5mQuotaPerMillion: tier.CacheWrite5mQuotaPerMillion,
+			CacheWrite1hQuotaPerMillion: tier.CacheWrite1hQuotaPerMillion,
+			PricingSource:               p.PricingSource,
+		}
+	}
+	return p
 }
 
 type SpecPricingInfo struct {

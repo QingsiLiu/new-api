@@ -189,6 +189,55 @@ func TestCreditsTextQuotaUsesExactCacheWriteRates(t *testing.T) {
 	require.Equal(t, 1530, claudeSummary.Quota)
 }
 
+func TestCreditsTextQuotaSelectsLongContextRateFromTotalPromptTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	pricing := &types.CreditsTextPricing{
+		InputQuotaPerMillion:       100 * int64(common.CreditsQuotaUnit),
+		OutputQuotaPerMillion:      600 * int64(common.CreditsQuotaUnit),
+		CachedInputQuotaPerMillion: 10 * int64(common.CreditsQuotaUnit),
+		PricingSource:              "geili",
+		Tiers: []types.CreditsTextPricingTier{
+			{
+				Label:                      "short",
+				MaxPromptTokens:            272_000,
+				InputQuotaPerMillion:       100 * int64(common.CreditsQuotaUnit),
+				OutputQuotaPerMillion:      600 * int64(common.CreditsQuotaUnit),
+				CachedInputQuotaPerMillion: 10 * int64(common.CreditsQuotaUnit),
+			},
+			{
+				Label:                      "long",
+				MinPromptTokens:            272_001,
+				InputQuotaPerMillion:       200 * int64(common.CreditsQuotaUnit),
+				OutputQuotaPerMillion:      900 * int64(common.CreditsQuotaUnit),
+				CachedInputQuotaPerMillion: 20 * int64(common.CreditsQuotaUnit),
+			},
+		},
+	}
+	newRelayInfo := func() *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			OriginModelName: "gpt-5.5",
+			PriceData: types.PriceData{
+				CreditsTextPricing: pricing,
+				GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+			},
+			StartTime:   time.Now(),
+			ChannelMeta: &relaycommon.ChannelMeta{},
+		}
+	}
+
+	short := calculateTextQuotaSummary(ctx, newRelayInfo(), &dto.Usage{PromptTokens: 272_000})
+	require.Equal(t, 97_920, short.Quota)
+
+	longWithCache := calculateTextQuotaSummary(ctx, newRelayInfo(), &dto.Usage{
+		PromptTokens: 300_000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 280_000,
+		},
+	})
+	require.Equal(t, 34_560, longWithCache.Quota)
+}
+
 func TestTextQuotaKeepsLegacyRatiosWithoutCreditsPricing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

@@ -259,24 +259,62 @@ func buildPublicVideoCreditsPricing(modelName string, pricing operation_setting.
 
 func buildPublicTextCreditsPricing(entry model.ModelRegistry, categoryMultiplier *float64) *publicCreditsPricing {
 	if exact, ok := relayhelper.CreditsV1TextPricingForPublicCatalog(entry.ModelName); ok {
-		cachedInputQuota := exact.CachedInputQuotaPerMillion
-		if cachedInputQuota <= 0 {
-			cachedInputQuota = exact.InputQuotaPerMillion
+		specs := make([]quotaPriceSpec, 0, 6*max(1, len(exact.Tiers)))
+		appendTier := func(
+			input, output, cachedInput, cacheWrite, cacheWrite5m, cacheWrite1h int64,
+			tier string, minPromptTokens, maxPromptTokens int,
+		) {
+			cachedInputQuota := cachedInput
+			if cachedInputQuota <= 0 {
+				cachedInputQuota = input
+			}
+			appendSpec := func(dimension string, quota int64) {
+				spec := textQuotaPriceSpec(dimension, quota, "geili", tier)
+				if spec.quota <= 0 {
+					return
+				}
+				if minPromptTokens > 0 {
+					spec.MinPromptTokens = &minPromptTokens
+				}
+				if maxPromptTokens > 0 {
+					spec.MaxPromptTokens = &maxPromptTokens
+				}
+				specs = append(specs, spec)
+			}
+			appendSpec("input", input)
+			appendSpec("cached_input", cachedInputQuota)
+			appendSpec("cache_write", cacheWrite)
+			appendSpec("cache_write_5m", cacheWrite5m)
+			appendSpec("cache_write_1h", cacheWrite1h)
+			appendSpec("output", output)
 		}
-		specs := []quotaPriceSpec{
-			textQuotaPriceSpec("input", exact.InputQuotaPerMillion, "kie", ""),
-			textQuotaPriceSpec("cached_input", cachedInputQuota, "kie", ""),
+		if len(exact.Tiers) > 0 {
+			for _, tier := range exact.Tiers {
+				appendTier(
+					tier.InputQuotaPerMillion,
+					tier.OutputQuotaPerMillion,
+					tier.CachedInputQuotaPerMillion,
+					tier.CacheWriteQuotaPerMillion,
+					tier.CacheWrite5mQuotaPerMillion,
+					tier.CacheWrite1hQuotaPerMillion,
+					tier.Label,
+					tier.MinPromptTokens,
+					tier.MaxPromptTokens,
+				)
+			}
+		} else {
+			appendTier(
+				exact.InputQuotaPerMillion,
+				exact.OutputQuotaPerMillion,
+				exact.CachedInputQuotaPerMillion,
+				exact.CacheWriteQuotaPerMillion,
+				exact.CacheWrite5mQuotaPerMillion,
+				exact.CacheWrite1hQuotaPerMillion,
+				"",
+				0,
+				0,
+			)
 		}
-		if exact.CacheWriteQuotaPerMillion > 0 {
-			specs = append(specs, textQuotaPriceSpec("cache_write", exact.CacheWriteQuotaPerMillion, "kie", ""))
-		}
-		if exact.CacheWrite5mQuotaPerMillion > 0 {
-			specs = append(specs, textQuotaPriceSpec("cache_write_5m", exact.CacheWrite5mQuotaPerMillion, "kie", ""))
-		}
-		if exact.CacheWrite1hQuotaPerMillion > 0 {
-			specs = append(specs, textQuotaPriceSpec("cache_write_1h", exact.CacheWrite1hQuotaPerMillion, "kie", ""))
-		}
-		specs = append(specs, textQuotaPriceSpec("output", exact.OutputQuotaPerMillion, "kie", ""))
 		return finalizePublicCreditsPricing("per_1M_tokens", specs)
 	}
 	if categoryMultiplier == nil || *categoryMultiplier <= 0 || *categoryMultiplier > 1 {

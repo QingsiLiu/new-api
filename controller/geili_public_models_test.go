@@ -330,7 +330,7 @@ func TestFinalizePublicCreditsPricingUsesMinimumSpecificationSource(t *testing.T
 	require.Equal(t, "geili", geiliMinimum.PricingSource)
 }
 
-func TestPublicModelCreditsUseExactKIESettlementPrices(t *testing.T) {
+func TestPublicModelCreditsUseExactOfficialTargetPrices(t *testing.T) {
 	setupModelRegistryTestDB(t)
 	t.Setenv(common.CreditsFeatureFlagEnv, "true")
 
@@ -369,24 +369,26 @@ func TestPublicModelCreditsUseExactKIESettlementPrices(t *testing.T) {
 	requirePublicCreditsSpec(t, image, "resolution:4k", "8", "kie")
 
 	text := getPublicModelDetailForTest(t, "gpt-5-5")
-	require.Equal(t, "14", text["price_from_credits"])
-	require.Equal(t, "kie", text["pricing_source"])
-	requirePublicCreditsSpec(t, text, "input", "140", "kie")
-	requirePublicCreditsSpec(t, text, "cached_input", "14", "kie")
-	requirePublicCreditsSpec(t, text, "output", "840", "kie")
+	require.Equal(t, "5", text["price_from_credits"])
+	require.Equal(t, "geili", text["pricing_source"])
+	requirePublicCreditsSpec(t, text, "short:input", "50", "geili")
+	requirePublicCreditsSpec(t, text, "short:cached_input", "5", "geili")
+	requirePublicCreditsSpec(t, text, "short:output", "300", "geili")
+	longInput := requirePublicCreditsSpec(t, text, "long:input", "100", "geili")
+	require.EqualValues(t, 272001, int(longInput["min_prompt_tokens"].(float64)))
 
 	luna := getPublicModelDetailForTest(t, "gpt-5-6-luna")
-	requirePublicCreditsSpec(t, luna, "cached_input", "5.6", "kie")
-	requirePublicCreditsSpec(t, luna, "cache_write", "70", "kie")
-	requirePublicCreditsSpec(t, luna, "input", "56", "kie")
-	requirePublicCreditsSpec(t, luna, "output", "336", "kie")
+	requirePublicCreditsSpec(t, luna, "short:cached_input", "0.2", "geili")
+	requirePublicCreditsSpec(t, luna, "short:cache_write", "2.5", "geili")
+	requirePublicCreditsSpec(t, luna, "short:input", "2", "geili")
+	requirePublicCreditsSpec(t, luna, "short:output", "12", "geili")
 
 	opus := getPublicModelDetailForTest(t, "claude-opus-5")
-	requirePublicCreditsSpec(t, opus, "cached_input", "40", "kie")
-	requirePublicCreditsSpec(t, opus, "cache_write_5m", "500", "kie")
-	requirePublicCreditsSpec(t, opus, "cache_write_1h", "800", "kie")
-	requirePublicCreditsSpec(t, opus, "input", "400", "kie")
-	requirePublicCreditsSpec(t, opus, "output", "2000", "kie")
+	requirePublicCreditsSpec(t, opus, "cached_input", "22", "geili")
+	requirePublicCreditsSpec(t, opus, "cache_write_5m", "275", "geili")
+	requirePublicCreditsSpec(t, opus, "cache_write_1h", "440", "geili")
+	requirePublicCreditsSpec(t, opus, "input", "220", "geili")
+	requirePublicCreditsSpec(t, opus, "output", "1100", "geili")
 
 	list := getPublicModelListForTest(t)
 	var listedLuna map[string]interface{}
@@ -397,24 +399,24 @@ func TestPublicModelCreditsUseExactKIESettlementPrices(t *testing.T) {
 		}
 	}
 	require.NotNil(t, listedLuna)
-	requirePublicCreditsSpec(t, listedLuna, "cached_input", "5.6", "kie")
+	requirePublicCreditsSpec(t, listedLuna, "short:cached_input", "0.2", "geili")
 }
 
 func TestPublicModelExactTextCacheFallsBackToInputSettlementRate(t *testing.T) {
 	setupModelRegistryTestDB(t)
 	t.Setenv(common.CreditsFeatureFlagEnv, "true")
 	require.NoError(t, model.DB.Create(&model.ModelRegistry{
-		ModelName: "gpt-5.4", Slug: "gpt-5-4", Modality: "text",
-		DisplayNameEn: "GPT-5.4", TextCategory: "gpt",
+		ModelName: "gpt-5.4-pro", Slug: "gpt-5-4-pro", Modality: "text",
+		DisplayNameEn: "GPT-5.4 Pro", TextCategory: "gpt",
 		OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":999,"output":999},"source_url":"https://example.com/pricing"}`,
 		Enabled:       true,
 	}).Error)
 
-	detail := getPublicModelDetailForTest(t, "gpt-5-4")
-	input := requirePublicCreditsSpec(t, detail, "input", "70", "kie")
-	cached := requirePublicCreditsSpec(t, detail, "cached_input", "70", "kie")
+	detail := getPublicModelDetailForTest(t, "gpt-5-4-pro")
+	input := requirePublicCreditsSpec(t, detail, "short:input", "300", "geili")
+	cached := requirePublicCreditsSpec(t, detail, "short:cached_input", "300", "geili")
 	require.Equal(t, input["quota"], cached["quota"], "settlement charges undiscounted cache tokens at the input rate")
-	requirePublicCreditsSpec(t, detail, "output", "560", "kie")
+	requirePublicCreditsSpec(t, detail, "short:output", "1800", "geili")
 }
 
 func TestPublicModelCreditsProjectGeiliFallbackFromAuthoritativeQuota(t *testing.T) {
@@ -456,11 +458,11 @@ func TestPublicModelCreditsProjectGeiliFallbackFromAuthoritativeQuota(t *testing
 	requirePublicCreditsSpec(t, image, "resolution:4k", "40", "geili")
 
 	text := getPublicModelDetailForTest(t, "gpt-5-4-mini")
-	require.Equal(t, "4", text["price_from_credits"])
+	require.Equal(t, "0.75", text["price_from_credits"])
 	require.Equal(t, "geili", text["pricing_source"])
-	requirePublicCreditsSpec(t, text, "input", "40", "geili")
-	requirePublicCreditsSpec(t, text, "cached_input", "4", "geili")
-	requirePublicCreditsSpec(t, text, "output", "320", "geili")
+	requirePublicCreditsSpec(t, text, "input", "7.5", "geili")
+	requirePublicCreditsSpec(t, text, "cached_input", "0.75", "geili")
+	requirePublicCreditsSpec(t, text, "output", "45", "geili")
 }
 
 func TestPublicModelCreditsListPreservesTwentyOneModelCatalog(t *testing.T) {
@@ -502,7 +504,7 @@ func TestPublicModelCreditsListPreservesTwentyOneModelCatalog(t *testing.T) {
 	}
 	require.Equal(t, "3", byModel["gpt-image-2"]["price_from_credits"])
 	require.Equal(t, "kie", byModel["gpt-image-2"]["pricing_source"])
-	require.Equal(t, "40", byModel["gpt-5.4-mini"]["price_from_credits"])
+	require.Equal(t, "0.75", byModel["gpt-5.4-mini"]["price_from_credits"])
 	require.Equal(t, "geili", byModel["gpt-5.4-mini"]["pricing_source"])
 	require.Equal(t, "per_1M_tokens", byModel["gpt-5.4-mini"]["price_unit"])
 }

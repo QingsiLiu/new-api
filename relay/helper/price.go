@@ -146,13 +146,14 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 	if exact, ok := creditsV1TextPricing(info.OriginModelName); ok {
 		creditsTextPricing = exact
+		effectiveCreditsPricing := exact.ForPromptTokens(promptTokens)
 		usePrice = false
 		modelPrice = 0
-		modelRatio = float64(exact.InputQuotaPerMillion) / 1_000_000
-		completionRatio = float64(exact.OutputQuotaPerMillion) / float64(exact.InputQuotaPerMillion)
+		modelRatio = float64(effectiveCreditsPricing.InputQuotaPerMillion) / 1_000_000
+		completionRatio = float64(effectiveCreditsPricing.OutputQuotaPerMillion) / float64(effectiveCreditsPricing.InputQuotaPerMillion)
 		cacheRatio = 1
-		if exact.CachedInputQuotaPerMillion > 0 {
-			cacheRatio = float64(exact.CachedInputQuotaPerMillion) / float64(exact.InputQuotaPerMillion)
+		if effectiveCreditsPricing.CachedInputQuotaPerMillion > 0 {
+			cacheRatio = float64(effectiveCreditsPricing.CachedInputQuotaPerMillion) / float64(effectiveCreditsPricing.InputQuotaPerMillion)
 		}
 		cacheCreationRatio = 1
 		groupRatioInfo.GroupRatio = 1
@@ -188,11 +189,12 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		// 固定1h和5min缓存写入价格的比例
 		cacheCreationRatio1h = cacheCreationRatio * claudeCacheCreation1hMultiplier
 		if creditsTextPricing != nil {
+			effectiveCreditsPricing := creditsTextPricing.ForPromptTokens(promptTokens)
 			inputQuota := decimal.NewFromInt(int64(preConsumedTokens)).
-				Mul(decimal.NewFromInt(creditsTextPricing.InputQuotaPerMillion))
+				Mul(decimal.NewFromInt(effectiveCreditsPricing.InputQuotaPerMillion))
 			maxOutputTokens := common.Max(meta.MaxTokens, 0)
 			outputQuota := decimal.NewFromInt(int64(maxOutputTokens)).
-				Mul(decimal.NewFromInt(creditsTextPricing.OutputQuotaPerMillion))
+				Mul(decimal.NewFromInt(effectiveCreditsPricing.OutputQuotaPerMillion))
 			quota, clamp := common.QuotaFromDecimalChecked(
 				inputQuota.Add(outputQuota).Div(decimal.NewFromInt(1_000_000)),
 			)
