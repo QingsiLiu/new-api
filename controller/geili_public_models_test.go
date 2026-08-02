@@ -247,16 +247,20 @@ func TestPublicModelCreditsContractIsAdditiveAndCacheSeparatesFeatureFlag(t *tes
 	t.Setenv(common.CreditsFeatureFlagEnv, "true")
 	withCredits := getPublicModelListForTest(t)
 	require.Len(t, withCredits, 1)
-	require.Equal(t, "9", withCredits[0]["price_from_credits"])
-	require.EqualValues(t, 32400, withCredits[0]["price_from_quota"])
+	require.Equal(t, "11.5", withCredits[0]["price_from_credits"])
+	require.EqualValues(t, 41400, withCredits[0]["price_from_quota"])
 	require.Equal(t, "kie", withCredits[0]["pricing_source"])
 	detail := getPublicModelDetailForTest(t, "seedance-2-0")
-	require.Equal(t, "9", detail["price_from_credits"])
-	require.EqualValues(t, 32400, detail["price_from_quota"])
-	requirePublicCreditsSpec(t, detail, "480p:no_video_input", "15.5", "kie")
-	requirePublicCreditsSpec(t, detail, "480p:with_video_input", "9", "kie")
-	requirePublicCreditsSpec(t, detail, "720p:no_video_input", "33", "kie")
-	requirePublicCreditsSpec(t, detail, "720p:with_video_input", "20", "kie")
+	require.Equal(t, "11.5", detail["price_from_credits"])
+	require.EqualValues(t, 41400, detail["price_from_quota"])
+	requirePublicCreditsSpec(t, detail, "480p:no_video_input", "19", "kie")
+	requirePublicCreditsSpec(t, detail, "480p:with_video_input", "11.5", "kie")
+	requirePublicCreditsSpec(t, detail, "720p:no_video_input", "41", "kie")
+	requirePublicCreditsSpec(t, detail, "720p:with_video_input", "25", "kie")
+	requirePublicCreditsSpec(t, detail, "1080p:no_video_input", "102", "kie")
+	requirePublicCreditsSpec(t, detail, "1080p:with_video_input", "62", "kie")
+	requirePublicCreditsSpec(t, detail, "4k:no_video_input", "208", "kie")
+	requirePublicCreditsSpec(t, detail, "4k:with_video_input", "128", "kie")
 }
 
 func TestPublicModelSeedanceExactCreditsDoNotDependOnLegacyCNYTable(t *testing.T) {
@@ -282,35 +286,74 @@ func TestPublicModelSeedanceExactCreditsDoNotDependOnLegacyCNYTable(t *testing.T
 	requirePublicCreditsSpec(t, detail, "720p:with_video_input", "12.5", "kie")
 }
 
-func TestPublicModelSeedanceMergesExactAndGeiliFallbackSpecifications(t *testing.T) {
+func TestPublicModelSeedanceCompactPricingOmitsAspectRatio(t *testing.T) {
 	setupModelRegistryTestDB(t)
 	t.Setenv(common.CreditsFeatureFlagEnv, "true")
 	require.NoError(t, model.DB.Create(&model.ModelRegistry{
-		ModelName: "seedance-2.0", Slug: "seedance-2-0", Modality: "video",
-		DisplayNameEn: "Seedance 2.0", Enabled: true,
+		ModelName: "seedance-1.5-pro", Slug: "seedance-1-5-pro", Modality: "video",
+		DisplayNameEn: "Seedance 1.5 Pro", Enabled: true,
 	}).Error)
 
 	originalPricing := operation_setting.AsyncSpecPricing2JSONString()
 	t.Cleanup(func() {
 		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(originalPricing))
 	})
-	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{
-		"currency":"CNY",
-		"video":{"seedance-2.0":{"unit":"per_second","prices":{
-			"480p":{"16:9":{"no_video_input":{"cny_per_second":0.01}}},
-			"720p":{"16:9":{"with_video_input":{"cny_per_second":0.01}}},
-			"1080p":{"16:9":{"no_video_input":{"cny_per_second":1.8}}},
-			"4k":{"9:16":{"with_video_input":{"cny_per_second":2.16}}}
-		}}}
-	}`))
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(operation_setting.AsyncSpecPricingSeedJSONString()))
 
-	detail := getPublicModelDetailForTest(t, "seedance-2-0")
-	require.Equal(t, "9", detail["price_from_credits"])
-	require.Equal(t, "kie", detail["pricing_source"], "summary source must match the minimum specification")
-	requirePublicCreditsSpec(t, detail, "480p:with_video_input", "9", "kie")
-	requirePublicCreditsSpec(t, detail, "720p:no_video_input", "33", "kie")
-	requirePublicCreditsSpec(t, detail, "1080p:16:9:no_video_input", "50", "geili")
-	requirePublicCreditsSpec(t, detail, "4k:9:16:with_video_input", "60", "geili")
+	detail := getPublicModelDetailForTest(t, "seedance-1-5-pro")
+	require.InDelta(t, 0.0591, detail["price_from_cny"].(float64), 1e-9)
+	require.Equal(t, "1.641667", detail["price_from_credits"])
+	require.Equal(t, "geili", detail["pricing_source"])
+	requirePublicCreditsSpec(t, detail, "480p:image_no_audio", "1.641667", "geili")
+	requirePublicCreditsSpec(t, detail, "480p:text_audio", "4.686111", "geili")
+	requirePublicCreditsSpec(t, detail, "720p:text_no_audio", "5.072222", "geili")
+	requirePublicCreditsSpec(t, detail, "1080p:text_audio", "22.825", "geili")
+	pricing := detail["credits_pricing"].(map[string]interface{})
+	specs := pricing["specs"].([]interface{})
+	require.Len(t, specs, 8)
+	for _, raw := range specs {
+		require.NotContains(t, raw.(map[string]interface{}), "ratio")
+	}
+}
+
+func TestPublicSeedanceCatalogContainsExactlyTwentyFourCompactPrices(t *testing.T) {
+	setupModelRegistryTestDB(t)
+	t.Setenv(common.CreditsFeatureFlagEnv, "true")
+	entries := []model.ModelRegistry{
+		{ModelName: "seedance-1.5-pro", Slug: "seedance-1-5-pro", Modality: "video", DisplayNameEn: "Seedance 1.5 Pro", Enabled: true},
+		{ModelName: "seedance-2.0", Slug: "seedance-2-0", Modality: "video", DisplayNameEn: "Seedance 2.0", Enabled: true},
+		{ModelName: "seedance-2.0-fast", Slug: "seedance-2-0-fast", Modality: "video", DisplayNameEn: "Seedance 2.0 Fast", Enabled: true},
+		{ModelName: "seedance-2.0-mini", Slug: "seedance-2-0-mini", Modality: "video", DisplayNameEn: "Seedance 2.0 Mini", Enabled: true},
+	}
+	require.NoError(t, model.DB.Create(&entries).Error)
+
+	originalPricing := operation_setting.AsyncSpecPricing2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(originalPricing))
+	})
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(operation_setting.AsyncSpecPricingSeedJSONString()))
+
+	expectedCounts := map[string]int{
+		"seedance-1-5-pro":  8,
+		"seedance-2-0":      8,
+		"seedance-2-0-fast": 4,
+		"seedance-2-0-mini": 4,
+	}
+	total := 0
+	for slug, expected := range expectedCounts {
+		detail := getPublicModelDetailForTest(t, slug)
+		pricing := detail["credits_pricing"].(map[string]interface{})
+		specs := pricing["specs"].([]interface{})
+		require.Len(t, specs, expected, slug)
+		total += len(specs)
+		for _, raw := range specs {
+			spec := raw.(map[string]interface{})
+			require.NotContains(t, spec, "ratio", slug)
+			require.NotContains(t, spec["key"].(string), "16:9", slug)
+			require.NotContains(t, spec["key"].(string), "21:9", slug)
+		}
+	}
+	require.Equal(t, 24, total)
 }
 
 func TestFinalizePublicCreditsPricingUsesMinimumSpecificationSource(t *testing.T) {

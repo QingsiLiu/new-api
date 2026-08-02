@@ -2,6 +2,7 @@ package operation_setting
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -100,6 +101,34 @@ func TestResolveVideoSpecQuotaUsesResolutionRatioAndModeMatrix(t *testing.T) {
 	}
 }
 
+func TestResolveVideoSpecQuotaPrefersCompactModePriceAcrossRatios(t *testing.T) {
+	resetAsyncSpecPricingForTest(t)
+	if err := UpdateAsyncSpecPricingByJSONString(`{
+		"video":{
+			"seedance-2.0":{
+				"mode_prices":{
+					"720p":{"no_video_input":{"cny_per_second":1.476}}
+				},
+				"prices":{
+					"720p":{"21:9":{"no_video_input":{"cny_per_second":9.999}}}
+				}
+			}
+		}
+	}`); err != nil {
+		t.Fatalf("update async spec pricing: %v", err)
+	}
+
+	for _, ratio := range []string{"16:9", "9:16", "1:1", "4:3", "3:4", "21:9"} {
+		result := ResolveVideoSpecQuotaByContext("seedance-2.0", "720p", ratio, "no_video_input", 5)
+		if !result.Matched || result.Unsupported {
+			t.Fatalf("expected compact price match for ratio %s, got %+v", ratio, result)
+		}
+		if result.SpecKey != "720p:no_video_input" || result.Ratio != ratio || !closeFloat(result.UnitCNY, 1.476) {
+			t.Fatalf("compact price metadata mismatch for ratio %s: %+v", ratio, result)
+		}
+	}
+}
+
 func TestResolveVideoSpecQuotaSupportsSeedance15ProModesAndUnsupportedCells(t *testing.T) {
 	resetAsyncSpecPricingForTest(t)
 	QuotaPerCNY = 1000
@@ -147,7 +176,7 @@ func TestResolveVideoSpecQuotaSupportsSeedance15ProModesAndUnsupportedCells(t *t
 	}
 }
 
-func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.T) {
+func TestSeedAsyncSpecPricingUsesCompactSeedanceVideoPrices(t *testing.T) {
 	resetAsyncSpecPricingForTest(t)
 	QuotaPerCNY = 1000
 	if err := UpdateAsyncSpecPricingByJSONString(AsyncSpecPricingSeedJSONString()); err != nil {
@@ -155,18 +184,18 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 	}
 	seed := GetAsyncSpecPricingCopy()
 	seedCellCounts := map[string]int{
-		"seedance-2.0-mini": 24,
-		"seedance-2.0-fast": 24,
-		"seedance-2.0":      48,
-		"seedance-1.5-pro":  72,
+		"seedance-2.0-mini": 4,
+		"seedance-2.0-fast": 4,
+		"seedance-2.0":      8,
+		"seedance-1.5-pro":  12,
 	}
 	for model, wantCells := range seedCellCounts {
 		if got := countVideoModePriceCells(seed.Video[model]); got != wantCells {
-			t.Fatalf("seed matrix cell count mismatch for %s: got %d, want %d", model, got, wantCells)
+			t.Fatalf("seed mode price cell count mismatch for %s: got %d, want %d", model, got, wantCells)
 		}
 	}
-	if got := countUnsupportedVideoModePriceCells(seed.Video["seedance-1.5-pro"]); got != 24 {
-		t.Fatalf("seedance-1.5-pro unsupported cell count mismatch: got %d, want 24", got)
+	if got := countUnsupportedVideoModePriceCells(seed.Video["seedance-1.5-pro"]); got != 4 {
+		t.Fatalf("seedance-1.5-pro unsupported cell count mismatch: got %d, want 4", got)
 	}
 
 	tests := []struct {
@@ -186,8 +215,8 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			ratio:      "21:9",
 			mode:       "with_video_input",
 			seconds:    5,
-			wantUnit:   0.8335,
-			wantQuota:  common.CNYToQuota(0.8335 * 5),
+			wantUnit:   0.9,
+			wantQuota:  common.CNYToQuota(0.9 * 5),
 		},
 		{
 			name:       "seedance-2-fast-720p-4-3-no-video",
@@ -196,8 +225,8 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			ratio:      "4:3",
 			mode:       "no_video_input",
 			seconds:    5,
-			wantUnit:   0.6294,
-			wantQuota:  common.CNYToQuota(0.6294 * 5),
+			wantUnit:   1.188,
+			wantQuota:  common.CNYToQuota(1.188 * 5),
 		},
 		{
 			name:       "seedance-2-mini-480p-1-1-with-video",
@@ -206,8 +235,8 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			ratio:      "1:1",
 			mode:       "with_video_input",
 			seconds:    5,
-			wantUnit:   0.1411,
-			wantQuota:  common.CNYToQuota(0.1411 * 5),
+			wantUnit:   0.216,
+			wantQuota:  common.CNYToQuota(0.216 * 5),
 		},
 		{
 			name:       "seedance-15-pro-1080p-21-9-text-no-audio",
@@ -230,6 +259,9 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 			if !closeFloat(result.UnitCNY, tt.wantUnit) || result.Quota != tt.wantQuota {
 				t.Fatalf("seed price mismatch: got %+v, want unit %f quota %d", result, tt.wantUnit, tt.wantQuota)
 			}
+			if result.SpecKey != strings.Join([]string{tt.resolution, tt.mode}, ":") {
+				t.Fatalf("seed compact spec key mismatch: %+v", result)
+			}
 		})
 	}
 
@@ -241,6 +273,9 @@ func TestSeedAsyncSpecPricingIncludesXinxingshukeSeedanceVideoMatrix(t *testing.
 
 func countVideoModePriceCells(spec AsyncVideoSpecPrice) int {
 	count := 0
+	for _, modePrices := range spec.ModePrices {
+		count += len(modePrices)
+	}
 	for _, ratioPrices := range spec.Prices {
 		for _, modePrices := range ratioPrices {
 			count += len(modePrices)
@@ -251,6 +286,13 @@ func countVideoModePriceCells(spec AsyncVideoSpecPrice) int {
 
 func countUnsupportedVideoModePriceCells(spec AsyncVideoSpecPrice) int {
 	count := 0
+	for _, modePrices := range spec.ModePrices {
+		for _, price := range modePrices {
+			if price.Unsupported {
+				count++
+			}
+		}
+	}
 	for _, ratioPrices := range spec.Prices {
 		for _, modePrices := range ratioPrices {
 			for _, price := range modePrices {

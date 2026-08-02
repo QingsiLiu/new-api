@@ -21,6 +21,28 @@ type creditsV1AsyncSpec struct {
 	TotalQuota int
 }
 
+type creditsV1VideoTier struct {
+	withVideoTenths int
+	noVideoTenths   int
+}
+
+var creditsV1SeedanceVideoPrices = map[string]map[string]creditsV1VideoTier{
+	"seedance-2.0-mini": {
+		"480p": {withVideoTenths: 60, noVideoTenths: 95},
+		"720p": {withVideoTenths: 125, noVideoTenths: 205},
+	},
+	"seedance-2.0-fast": {
+		"480p": {withVideoTenths: 90, noVideoTenths: 155},
+		"720p": {withVideoTenths: 200, noVideoTenths: 330},
+	},
+	"seedance-2.0": {
+		"480p":  {withVideoTenths: 115, noVideoTenths: 190},
+		"720p":  {withVideoTenths: 250, noVideoTenths: 410},
+		"1080p": {withVideoTenths: 620, noVideoTenths: 1020},
+		"4k":    {withVideoTenths: 1280, noVideoTenths: 2080},
+	},
+}
+
 func resolveCreditsV1AsyncSpec(request asyncTaskRequest, modelName string) (creditsV1AsyncSpec, bool, error) {
 	switch request.Kind {
 	case asyncTaskKindVideo:
@@ -102,18 +124,21 @@ func resolveCreditsV1VideoSpec(request asyncTaskRequest, modelName string) (cred
 		return creditsV1AsyncSpec{}, false, nil
 	}
 
-	var unitQuota int
+	var priceModel string
 	switch {
 	case strings.Contains(normalized, "seedance-2-0-mini"):
-		unitQuota = seedance2CreditsUnitQuota(resolution, mode, 60, 95, 125, 205)
+		priceModel = "seedance-2.0-mini"
+	case strings.Contains(normalized, "seedance-2-0-fast") || normalized == "bytedance-seedance-2-fast":
+		priceModel = "seedance-2.0-fast"
 	case (strings.Contains(normalized, "seedance-2-0") &&
 		!strings.Contains(normalized, "mini") &&
 		!strings.Contains(normalized, "fast")) ||
 		normalized == "bytedance-seedance-2":
-		unitQuota = seedance2CreditsUnitQuota(resolution, mode, 90, 155, 200, 330)
+		priceModel = "seedance-2.0"
 	default:
 		return creditsV1AsyncSpec{}, false, nil
 	}
+	unitQuota := seedanceVideoCreditsUnitQuota(resolution, mode, creditsV1SeedanceVideoPrices[priceModel])
 	if unitQuota <= 0 {
 		return creditsV1AsyncSpec{}, false, nil
 	}
@@ -124,7 +149,7 @@ func resolveCreditsV1VideoSpec(request asyncTaskRequest, modelName string) (cred
 	return creditsV1AsyncSpec{
 		Kind:       asyncTaskKindVideo,
 		Model:      modelName,
-		SpecKey:    resolution + "_" + mode,
+		SpecKey:    resolution + ":" + mode,
 		Resolution: resolution,
 		Ratio:      asyncVideoSpecRatio(request.Parameters),
 		Mode:       mode,
@@ -192,19 +217,16 @@ func imageTierQuota(specKey string, oneK, twoK, fourK int) int {
 	}
 }
 
-func seedance2CreditsUnitQuota(resolution, mode string, video480, noVideo480, video720, noVideo720 int) int {
-	withVideo := mode == "with_video_input"
-	switch resolution {
-	case "480p":
-		if withVideo {
-			return creditsTenthQuota(video480)
-		}
-		return creditsTenthQuota(noVideo480)
-	case "720p":
-		if withVideo {
-			return creditsTenthQuota(video720)
-		}
-		return creditsTenthQuota(noVideo720)
+func seedanceVideoCreditsUnitQuota(resolution, mode string, prices map[string]creditsV1VideoTier) int {
+	tier, ok := prices[resolution]
+	if !ok {
+		return 0
+	}
+	switch mode {
+	case "with_video_input":
+		return creditsTenthQuota(tier.withVideoTenths)
+	case "no_video_input":
+		return creditsTenthQuota(tier.noVideoTenths)
 	default:
 		return 0
 	}

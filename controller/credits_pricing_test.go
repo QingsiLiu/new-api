@@ -23,6 +23,55 @@ func TestCreditsV1PricingUsesExactIntegerTenths(t *testing.T) {
 	require.Equal(t, 3*205*common.CreditsQuotaUnit/10, spec.TotalQuota)
 }
 
+func TestCreditsV1SeedancePricingUsesCurrentProductSpecificTiers(t *testing.T) {
+	tests := []struct {
+		model      string
+		resolution string
+		withVideo  bool
+		credits    string
+	}{
+		{model: "seedance-2.0", resolution: "480p", withVideo: true, credits: "11.5"},
+		{model: "seedance-2.0", resolution: "480p", credits: "19"},
+		{model: "seedance-2.0", resolution: "720p", withVideo: true, credits: "25"},
+		{model: "seedance-2.0", resolution: "720p", credits: "41"},
+		{model: "seedance-2.0", resolution: "1080p", withVideo: true, credits: "62"},
+		{model: "seedance-2.0", resolution: "1080p", credits: "102"},
+		{model: "seedance-2.0", resolution: "4k", withVideo: true, credits: "128"},
+		{model: "seedance-2.0", resolution: "4k", credits: "208"},
+		{model: "seedance-2.0-fast", resolution: "480p", withVideo: true, credits: "9"},
+		{model: "seedance-2.0-fast", resolution: "480p", credits: "15.5"},
+		{model: "seedance-2.0-fast", resolution: "720p", withVideo: true, credits: "20"},
+		{model: "seedance-2.0-fast", resolution: "720p", credits: "33"},
+		{model: "seedance-2.0-mini", resolution: "480p", withVideo: true, credits: "6"},
+		{model: "seedance-2.0-mini", resolution: "480p", credits: "9.5"},
+		{model: "seedance-2.0-mini", resolution: "720p", withVideo: true, credits: "12.5"},
+		{model: "seedance-2.0-mini", resolution: "720p", credits: "20.5"},
+	}
+
+	for _, tt := range tests {
+		parameters := map[string]interface{}{
+			"resolution": tt.resolution,
+			"ratio":      "21:9",
+			"duration":   1,
+		}
+		mode := "no_video_input"
+		if tt.withVideo {
+			parameters["video_url"] = "https://example.invalid/input.mp4"
+			mode = "with_video_input"
+		}
+		spec, ok, err := resolveCreditsV1AsyncSpec(asyncTaskRequest{
+			Kind:       asyncTaskKindVideo,
+			Model:      tt.model,
+			Parameters: parameters,
+		}, tt.model)
+		require.NoError(t, err)
+		require.True(t, ok, "%s %s %s", tt.model, tt.resolution, mode)
+		require.Equal(t, tt.credits, common.QuotaToCreditsString(spec.UnitQuota))
+		require.Equal(t, tt.resolution+":"+mode, spec.SpecKey)
+		require.Equal(t, "21:9", spec.Ratio)
+	}
+}
+
 func TestAsyncTaskCreditsResponseDistinguishesChargeAndReservation(t *testing.T) {
 	t.Setenv(common.CreditsFeatureFlagEnv, "true")
 	success := asyncTaskModelToResponse(&model.Task{

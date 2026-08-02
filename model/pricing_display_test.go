@@ -141,6 +141,55 @@ func TestUpdatePricingDisplaysVideoMatrixConfigWithStartPrice(t *testing.T) {
 	require.InDelta(t, 0.9, *matrix["1080p"]["16:9"]["no_video_input"].CNYPerSecond, 0.000001)
 }
 
+func TestUpdatePricingDisplaysCompactVideoConfigWithStartPrice(t *testing.T) {
+	truncateTables(t)
+	resetPricingDisplayTestState(t)
+	restore := SetModelPricingConfigTrustedForTest(false)
+	t.Cleanup(restore)
+
+	configJSON, err := (ModelPricingConfig{
+		Mode: PricingModeVideoMatrix,
+		ModePrices: operation_setting.AsyncVideoResolutionModePrices{
+			"480p": {
+				"no_video_input":   {CNYPerSecond: testFloat64Ptr(0.684)},
+				"with_video_input": {CNYPerSecond: testFloat64Ptr(0.414)},
+			},
+			"720p": {
+				"no_video_input":   {CNYPerSecond: testFloat64Ptr(1.476)},
+				"with_video_input": {Unsupported: true},
+			},
+		},
+	}).JSONString()
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&Model{
+		ModelName:     "display-compact-video-model",
+		Status:        1,
+		Modal:         ModelModalVideo,
+		PricingMode:   PricingModeVideoMatrix,
+		PricingConfig: configJSON,
+	}).Error)
+	channel := Channel{
+		Type:   1,
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+		Name:   "compact-video-channel",
+		Models: "display-compact-video-model",
+		Group:  "default",
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+
+	pricing := pricingForModel(t, "display-compact-video-model")
+
+	require.Equal(t, PricingModeVideoMatrix, pricing.PricingMode)
+	require.InDelta(t, 0.414, *pricing.AmountCNY, 0.000001)
+	require.Equal(t, 1, pricing.QuotaType)
+	compact, ok := pricing.SpecPricing.(operation_setting.AsyncVideoResolutionModePrices)
+	require.True(t, ok)
+	require.InDelta(t, 0.684, *compact["480p"]["no_video_input"].CNYPerSecond, 0.000001)
+	require.True(t, compact["720p"]["with_video_input"].Unsupported)
+}
+
 func TestAddAbilitiesSkipsBlankModelNames(t *testing.T) {
 	truncateTables(t)
 

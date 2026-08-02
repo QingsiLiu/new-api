@@ -25,6 +25,7 @@ type AsyncSpecPricing struct {
 type AsyncVideoSpecPrice struct {
 	Unit                string                               `json:"unit,omitempty"`
 	Resolutions         map[string]AsyncVideoResolutionPrice `json:"resolutions,omitempty"`
+	ModePrices          AsyncVideoResolutionModePrices       `json:"mode_prices,omitempty"`
 	Prices              map[string]AsyncVideoRatioPrices     `json:"prices,omitempty"`
 	DefaultCNYPerSecond *float64                             `json:"default_cny_per_second,omitempty"`
 	MinCNY              float64                              `json:"min_cny,omitempty"`
@@ -36,6 +37,8 @@ type AsyncVideoResolutionPrice struct {
 }
 
 type AsyncVideoRatioPrices map[string]AsyncVideoModePrices
+
+type AsyncVideoResolutionModePrices map[string]AsyncVideoModePrices
 
 type AsyncVideoModePrices map[string]AsyncVideoModePrice
 
@@ -138,142 +141,53 @@ func float64Ptr(value float64) *float64 {
 	return &value
 }
 
-type seedance2VideoPriceRow struct {
-	resolution   string
-	ratio        string
-	noVideoInput float64
-	videoInput   float64
-}
-
-type seedance15VideoPriceRow struct {
-	resolution   string
-	ratio        string
-	textAudio    float64
-	textNoAudio  float64
-	imageAudio   *float64
-	imageNoAudio *float64
-}
-
 func seedSeedanceVideoSpecPricing() map[string]AsyncVideoSpecPrice {
 	return map[string]AsyncVideoSpecPrice{
-		"seedance-2.0-mini": seedSeedance2VideoSpec([]seedance2VideoPriceRow{
-			{"480p", "16:9", 0.2426, 0.1476},
-			{"480p", "9:16", 0.2426, 0.1476},
-			{"480p", "4:3", 0.2384, 0.1451},
-			{"480p", "3:4", 0.2384, 0.1451},
-			{"480p", "1:1", 0.2318, 0.1411},
-			{"480p", "21:9", 0.2426, 0.1476},
-			{"720p", "16:9", 0.5216, 0.3175},
-			{"720p", "9:16", 0.5216, 0.3175},
-			{"720p", "4:3", 0.5249, 0.3195},
-			{"720p", "3:4", 0.5249, 0.3195},
-			{"720p", "1:1", 0.5216, 0.3175},
-			{"720p", "21:9", 0.5242, 0.3191},
+		"seedance-2.0-mini": seedVideoModeSpec(AsyncVideoResolutionModePrices{
+			"480p": seedVideoInputModes(0.342, 0.216),
+			"720p": seedVideoInputModes(0.738, 0.45),
 		}),
-		"seedance-2.0-fast": seedSeedance2VideoSpec([]seedance2VideoPriceRow{
-			{"480p", "16:9", 0.3902, 0.232},
-			{"480p", "9:16", 0.3902, 0.232},
-			{"480p", "4:3", 0.3834, 0.228},
-			{"480p", "3:4", 0.3834, 0.228},
-			{"480p", "1:1", 0.373, 0.2218},
-			{"480p", "21:9", 0.3902, 0.232},
-			{"720p", "16:9", 0.8392, 0.499},
-			{"720p", "9:16", 0.8392, 0.499},
-			{"720p", "4:3", 0.6294, 0.3742},
-			{"720p", "3:4", 0.6294, 0.3742},
-			{"720p", "1:1", 0.8392, 0.499},
-			{"720p", "21:9", 1.1014, 0.6549},
+		"seedance-2.0-fast": seedVideoModeSpec(AsyncVideoResolutionModePrices{
+			"480p": seedVideoInputModes(0.558, 0.324),
+			"720p": seedVideoInputModes(1.188, 0.72),
 		}),
-		"seedance-2.0": seedSeedance2VideoSpec([]seedance2VideoPriceRow{
-			{"480p", "16:9", 0.4851, 0.2953},
-			{"480p", "9:16", 0.4851, 0.2953},
-			{"480p", "4:3", 0.4851, 0.2953},
-			{"480p", "3:4", 0.4851, 0.2953},
-			{"480p", "1:1", 0.4851, 0.2953},
-			{"480p", "21:9", 0.4851, 0.2953},
-			{"720p", "16:9", 1.0433, 0.635},
-			{"720p", "9:16", 1.0433, 0.635},
-			{"720p", "4:3", 1.0433, 0.635},
-			{"720p", "3:4", 1.0433, 0.635},
-			{"720p", "1:1", 1.0433, 0.635},
-			{"720p", "21:9", 1.3693, 0.8335},
-			{"1080p", "16:9", 2.6025, 1.5819},
-			{"1080p", "9:16", 2.6025, 1.5819},
-			{"1080p", "4:3", 2.6025, 1.5819},
-			{"1080p", "3:4", 2.6025, 1.5819},
-			{"1080p", "1:1", 2.6025, 1.5819},
-			{"1080p", "21:9", 3.4159, 2.0763},
-			{"4k", "16:9", 5.307, 3.2657},
-			{"4k", "9:16", 5.307, 3.2657},
-			{"4k", "4:3", 3.9802, 2.4493},
-			{"4k", "3:4", 3.9802, 2.4493},
-			{"4k", "1:1", 5.307, 3.2657},
-			{"4k", "21:9", 6.9654, 4.2862},
+		"seedance-2.0": seedVideoModeSpec(AsyncVideoResolutionModePrices{
+			"480p":  seedVideoInputModes(0.684, 0.414),
+			"720p":  seedVideoInputModes(1.476, 0.9),
+			"1080p": seedVideoInputModes(3.672, 2.232),
+			"4k":    seedVideoInputModes(7.488, 4.608),
 		}),
-		"seedance-1.5-pro": seedSeedance15VideoSpec([]seedance15VideoPriceRow{
-			{"480p", "16:9", 0.1687, 0.0844, float64Ptr(0.1012), float64Ptr(0.0591)},
-			{"480p", "9:16", 0.1687, 0.0844, float64Ptr(0.1012), float64Ptr(0.0591)},
-			{"480p", "4:3", 0.1658, 0.0829, float64Ptr(0.0995), float64Ptr(0.058)},
-			{"480p", "3:4", 0.1658, 0.0829, float64Ptr(0.0995), float64Ptr(0.058)},
-			{"480p", "1:1", 0.1613, 0.0806, float64Ptr(0.0968), float64Ptr(0.0564)},
-			{"480p", "21:9", 0.1687, 0.0844, float64Ptr(0.1012), float64Ptr(0.0591)},
-			{"720p", "16:9", 0.3629, 0.1814, nil, nil},
-			{"720p", "9:16", 0.3629, 0.1814, nil, nil},
-			{"720p", "4:3", 0.3652, 0.1826, nil, nil},
-			{"720p", "3:4", 0.3652, 0.1826, nil, nil},
-			{"720p", "1:1", 0.3629, 0.1814, nil, nil},
-			{"720p", "21:9", 0.3646, 0.1823, nil, nil},
-			{"1080p", "16:9", 0.8165, 0.4082, nil, nil},
-			{"1080p", "9:16", 0.8165, 0.4082, nil, nil},
-			{"1080p", "4:3", 0.8177, 0.4088, nil, nil},
-			{"1080p", "3:4", 0.8177, 0.4088, nil, nil},
-			{"1080p", "1:1", 0.8165, 0.4082, nil, nil},
-			{"1080p", "21:9", 0.8217, 0.4109, nil, nil},
+		"seedance-1.5-pro": seedVideoModeSpec(AsyncVideoResolutionModePrices{
+			"480p": {
+				"text_audio":     {CNYPerSecond: float64Ptr(0.1687)},
+				"text_no_audio":  {CNYPerSecond: float64Ptr(0.0844)},
+				"image_audio":    {CNYPerSecond: float64Ptr(0.1012)},
+				"image_no_audio": {CNYPerSecond: float64Ptr(0.0591)},
+			},
+			"720p":  seedTextOnlyAudioModes(0.3652, 0.1826),
+			"1080p": seedTextOnlyAudioModes(0.8217, 0.4109),
 		}),
 	}
 }
 
-func seedSeedance2VideoSpec(rows []seedance2VideoPriceRow) AsyncVideoSpecPrice {
-	spec := AsyncVideoSpecPrice{
-		Unit:   "per_second",
-		Prices: map[string]AsyncVideoRatioPrices{},
-	}
-	for _, row := range rows {
-		putSeedVideoModePrice(spec.Prices, row.resolution, row.ratio, "no_video_input", AsyncVideoModePrice{CNYPerSecond: float64Ptr(row.noVideoInput)})
-		putSeedVideoModePrice(spec.Prices, row.resolution, row.ratio, "with_video_input", AsyncVideoModePrice{CNYPerSecond: float64Ptr(row.videoInput)})
-	}
-	return spec
+func seedVideoModeSpec(prices AsyncVideoResolutionModePrices) AsyncVideoSpecPrice {
+	return AsyncVideoSpecPrice{Unit: "per_second", ModePrices: prices}
 }
 
-func seedSeedance15VideoSpec(rows []seedance15VideoPriceRow) AsyncVideoSpecPrice {
-	spec := AsyncVideoSpecPrice{
-		Unit:   "per_second",
-		Prices: map[string]AsyncVideoRatioPrices{},
+func seedVideoInputModes(noVideoInput, withVideoInput float64) AsyncVideoModePrices {
+	return AsyncVideoModePrices{
+		"no_video_input":   {CNYPerSecond: float64Ptr(noVideoInput)},
+		"with_video_input": {CNYPerSecond: float64Ptr(withVideoInput)},
 	}
-	for _, row := range rows {
-		putSeedVideoModePrice(spec.Prices, row.resolution, row.ratio, "text_audio", AsyncVideoModePrice{CNYPerSecond: float64Ptr(row.textAudio)})
-		putSeedVideoModePrice(spec.Prices, row.resolution, row.ratio, "text_no_audio", AsyncVideoModePrice{CNYPerSecond: float64Ptr(row.textNoAudio)})
-		putSeedVideoModePrice(spec.Prices, row.resolution, row.ratio, "image_audio", seedVideoModePrice(row.imageAudio))
-		putSeedVideoModePrice(spec.Prices, row.resolution, row.ratio, "image_no_audio", seedVideoModePrice(row.imageNoAudio))
-	}
-	return spec
 }
 
-func seedVideoModePrice(value *float64) AsyncVideoModePrice {
-	if value == nil {
-		return AsyncVideoModePrice{Unsupported: true}
+func seedTextOnlyAudioModes(audio, noAudio float64) AsyncVideoModePrices {
+	return AsyncVideoModePrices{
+		"text_audio":     {CNYPerSecond: float64Ptr(audio)},
+		"text_no_audio":  {CNYPerSecond: float64Ptr(noAudio)},
+		"image_audio":    {Unsupported: true},
+		"image_no_audio": {Unsupported: true},
 	}
-	return AsyncVideoModePrice{CNYPerSecond: value}
-}
-
-func putSeedVideoModePrice(prices map[string]AsyncVideoRatioPrices, resolution string, ratio string, mode string, price AsyncVideoModePrice) {
-	if _, ok := prices[resolution]; !ok {
-		prices[resolution] = AsyncVideoRatioPrices{}
-	}
-	if _, ok := prices[resolution][ratio]; !ok {
-		prices[resolution][ratio] = AsyncVideoModePrices{}
-	}
-	prices[resolution][ratio][mode] = price
 }
 
 func UpdateAsyncSpecPricingByJSONString(jsonStr string) error {
@@ -314,6 +228,7 @@ func GetAsyncSpecPricingCopy() AsyncSpecPricing {
 	}
 	for model, spec := range asyncSpecPricing.Video {
 		spec.Resolutions = copyVideoResolutionPrices(spec.Resolutions)
+		spec.ModePrices = copyVideoModePrices(spec.ModePrices)
 		spec.Prices = copyVideoMatrixPrices(spec.Prices)
 		copyPricing.Video[model] = spec
 	}
@@ -349,7 +264,37 @@ func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 	specKey := normalizeResolution(resolution)
 	ratioKey := normalizeRatio(firstNonEmptyString(ratio, ratioFromSize(resolution)))
 	modeKey := normalizeVideoMode(mode)
-	if includeMatrix && len(spec.Prices) > 0 {
+	if includeMatrix && (len(spec.ModePrices) > 0 || len(spec.Prices) > 0) {
+		unitCNY, modeSpecKey, matched, unsupported := resolveVideoModeUnitCNY(spec, specKey, modeKey)
+		if unsupported {
+			return AsyncSpecQuotaResult{
+				Unsupported: true,
+				Kind:        "video",
+				Model:       modelName,
+				SpecKey:     modeSpecKey,
+				Resolution:  specKey,
+				Ratio:       ratioKey,
+				Mode:        modeKey,
+				QuotaPerCNY: effectiveQuotaPerCNY(),
+			}
+		}
+		if matched {
+			totalCNY := applyCNYBounds(unitCNY*float64(seconds), spec.MinCNY, spec.MaxCNY)
+			return AsyncSpecQuotaResult{
+				Quota:       roundCNYToQuota(totalCNY),
+				Matched:     true,
+				Kind:        "video",
+				Model:       modelName,
+				SpecKey:     modeSpecKey,
+				Resolution:  specKey,
+				Ratio:       ratioKey,
+				Mode:        modeKey,
+				UnitCNY:     unitCNY,
+				TotalCNY:    totalCNY,
+				QuotaPerCNY: effectiveQuotaPerCNY(),
+			}
+		}
+
 		unitCNY, matrixSpecKey, matched, unsupported := resolveVideoMatrixUnitCNY(spec, specKey, ratioKey, modeKey)
 		if unsupported {
 			return AsyncSpecQuotaResult{
@@ -381,11 +326,15 @@ func resolveVideoSpecQuotaFromPricing(pricing AsyncSpecPricing, modelName string
 			}
 		}
 		if specKey != "" || ratioKey != "" || modeKey != "" {
+			unsupportedSpecKey := videoMatrixSpecKey(specKey, ratioKey, modeKey)
+			if len(spec.ModePrices) > 0 {
+				unsupportedSpecKey = videoModeSpecKey(specKey, modeKey)
+			}
 			return AsyncSpecQuotaResult{
 				Unsupported: true,
 				Kind:        "video",
 				Model:       modelName,
-				SpecKey:     videoMatrixSpecKey(specKey, ratioKey, modeKey),
+				SpecKey:     unsupportedSpecKey,
 				Resolution:  specKey,
 				Ratio:       ratioKey,
 				Mode:        modeKey,
@@ -478,6 +427,28 @@ func resolveVideoUnitCNY(spec AsyncVideoSpecPrice, specKey string) (float64, str
 	return 0, "", false
 }
 
+func resolveVideoModeUnitCNY(spec AsyncVideoSpecPrice, resolution string, mode string) (float64, string, bool, bool) {
+	specKey := videoModeSpecKey(resolution, mode)
+	if resolution == "" || mode == "" {
+		return 0, specKey, false, false
+	}
+	modePrices, ok := spec.ModePrices[resolution]
+	if !ok {
+		return 0, specKey, false, false
+	}
+	price, ok := modePrices[mode]
+	if !ok {
+		return 0, specKey, false, false
+	}
+	if price.Unsupported {
+		return 0, specKey, false, true
+	}
+	if price.CNYPerSecond == nil {
+		return 0, specKey, false, false
+	}
+	return *price.CNYPerSecond, specKey, true, false
+}
+
 func resolveVideoMatrixUnitCNY(spec AsyncVideoSpecPrice, resolution string, ratio string, mode string) (float64, string, bool, bool) {
 	if resolution == "" || ratio == "" || mode == "" {
 		return 0, videoMatrixSpecKey(resolution, ratio, mode), false, false
@@ -506,6 +477,10 @@ func resolveVideoMatrixUnitCNY(spec AsyncVideoSpecPrice, resolution string, rati
 
 func videoMatrixSpecKey(resolution string, ratio string, mode string) string {
 	return strings.Join([]string{resolution, ratio, mode}, ":")
+}
+
+func videoModeSpecKey(resolution string, mode string) string {
+	return strings.Join([]string{resolution, mode}, ":")
 }
 
 func resolveImageUnitCNY(spec AsyncImageSpecPrice, resolutionCandidates []string, qualityKey string) (float64, string, bool) {
@@ -559,8 +534,34 @@ func normalizeVideoSpecPricing(src map[string]AsyncVideoSpecPrice) map[string]As
 			continue
 		}
 		spec.Resolutions = normalizeVideoResolutionPrices(spec.Resolutions)
+		spec.ModePrices = normalizeVideoModePrices(spec.ModePrices)
 		spec.Prices = normalizeVideoMatrixPrices(spec.Prices)
 		dst[model] = spec
+	}
+	return dst
+}
+
+func normalizeVideoModePrices(src AsyncVideoResolutionModePrices) AsyncVideoResolutionModePrices {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(AsyncVideoResolutionModePrices, len(src))
+	for resolution, modePrices := range src {
+		resolutionKey := normalizeResolution(resolution)
+		if resolutionKey == "" {
+			continue
+		}
+		normalizedModes := make(AsyncVideoModePrices, len(modePrices))
+		for mode, price := range modePrices {
+			modeKey := normalizeVideoMode(mode)
+			if modeKey == "" {
+				continue
+			}
+			normalizedModes[modeKey] = price
+		}
+		if len(normalizedModes) > 0 {
+			dst[resolutionKey] = normalizedModes
+		}
 	}
 	return dst
 }
@@ -901,6 +902,21 @@ func copyVideoResolutionPrices(src map[string]AsyncVideoResolutionPrice) map[str
 	dst := make(map[string]AsyncVideoResolutionPrice, len(src))
 	for key, value := range src {
 		dst[key] = value
+	}
+	return dst
+}
+
+func copyVideoModePrices(src AsyncVideoResolutionModePrices) AsyncVideoResolutionModePrices {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(AsyncVideoResolutionModePrices, len(src))
+	for resolution, modePrices := range src {
+		modeCopy := make(AsyncVideoModePrices, len(modePrices))
+		for mode, price := range modePrices {
+			modeCopy[mode] = price
+		}
+		dst[resolution] = modeCopy
 	}
 	return dst
 }

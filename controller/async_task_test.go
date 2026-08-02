@@ -1818,21 +1818,15 @@ func TestAsyncVideoSpecPricingFallsBackToPerModelWhenModelUnconfigured(t *testin
 	require.Equal(t, int(0.01*common.QuotaPerUnit), quota)
 }
 
-func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
+func TestAsyncVideoCompactSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	withAsyncSpecPricingForTest(t, `{
 		"video":{
 			"seedance-2.0":{
-				"prices":{
+				"mode_prices":{
 					"720p":{
-						"16:9":{
-							"no_video_input":{"cny_per_second":1.0433},
-							"with_video_input":{"cny_per_second":0.635}
-						},
-						"21:9":{
-							"no_video_input":{"cny_per_second":1.3693},
-							"with_video_input":{"cny_per_second":0.8335}
-						}
+						"no_video_input":{"cny_per_second":1.476},
+						"with_video_input":{"cny_per_second":0.9}
 					}
 				}
 			}
@@ -1884,11 +1878,11 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 
 	var estimate asyncTaskPricingEstimateResponse
 	require.NoError(t, common.Unmarshal(estimateRecorder.Body.Bytes(), &estimate))
-	require.Equal(t, 5.2165, estimate.AmountCNY)
+	require.Equal(t, 7.38, estimate.AmountCNY)
 	require.Equal(t, "CNY", estimate.Currency)
 	require.NotContains(t, estimateRecorder.Body.String(), `"quota"`)
-	require.Equal(t, 1.0433, estimate.Breakdown.SpecUnitCNY)
-	require.Equal(t, 5.2165, estimate.Breakdown.SpecTotalCNY)
+	require.Equal(t, 1.476, estimate.Breakdown.SpecUnitCNY)
+	require.Equal(t, 7.38, estimate.Breakdown.SpecTotalCNY)
 
 	createRecorder := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/v1/videos/tasks", strings.NewReader(payload))
@@ -1901,13 +1895,27 @@ func TestAsyncVideoMatrixSpecPricingEstimateMatchesTaskCharge(t *testing.T) {
 	require.NoError(t, common.Unmarshal(createRecorder.Body.Bytes(), &created))
 	var task model.Task
 	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
-	require.Equal(t, common.CNYToQuota(5.2165), task.Quota)
+	require.Equal(t, common.CNYToQuota(7.38), task.Quota)
 	require.NotNil(t, task.PrivateData.BillingContext)
 	require.NotNil(t, task.PrivateData.BillingContext.SpecPricing)
-	require.Equal(t, "720p:16:9:no_video_input", task.PrivateData.BillingContext.SpecPricing.SpecKey)
+	require.Equal(t, "720p:no_video_input", task.PrivateData.BillingContext.SpecPricing.SpecKey)
 	require.Equal(t, "720p", task.PrivateData.BillingContext.SpecPricing.Resolution)
 	require.Equal(t, "16:9", task.PrivateData.BillingContext.SpecPricing.Ratio)
 	require.Equal(t, "no_video_input", task.PrivateData.BillingContext.SpecPricing.Mode)
+
+	require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(`{
+		"video":{"seedance-2.0":{"mode_prices":{"720p":{
+			"no_video_input":{"cny_per_second":0.001}
+		}}}}
+	}`))
+	var unchanged model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&unchanged).Error)
+	require.Equal(t, common.CNYToQuota(7.38), unchanged.Quota)
+	require.NotNil(t, unchanged.PrivateData.BillingContext)
+	require.NotNil(t, unchanged.PrivateData.BillingContext.SpecPricing)
+	require.Equal(t, common.CNYToQuota(7.38), unchanged.PrivateData.BillingContext.SpecPricing.Quota)
+	require.Equal(t, "720p:no_video_input", unchanged.PrivateData.BillingContext.SpecPricing.SpecKey)
+	require.Equal(t, 7.38, unchanged.PrivateData.BillingContext.SpecPricing.TotalCNY)
 }
 
 func TestAsyncVideoPricingEstimateInfersVideoKindFromSeedancePayload(t *testing.T) {
@@ -2455,19 +2463,17 @@ func TestAsyncVideoMatrixSpecPricingUsesVideoInputReferencesMode(t *testing.T) {
 	require.Equal(t, 1.0, estimate.Breakdown.SpecTotalCNY)
 }
 
-func TestAsyncVideoMatrixSpecPricingRejectsUnsupportedCell(t *testing.T) {
+func TestAsyncVideoCompactSpecPricingRejectsUnsupportedMode(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	withAsyncSpecPricingForTest(t, `{
 		"video":{
 			"seedance-1.5-pro":{
-				"prices":{
+				"mode_prices":{
 					"720p":{
-						"16:9":{
-							"text_audio":{"cny_per_second":0.3629},
-							"text_no_audio":{"cny_per_second":0.1814},
-							"image_audio":{"unsupported":true},
-							"image_no_audio":{"unsupported":true}
-						}
+						"text_audio":{"cny_per_second":0.3652},
+						"text_no_audio":{"cny_per_second":0.1826},
+						"image_audio":{"unsupported":true},
+						"image_no_audio":{"unsupported":true}
 					}
 				}
 			}

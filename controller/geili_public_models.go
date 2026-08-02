@@ -229,6 +229,14 @@ func specPriceSummary(pricing operation_setting.AsyncSpecPricing, modality, mode
 		for _, p := range spec.Resolutions {
 			fromCNY = minPositive(fromCNY, p.CNYPerSecond)
 		}
+		for _, modes := range spec.ModePrices {
+			for _, price := range modes {
+				if price.Unsupported {
+					continue
+				}
+				fromCNY = minPositive(fromCNY, price.CNYPerSecond)
+			}
+		}
 		for _, ratios := range spec.Prices {
 			for _, modes := range ratios {
 				for _, price := range modes {

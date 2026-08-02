@@ -197,6 +197,12 @@ func loadOptionsFromDatabase() {
 	ensureAsyncSpecPricingOptionSeeded()
 	options, _ := AllOption()
 	for _, option := range options {
+		if option.Key == "AsyncSpecPricing" {
+			suspendModelPricingConfigTrust("AsyncSpecPricing reload in progress")
+			break
+		}
+	}
+	for _, option := range options {
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
@@ -248,19 +254,39 @@ func UpdateOption(key string, value string) error {
 		return err
 	}
 	value = normalizeOptionValueBeforePersist(key, value)
+	pricingTrustSuspended := false
+	if key == "AsyncSpecPricing" {
+		pricingTrustSuspended = suspendModelPricingConfigTrust("AsyncSpecPricing update in progress")
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
 	}
 	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
+	if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		if pricingTrustSuspended {
+			RunModelPricingParityCheck()
+		}
+		return err
+	}
 	option.Value = value
 	// Save is a combination function.
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
+	if err := DB.Save(&option).Error; err != nil {
+		if pricingTrustSuspended {
+			RunModelPricingParityCheck()
+		}
+		return err
+	}
 	// Update OptionMap
-	return updateOptionMap(key, value)
+	if err := updateOptionMap(key, value); err != nil {
+		return err
+	}
+	if pricingTrustSuspended {
+		return refreshModelPricingConfigsFromOptions()
+	}
+	return nil
 }
 
 func validateOptionBeforePersist(key string, value string) error {
@@ -292,13 +318,18 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	pricingTrustSuspended := false
+	for k, v := range values {
+		if err := validateOptionBeforePersist(k, v); err != nil {
+			return err
+		}
+		values[k] = normalizeOptionValueBeforePersist(k, v)
+		if k == "AsyncSpecPricing" {
+			pricingTrustSuspended = suspendModelPricingConfigTrust("AsyncSpecPricing bulk update in progress")
+		}
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
-			if err := validateOptionBeforePersist(k, v); err != nil {
-				return err
-			}
-			v = normalizeOptionValueBeforePersist(k, v)
-			values[k] = v
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
@@ -311,12 +342,18 @@ func UpdateOptionsBulk(values map[string]string) error {
 		return nil
 	})
 	if err != nil {
+		if pricingTrustSuspended {
+			RunModelPricingParityCheck()
+		}
 		return err
 	}
 	for k, v := range values {
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
+	}
+	if pricingTrustSuspended {
+		return refreshModelPricingConfigsFromOptions()
 	}
 	return nil
 }

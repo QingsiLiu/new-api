@@ -142,6 +142,50 @@ func TestUpdateOptionPersistsAndReloadsAsyncSpecPricingImmediately(t *testing.T)
 	require.Equal(t, "100000", quotaPerCNYOption.Value)
 }
 
+func TestUpdateOptionMigratesCompactVideoPricingBeforeRestoringTrust(t *testing.T) {
+	truncateTables(t)
+	InitOptionMap()
+	previousPricing := operation_setting.AsyncSpecPricing2JSONString()
+	previousQuotaPerCNY := operation_setting.QuotaPerCNY
+	restoreTrust := SetModelPricingConfigTrustedForTest(false)
+	t.Cleanup(func() {
+		require.NoError(t, operation_setting.UpdateAsyncSpecPricingByJSONString(previousPricing))
+		operation_setting.QuotaPerCNY = previousQuotaPerCNY
+		restoreTrust()
+	})
+	operation_setting.QuotaPerCNY = 1000
+
+	require.NoError(t, UpdateOption("AsyncSpecPricing", `{
+		"currency":"CNY",
+		"video":{
+			"compact-option-video":{
+				"unit":"per_second",
+				"mode_prices":{
+					"720p":{
+						"no_video_input":{"cny_per_second":1.25},
+						"with_video_input":{"cny_per_second":0.75}
+					}
+				}
+			}
+		}
+	}`))
+
+	require.True(t, IsModelPricingConfigTrusted())
+	result := operation_setting.ResolveVideoSpecQuotaByContext("compact-option-video", "720p", "21:9", "no_video_input", 5)
+	require.True(t, result.Matched)
+	require.Equal(t, "720p:no_video_input", result.SpecKey)
+	require.Equal(t, common.CNYToQuota(1.25*5), result.Quota)
+	require.Equal(t, "21:9", result.Ratio)
+
+	var migrated Model
+	require.NoError(t, DB.Where("model_name = ?", "compact-option-video").First(&migrated).Error)
+	require.Equal(t, PricingModeVideoMatrix, migrated.PricingMode)
+	cfg, err := migrated.ParsePricingConfig()
+	require.NoError(t, err)
+	require.Equal(t, 1.25, *cfg.ModePrices["720p"]["no_video_input"].CNYPerSecond)
+	require.Equal(t, 0.75, *cfg.ModePrices["720p"]["with_video_input"].CNYPerSecond)
+}
+
 func TestUpdateOptionMapUpdatesAsyncTaskSpecPricingEnabled(t *testing.T) {
 	truncateTables(t)
 	operation_setting.AsyncTaskSpecPricingEnabled = false

@@ -49,6 +49,7 @@ type ModelPricingConfig struct {
 	Qualities          map[string]operation_setting.AsyncImageQualityPrice `json:"qualities,omitempty"`
 	DefaultCNYPerImage *float64                                            `json:"default_cny_per_image,omitempty"`
 
+	ModePrices          operation_setting.AsyncVideoResolutionModePrices   `json:"mode_prices,omitempty"`
 	Prices              map[string]operation_setting.AsyncVideoRatioPrices `json:"prices,omitempty"`
 	DefaultCNYPerSecond *float64                                           `json:"default_cny_per_second,omitempty"`
 	MinCNY              float64                                            `json:"min_cny,omitempty"`
@@ -107,6 +108,17 @@ func IsModelPricingConfigTrusted() bool {
 	modelPricingParityMu.RLock()
 	defer modelPricingParityMu.RUnlock()
 	return ModelPricingConfigTrusted
+}
+
+func suspendModelPricingConfigTrust(reason string) bool {
+	if DB == nil || !DB.Migrator().HasTable(&Model{}) {
+		return false
+	}
+	modelPricingParityMu.Lock()
+	ModelPricingConfigTrusted = false
+	modelPricingParityError = reason
+	modelPricingParityMu.Unlock()
+	return true
 }
 
 func SetModelPricingConfigTrustedForTest(trusted bool) func() {
@@ -350,6 +362,7 @@ func buildPricingConfigForModel(
 			Mode:                PricingModeVideoMatrix,
 			Unit:                spec.Unit,
 			Resolutions:         videoResolutionsToModelConfig(spec.Resolutions),
+			ModePrices:          spec.ModePrices,
 			Prices:              spec.Prices,
 			DefaultCNYPerSecond: spec.DefaultCNYPerSecond,
 			MinCNY:              spec.MinCNY,
@@ -807,6 +820,12 @@ func sortedVideoSpecModels(src map[string]operation_setting.AsyncVideoSpecPrice)
 
 func videoSpecCompareKeys(spec operation_setting.AsyncVideoSpecPrice) []videoCompareKey {
 	keys := make([]videoCompareKey, 0)
+	for resolution, modes := range spec.ModePrices {
+		for mode := range modes {
+			label := strings.Join([]string{resolution, mode}, ":")
+			keys = append(keys, videoCompareKey{label: label, resolution: resolution, mode: mode})
+		}
+	}
 	for resolution, ratios := range spec.Prices {
 		for ratio, modes := range ratios {
 			for mode := range modes {
@@ -829,6 +848,7 @@ func pricingConfigToVideoSpec(cfg ModelPricingConfig) operation_setting.AsyncVid
 	return operation_setting.AsyncVideoSpecPrice{
 		Unit:                cfg.Unit,
 		Resolutions:         modelConfigToVideoResolutions(cfg.Resolutions),
+		ModePrices:          cfg.ModePrices,
 		Prices:              cfg.Prices,
 		DefaultCNYPerSecond: cfg.DefaultCNYPerSecond,
 		MinCNY:              cfg.MinCNY,
@@ -889,6 +909,12 @@ func AutoMigrateModelPricingConfigsFromOptions() {
 	if DB == nil || !DB.Migrator().HasTable(&Model{}) {
 		return
 	}
+	if err := refreshModelPricingConfigsFromOptions(); err != nil {
+		common.SysError("failed to refresh model pricing configs: " + err.Error() + "; 自动回退旧价格")
+	}
+}
+
+func refreshModelPricingConfigsFromOptions() error {
 	stats, err := MigrateModelPricingConfigs()
 	if err != nil {
 		modelPricingParityMu.Lock()
@@ -896,11 +922,17 @@ func AutoMigrateModelPricingConfigsFromOptions() {
 		modelPricingParityError = err.Error()
 		modelPricingParityReport = PricingCompareReport{}
 		modelPricingParityMu.Unlock()
-		common.SysError("failed to migrate model pricing configs: " + err.Error() + "; 自动回退旧价格")
-		return
+		return err
 	}
 	if stats.CreatedModels > 0 || stats.UpdatedModels > 0 {
 		common.SysLog(fmt.Sprintf("model pricing configs migrated: candidates=%d created=%d updated=%d priced=%d", stats.TotalCandidates, stats.CreatedModels, stats.UpdatedModels, stats.PricedModels))
 	}
-	RunModelPricingParityCheck()
+	status := RunModelPricingParityCheck()
+	if !status.Trusted {
+		if status.Error != "" {
+			return fmt.Errorf("model pricing parity check failed: %s", status.Error)
+		}
+		return fmt.Errorf("model pricing parity check found %d mismatches", status.MismatchCount)
+	}
+	return nil
 }

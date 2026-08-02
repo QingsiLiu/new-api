@@ -456,7 +456,11 @@ func applyDisplayPricingConfig(modelName string, pricing *Pricing) bool {
 		return true
 	case PricingModeVideoMatrix:
 		pricing.PricingMode = PricingModeVideoMatrix
-		pricing.SpecPricing = cfg.Prices
+		if len(cfg.ModePrices) > 0 {
+			pricing.SpecPricing = cfg.ModePrices
+		} else {
+			pricing.SpecPricing = cfg.Prices
+		}
 		pricing.QuotaType = 1
 		if amount, ok := videoMatrixStartAmountCNY(cfg); ok {
 			pricing.ModelPrice = amount
@@ -552,8 +556,8 @@ func minImageResolutionAmountCNY(resolutions map[string]ModelSpecResolutionPrice
 func videoMatrixStartAmountCNY(cfg ModelPricingConfig) (float64, bool) {
 	var minValue float64
 	found := false
-	for _, ratioPrices := range cfg.Prices {
-		for _, modePrices := range ratioPrices {
+	if len(cfg.ModePrices) > 0 {
+		for _, modePrices := range cfg.ModePrices {
 			for _, price := range modePrices {
 				if price.Unsupported || price.CNYPerSecond == nil {
 					continue
@@ -561,6 +565,20 @@ func videoMatrixStartAmountCNY(cfg ModelPricingConfig) (float64, bool) {
 				if !found || *price.CNYPerSecond < minValue {
 					minValue = *price.CNYPerSecond
 					found = true
+				}
+			}
+		}
+	} else {
+		for _, ratioPrices := range cfg.Prices {
+			for _, modePrices := range ratioPrices {
+				for _, price := range modePrices {
+					if price.Unsupported || price.CNYPerSecond == nil {
+						continue
+					}
+					if !found || *price.CNYPerSecond < minValue {
+						minValue = *price.CNYPerSecond
+						found = true
+					}
 				}
 			}
 		}

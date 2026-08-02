@@ -169,7 +169,7 @@ func buildPublicVideoCreditsPricing(modelName string, pricing operation_setting.
 	specsByKey := make(map[string]quotaPriceSpec)
 	exactCoverage := make(map[string]bool)
 
-	for _, resolution := range []string{"480p", "720p"} {
+	for _, resolution := range []string{"480p", "720p", "1080p", "4k"} {
 		for _, mode := range []string{"no_video_input", "with_video_input"} {
 			parameters := map[string]interface{}{
 				"resolution": resolution,
@@ -197,26 +197,47 @@ func buildPublicVideoCreditsPricing(modelName string, pricing operation_setting.
 	}
 
 	if hasSpec {
-		for resolution, ratios := range videoSpec.Prices {
-			for ratio, modes := range ratios {
+		if len(videoSpec.ModePrices) > 0 {
+			for resolution, modes := range videoSpec.ModePrices {
 				for mode, price := range modes {
 					coverageKey := strings.Join([]string{resolution, mode}, ":")
 					if price.Unsupported || exactCoverage[coverageKey] {
 						continue
 					}
 					result := operation_setting.ResolveVideoSpecQuotaByContextFromPricing(
-						pricing, modelName, resolution, ratio, mode, 1,
+						pricing, modelName, resolution, "", mode, 1,
 					)
 					if !result.Matched || result.Quota <= 0 {
 						continue
 					}
-					key := strings.Join([]string{resolution, ratio, mode}, ":")
-					spec := makeQuotaPriceSpec(key, result.Quota, "geili")
+					spec := makeQuotaPriceSpec(coverageKey, result.Quota, "geili")
 					spec.Resolution = resolution
-					spec.Ratio = ratio
 					spec.Mode = mode
-					if _, exists := specsByKey[key]; !exists {
-						specsByKey[key] = spec
+					specsByKey[coverageKey] = spec
+				}
+			}
+		} else {
+			for resolution, ratios := range videoSpec.Prices {
+				for ratio, modes := range ratios {
+					for mode, price := range modes {
+						coverageKey := strings.Join([]string{resolution, mode}, ":")
+						if price.Unsupported || exactCoverage[coverageKey] {
+							continue
+						}
+						result := operation_setting.ResolveVideoSpecQuotaByContextFromPricing(
+							pricing, modelName, resolution, ratio, mode, 1,
+						)
+						if !result.Matched || result.Quota <= 0 {
+							continue
+						}
+						key := strings.Join([]string{resolution, ratio, mode}, ":")
+						spec := makeQuotaPriceSpec(key, result.Quota, "geili")
+						spec.Resolution = resolution
+						spec.Ratio = ratio
+						spec.Mode = mode
+						if _, exists := specsByKey[key]; !exists {
+							specsByKey[key] = spec
+						}
 					}
 				}
 			}
