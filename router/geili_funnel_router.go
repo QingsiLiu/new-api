@@ -16,4 +16,10 @@ func SetGeiliFunnelRouter(engine *gin.Engine) {
 		middleware.GeiliFunnelWriteRateLimit(),
 		controller.IngestGeiliFunnelEvent,
 	)
+	group.GET(
+		"/summary",
+		middleware.GeiliFunnelSecretAuth(),
+		middleware.GeiliFunnelReadRateLimit(),
+		controller.GetGeiliFunnelSummary,
+	)
 }
