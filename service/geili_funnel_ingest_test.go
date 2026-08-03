@@ -17,6 +17,9 @@ import (
 
 func setupFunnelServiceTestDB(t *testing.T) {
 	t.Helper()
+	previousDB := model.DB
+	previousDatabaseType := common.MainDatabaseType()
+	previousRedisEnabled := common.RedisEnabled
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared&_busy_timeout=5000", strings.ReplaceAll(t.Name(), "/", "_"))
@@ -25,6 +28,9 @@ func setupFunnelServiceTestDB(t *testing.T) {
 	model.DB = db
 	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.User{}, &model.TopUp{}, &model.Task{}, &model.FunnelVisitor{}, &model.FunnelEvent{}, &model.FunnelActivityDay{}))
 	t.Cleanup(func() {
+		model.DB = previousDB
+		common.SetMainDatabaseType(previousDatabaseType)
+		common.RedisEnabled = previousRedisEnabled
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()

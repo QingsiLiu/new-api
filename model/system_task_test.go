@@ -230,6 +230,35 @@ func TestGetLatestSystemTask(t *testing.T) {
 	assert.Equal(t, second.TaskID, latest.TaskID)
 }
 
+func TestGetLatestSuccessfulSystemTaskSkipsNewerNonSuccessRows(t *testing.T) {
+	truncateTables(t)
+
+	latest, err := GetLatestSuccessfulSystemTask(SystemTaskTypeFunnelMaintenance)
+	require.NoError(t, err)
+	require.Nil(t, latest)
+
+	succeeded, err := CreateSystemTask(SystemTaskTypeFunnelMaintenance, nil, nil)
+	require.NoError(t, err)
+	_, claimed, err := ClaimSystemTask(succeeded.ID, succeeded.Type, "runner-success", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, FinishSystemTask(succeeded.TaskID, "runner-success", SystemTaskStatusSucceeded, map[string]int{"count": 1}, ""))
+
+	failed, err := CreateSystemTask(SystemTaskTypeFunnelMaintenance, nil, nil)
+	require.NoError(t, err)
+	_, claimed, err = ClaimSystemTask(failed.ID, failed.Type, "runner-failed", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, FinishSystemTask(failed.TaskID, "runner-failed", SystemTaskStatusFailed, nil, "dynamic database error"))
+
+	_, err = CreateSystemTask(SystemTaskTypeFunnelMaintenance, nil, nil)
+	require.NoError(t, err)
+	latest, err = GetLatestSuccessfulSystemTask(SystemTaskTypeFunnelMaintenance)
+	require.NoError(t, err)
+	require.NotNil(t, latest)
+	require.Equal(t, succeeded.TaskID, latest.TaskID)
+}
+
 func TestGetLatestSystemTasks(t *testing.T) {
 	truncateTables(t)
 

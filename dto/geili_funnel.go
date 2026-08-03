@@ -95,3 +95,51 @@ type GeiliFunnelSummaryResponse struct {
 	Quality  FunnelQuality   `json:"quality"`
 	Segments []FunnelSegment `json:"segments"`
 }
+
+type FunnelHealthEvent struct {
+	Name    string `json:"name"`
+	Last24h int64  `json:"last_24h"`
+}
+
+type FunnelHealthCounters struct {
+	Accepted  uint64 `json:"accepted_since_process_start"`
+	Duplicate uint64 `json:"duplicate_since_process_start"`
+	Rejected  uint64 `json:"rejected_since_process_start"`
+	Failed    uint64 `json:"failed_since_process_start"`
+	Since     int64  `json:"since_process_start"`
+}
+
+type FunnelHealthIdentity struct {
+	Linked        int64    `json:"linked"`
+	Ambiguous     int64    `json:"ambiguous"`
+	AmbiguousRate *float64 `json:"ambiguous_rate"`
+}
+
+type FunnelHealthBusiness struct {
+	InvalidTopUpTimes  int64 `json:"invalid_top_up_times"`
+	InvalidTaskTimes   int64 `json:"invalid_task_times"`
+	TaskSuccessLast24h int64 `json:"task_success_last_24h"`
+	TaskFailureLast24h int64 `json:"task_failure_last_24h"`
+}
+
+type FunnelHealthMaintenance struct {
+	Status           string `json:"status"`
+	LastRunAt        int64  `json:"last_run_at"`
+	LastSuccessfulAt int64  `json:"last_successful_at"`
+	RawCutoff        int64  `json:"raw_cutoff"`
+	ActivityCutoff   int64  `json:"activity_cutoff"`
+}
+
+type GeiliFunnelHealthResponse struct {
+	Healthy             bool                    `json:"healthy"`
+	Enabled             bool                    `json:"enabled"`
+	SchemaVersion       int                     `json:"schema_version"`
+	Environment         string                  `json:"environment"`
+	CollectionStartedAt int64                   `json:"collection_started_at"`
+	LastEventAt         int64                   `json:"last_event_at"`
+	Events              []FunnelHealthEvent     `json:"events"`
+	Counters            FunnelHealthCounters    `json:"counters"`
+	Identity            FunnelHealthIdentity    `json:"identity"`
+	Business            FunnelHealthBusiness    `json:"business"`
+	Maintenance         FunnelHealthMaintenance `json:"maintenance"`
+}

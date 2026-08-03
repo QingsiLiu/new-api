@@ -13,6 +13,9 @@ import (
 
 func setupFunnelTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+	previousDB := DB
+	previousDatabaseType := common.MainDatabaseType()
+	previousRedisEnabled := common.RedisEnabled
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
@@ -21,6 +24,9 @@ func setupFunnelTestDB(t *testing.T) *gorm.DB {
 	DB = db
 	require.NoError(t, db.AutoMigrate(&Option{}, &User{}, &TopUp{}, &Task{}, &FunnelVisitor{}, &FunnelEvent{}, &FunnelActivityDay{}))
 	t.Cleanup(func() {
+		DB = previousDB
+		common.SetMainDatabaseType(previousDatabaseType)
+		common.RedisEnabled = previousRedisEnabled
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()

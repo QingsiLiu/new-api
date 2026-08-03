@@ -97,6 +97,35 @@ func GetGeiliFunnelSummary(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func GetGeiliFunnelHealth(c *gin.Context) {
+	values := c.Request.URL.Query()
+	for key, entries := range values {
+		if key != "environment" || len(entries) != 1 {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+	}
+	environment := values.Get("environment")
+	if environment == "" {
+		environment = model.FunnelEnvironmentProduction
+	}
+	if environment != model.FunnelEnvironmentProduction && environment != model.FunnelEnvironmentStaging {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	response, err := service.GetGeiliFunnelHealth(c.Request.Context(), geiliFunnelCurrentTime().UTC().Unix(), environment)
+	if err != nil {
+		common.SysError("geili_funnel_health_failed")
+		c.AbortWithStatus(http.StatusServiceUnavailable)
+		return
+	}
+	status := http.StatusOK
+	if !response.Healthy {
+		status = http.StatusServiceUnavailable
+	}
+	c.JSON(status, response)
+}
+
 func parseGeiliFunnelSummaryQuery(values url.Values, now time.Time) (service.FunnelSummaryQuery, error) {
 	allowed := map[string]struct{}{"from": {}, "to": {}, "dimension": {}, "environment": {}}
 	for key, entries := range values {

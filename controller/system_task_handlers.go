@@ -12,16 +12,16 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
-// RegisterScheduledSystemTasks wires the periodic channel test, upstream model
-// update, and async task polling (Midjourney / Suno / video) jobs into the
-// system task framework so a DB lease dedups execution across multiple master
-// instances and each run is recorded as one task row. Call this before
-// service.StartSystemTaskRunner.
+// RegisterScheduledSystemTasks wires periodic channel tests, upstream model
+// updates, async task polling, and funnel maintenance into the system task
+// framework so a DB lease dedups execution across multiple master instances.
+// Call this before service.StartSystemTaskRunner.
 func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(channelTestHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(funnelMaintenanceHandler{})
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and

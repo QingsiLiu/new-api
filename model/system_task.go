@@ -16,11 +16,12 @@ const (
 	SystemTaskStatusSucceeded SystemTaskStatus = "succeeded"
 	SystemTaskStatusFailed    SystemTaskStatus = "failed"
 
-	SystemTaskTypeLogCleanup     = "log_cleanup"
-	SystemTaskTypeChannelTest    = "channel_test"
-	SystemTaskTypeModelUpdate    = "model_update"
-	SystemTaskTypeMidjourneyPoll = "midjourney_poll"
-	SystemTaskTypeAsyncTaskPoll  = "async_task_poll"
+	SystemTaskTypeLogCleanup        = "log_cleanup"
+	SystemTaskTypeChannelTest       = "channel_test"
+	SystemTaskTypeModelUpdate       = "model_update"
+	SystemTaskTypeMidjourneyPoll    = "midjourney_poll"
+	SystemTaskTypeAsyncTaskPoll     = "async_task_poll"
+	SystemTaskTypeFunnelMaintenance = "funnel_maintenance"
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")
@@ -193,6 +194,21 @@ func ListSystemTasks(limit int) ([]*SystemTask, error) {
 func GetLatestSystemTask(taskType string) (*SystemTask, error) {
 	var task SystemTask
 	err := DB.Where("type = ?", taskType).Order("id desc").First(&task).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &task, nil
+}
+
+// GetLatestSuccessfulSystemTask returns the newest completed success for a
+// task type, ignoring newer pending, running, and failed attempts.
+func GetLatestSuccessfulSystemTask(taskType string) (*SystemTask, error) {
+	var task SystemTask
+	err := DB.Where("type = ? AND status = ?", taskType, SystemTaskStatusSucceeded).
+		Order("id desc").First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

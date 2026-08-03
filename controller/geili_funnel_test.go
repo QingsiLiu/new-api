@@ -32,7 +32,7 @@ func funnelControllerRouter(t *testing.T, secret string) *gin.Engine {
 	t.Setenv("GEILI_FUNNEL_ENABLED", "true")
 	t.Setenv("GEILI_FUNNEL_SECRET", secret)
 	t.Setenv("GEILI_FUNNEL_UNAUTHORIZED_RPM", "100000")
-	t.Setenv("GEILI_FUNNEL_WRITE_RPM", "20")
+	t.Setenv("GEILI_FUNNEL_WRITE_RPM", "100000")
 	t.Setenv("GEILI_FUNNEL_READ_RPM", "100000")
 	router := gin.New()
 	router.Use(middleware.GeiliFunnelNoStore())
@@ -48,6 +48,12 @@ func funnelControllerRouter(t *testing.T, secret string) *gin.Engine {
 		middleware.GeiliFunnelSecretAuth(),
 		middleware.GeiliFunnelReadRateLimit(),
 		GetGeiliFunnelSummary,
+	)
+	router.GET(
+		"/health",
+		middleware.GeiliFunnelSecretAuth(),
+		middleware.GeiliFunnelReadRateLimit(),
+		GetGeiliFunnelHealth,
 	)
 	return router
 }
@@ -169,6 +175,61 @@ func TestGeiliFunnelSummaryLoaderFailureIsFixed503(t *testing.T) {
 	require.NoError(t, model.DB.Migrator().DropTable(&model.FunnelEvent{}))
 
 	response := getFunnelController(router, secret, "/summary")
+	require.Equal(t, http.StatusServiceUnavailable, response.Code)
+	require.Empty(t, response.Body.String())
+}
+
+func TestGeiliFunnelHealthEnvironmentAndMaintenanceStatus(t *testing.T) {
+	setupFunnelControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.SystemTask{}, &model.SystemTaskLock{}))
+	secret := strings.Repeat("s", 32)
+	router := funnelControllerRouter(t, secret)
+	fixedNow := time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC)
+	previousNow := geiliFunnelCurrentTime
+	geiliFunnelCurrentTime = func() time.Time { return fixedNow }
+	t.Cleanup(func() { geiliFunnelCurrentTime = previousNow })
+
+	production := getFunnelController(router, secret, "/health")
+	require.Equal(t, http.StatusOK, production.Code, production.Body.String())
+	var decoded dto.GeiliFunnelHealthResponse
+	require.NoError(t, json.Unmarshal(production.Body.Bytes(), &decoded))
+	require.True(t, decoded.Healthy)
+	require.Equal(t, "production", decoded.Environment)
+	require.Equal(t, "pending_initial_run", decoded.Maintenance.Status)
+	require.Len(t, decoded.Events, 5)
+
+	staging := getFunnelController(router, secret, "/health?environment=staging")
+	require.Equal(t, http.StatusOK, staging.Code, staging.Body.String())
+	require.NoError(t, json.Unmarshal(staging.Body.Bytes(), &decoded))
+	require.Equal(t, "staging", decoded.Environment)
+
+	for _, target := range []string{
+		"/health?environment=preview",
+		"/health?environment=staging&environment=production",
+		"/health?value=private",
+	} {
+		require.Equal(t, http.StatusBadRequest, getFunnelController(router, secret, target).Code, target)
+	}
+	require.Equal(t, http.StatusUnauthorized, getFunnelController(router, "wrong", "/health").Code)
+
+	require.NoError(t, model.DB.Create(&model.Option{
+		Key: "GeiliFunnelCollectionStartedAt.production", Value: fmt.Sprintf("%d", fixedNow.Unix()-40*3600),
+	}).Error)
+	stale := getFunnelController(router, secret, "/health")
+	require.Equal(t, http.StatusServiceUnavailable, stale.Code, stale.Body.String())
+	require.NoError(t, json.Unmarshal(stale.Body.Bytes(), &decoded))
+	require.False(t, decoded.Healthy)
+	require.Equal(t, "stale", decoded.Maintenance.Status)
+}
+
+func TestGeiliFunnelHealthSchemaFailureIsFixed503(t *testing.T) {
+	setupFunnelControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.SystemTask{}, &model.SystemTaskLock{}))
+	secret := strings.Repeat("s", 32)
+	router := funnelControllerRouter(t, secret)
+	require.NoError(t, model.DB.Migrator().DropTable(&model.FunnelActivityDay{}))
+
+	response := getFunnelController(router, secret, "/health")
 	require.Equal(t, http.StatusServiceUnavailable, response.Code)
 	require.Empty(t, response.Body.String())
 }
