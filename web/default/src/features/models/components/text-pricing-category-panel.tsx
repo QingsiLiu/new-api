@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { TFunction } from 'i18next'
 import { Calculator, Loader2, ShieldCheck } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,11 +11,20 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import {
   getTextPricingConfig,
   previewTextPricingCategory,
   updateTextPricingCategory,
+  updateTextPricingMode,
 } from '../api'
 import {
   getTextCategoryMultiplier,
@@ -22,7 +32,11 @@ import {
   normalizeOfficialPriceProfiles,
   normalizeTextPricingCategories,
 } from '../lib'
-import type { TextPricingImpact, TextPricingPreviewSummary } from '../types'
+import type {
+  TextPricingImpact,
+  TextPricingMode,
+  TextPricingPreviewSummary,
+} from '../types'
 
 type TextPricingCategoryPanelProps = {
   category?: string
@@ -33,6 +47,8 @@ export function TextPricingCategoryPanel(props: TextPricingCategoryPanelProps) {
   const queryClient = useQueryClient()
   const [multiplierInput, setMultiplierInput] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [modeConfirmOpen, setModeConfirmOpen] = useState(false)
+  const [pendingMode, setPendingMode] = useState<TextPricingMode | null>(null)
 
   const configQuery = useQuery({
     queryKey: modelsQueryKeys.textPricing(),
@@ -54,12 +70,22 @@ export function TextPricingCategoryPanel(props: TextPricingCategoryPanelProps) {
   const profileCount = profiles.filter(
     (profile) => profile.category === props.category
   ).length
+  const currentMode = normalizeTextPricingMode(configQuery.data?.data?.mode)
+  const currentModeDescription = getTextPricingModeDescription(t, currentMode)
+  const pendingModeLabel = pendingMode
+    ? getTextPricingModeLabel(t, pendingMode)
+    : null
+  const pendingModeDescription = pendingMode
+    ? getTextPricingModeDescription(t, pendingMode)
+    : null
 
   useEffect(() => {
     setMultiplierInput(
       currentMultiplier === undefined ? '' : String(currentMultiplier)
     )
     setConfirmOpen(false)
+    setModeConfirmOpen(false)
+    setPendingMode(null)
   }, [currentMultiplier, props.category])
 
   const parsedMultiplier = Number(multiplierInput)
@@ -109,6 +135,28 @@ export function TextPricingCategoryPanel(props: TextPricingCategoryPanelProps) {
     },
   })
 
+  const modeMutation = useMutation({
+    mutationFn: updateTextPricingMode,
+    onSuccess: async (response) => {
+      if (!response.success) {
+        toast.error(response.message || t('Unable to update text pricing mode'))
+        return
+      }
+      toast.success(t('Text pricing mode updated'))
+      setModeConfirmOpen(false)
+      setPendingMode(null)
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: modelsQueryKeys.textPricing(),
+        }),
+        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() }),
+      ])
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('Unable to update text pricing mode'))
+    },
+  })
+
   if (configQuery.isLoading) {
     return (
       <div className='border-border flex min-h-16 items-center gap-2 border-y px-3 text-sm'>
@@ -152,6 +200,33 @@ export function TextPricingCategoryPanel(props: TextPricingCategoryPanelProps) {
               'Official prices are read-only. The category multiplier applies to every model in the selected group.'
             )}
           </span>
+          <div className='basis-full space-y-1'>
+            <Label htmlFor='text-pricing-mode'>{t('Pricing mode')}</Label>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Select
+                value={currentMode}
+                onValueChange={(value) => {
+                  if (value === null || value === currentMode) return
+                  setPendingMode(value as TextPricingMode)
+                  setModeConfirmOpen(true)
+                }}
+              >
+                <SelectTrigger id='text-pricing-mode' className='w-[180px]'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value='legacy'>{t('Legacy')}</SelectItem>
+                    <SelectItem value='shadow'>{t('Shadow')}</SelectItem>
+                    <SelectItem value='active'>{t('Active')}</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <span className='text-muted-foreground text-xs'>
+                {currentModeDescription}
+              </span>
+            </div>
+          </div>
         </div>
 
         {props.category ? (
@@ -203,6 +278,32 @@ export function TextPricingCategoryPanel(props: TextPricingCategoryPanelProps) {
       </section>
 
       <ConfirmDialog
+        open={modeConfirmOpen}
+        onOpenChange={(open) => {
+          setModeConfirmOpen(open)
+          if (!open) setPendingMode(null)
+        }}
+        title={t('Change text pricing mode?')}
+        desc={t('The selected mode applies globally to text model billing.')}
+        confirmText={t('Apply pricing mode')}
+        isLoading={modeMutation.isPending}
+        handleConfirm={() => {
+          if (!pendingMode) return
+          modeMutation.mutate(pendingMode)
+        }}
+      >
+        {pendingMode ? (
+          <Alert variant={pendingMode === 'active' ? 'destructive' : 'default'}>
+            <ShieldCheck aria-hidden='true' />
+            <AlertTitle>
+              {t('Switch to {{mode}}', { mode: pendingModeLabel })}
+            </AlertTitle>
+            <AlertDescription>{pendingModeDescription}</AlertDescription>
+          </Alert>
+        ) : null}
+      </ConfirmDialog>
+
+      <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={t('Apply category multiplier?')}
@@ -246,6 +347,27 @@ export function TextPricingCategoryPanel(props: TextPricingCategoryPanelProps) {
       </ConfirmDialog>
     </>
   )
+}
+
+function normalizeTextPricingMode(mode?: string): TextPricingMode {
+  if (mode === 'shadow' || mode === 'active') return mode
+  return 'legacy'
+}
+
+function getTextPricingModeLabel(t: TFunction, mode: TextPricingMode) {
+  if (mode === 'active') return t('Active')
+  if (mode === 'shadow') return t('Shadow')
+  return t('Legacy')
+}
+
+function getTextPricingModeDescription(t: TFunction, mode: TextPricingMode) {
+  if (mode === 'active') {
+    return t('Active applies the new prices immediately.')
+  }
+  if (mode === 'shadow') {
+    return t('Shadow computes new prices without charging them.')
+  }
+  return t('Legacy keeps the current text billing path.')
 }
 
 function PricingPreviewSummary(props: {

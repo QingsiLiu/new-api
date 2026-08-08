@@ -6,10 +6,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 
 const files = {
-  component: path.join(
-    root,
-    'src/features/system-settings/models/async-spec-pricing-settings.tsx'
-  ),
   registry: path.join(
     root,
     'src/features/system-settings/billing/section-registry.tsx'
@@ -17,6 +13,10 @@ const files = {
   billingIndex: path.join(
     root,
     'src/features/system-settings/billing/index.tsx'
+  ),
+  billingRoute: path.join(
+    root,
+    'src/routes/_authenticated/system-settings/billing/$section.tsx'
   ),
   types: path.join(root, 'src/features/system-settings/types.ts'),
   pricingTypes: path.join(root, 'src/features/pricing/types.ts'),
@@ -40,20 +40,17 @@ const files = {
     root,
     'src/features/pricing/components/pricing-toolbar.tsx'
   ),
-  pricingFiltersHook: path.join(root, 'src/features/pricing/hooks/use-filters.ts'),
+  pricingFiltersHook: path.join(
+    root,
+    'src/features/pricing/hooks/use-filters.ts'
+  ),
 }
 
-const localeFiles = ['en', 'zh', 'fr', 'ru', 'ja', 'vi'].map((locale) =>
-  path.join(root, 'src/i18n/locales', `${locale}.json`)
+const localeFiles = ['en', 'zh', 'zh-TW', 'fr', 'ru', 'ja', 'vi'].map(
+  (locale) => path.join(root, 'src/i18n/locales', `${locale}.json`)
 )
 
 const specPricingI18nKeys = [
-  'Spec Pricing',
-  'Save spec pricing',
-  'Video prices',
-  'Video matrix prices',
-  'Add video price',
-  'No video prices configured',
   'Resolution',
   'Ratio',
   'Mode',
@@ -68,9 +65,6 @@ const specPricingI18nKeys = [
   'Image without audio',
   'CNY / second',
   'Min / max',
-  'Image prices',
-  'Add image price',
-  'No image prices configured',
   'CNY / image',
   'Image generation',
   'Video generation',
@@ -98,9 +92,9 @@ function assertNotContains(source, needle, label) {
   }
 }
 
-const component = read(files.component)
 const registry = read(files.registry)
 const billingIndex = read(files.billingIndex)
+const billingRoute = read(files.billingRoute)
 const types = read(files.types)
 const pricingTypes = read(files.pricingTypes)
 const pricingSpecHelper = read(files.pricingSpecHelper)
@@ -109,65 +103,76 @@ const pricingModelDetails = read(files.pricingModelDetails)
 const pricingSidebar = read(files.pricingSidebar)
 const pricingToolbar = read(files.pricingToolbar)
 const pricingFiltersHook = read(files.pricingFiltersHook)
-
-for (const [needle, label] of [
-  ['Video matrix prices', 'video matrix section label'],
-  ['CNY / second', 'video per-second price column'],
-  ['VIDEO_RATIO_OPTIONS', 'video ratio option set'],
-  ['VIDEO_MODE_OPTIONS', 'video mode option set'],
-  ['VIDEO_STATUS_OPTIONS', 'video support status option set'],
-  ['prices?: Record', 'video matrix JSON type'],
-  ['spec.prices[resolution]', 'video matrix JSON writer'],
-  ['unsupported: !row.supported', 'unsupported video matrix writer'],
-  ['row.ratio', 'video ratio row field'],
-  ['row.mode', 'video mode row field'],
-  ['row.supported', 'video status row field'],
-  ['CNY / image', 'image per-image price column'],
-  ['IMAGE_RESOLUTION_OPTIONS', 'image resolution option set'],
-  ['spec.resolutions[resolution]', 'image resolution JSON writer'],
-  ['Switch to JSON', 'JSON editor toggle'],
-  ['Switch to Visual', 'visual editor toggle'],
-  ['StaticDataTable', 'dense table editor'],
-  ['NativeSelect', 'bounded option controls'],
-  ['minCNY', 'video minimum price field'],
-  ['maxCNY', 'video maximum price field'],
-]) {
-  assertContains(component, needle, label)
-}
-
-for (const [needle, label] of [
-  ['quotaPerCNY', 'QuotaPerCNY prop/state in spec pricing editor'],
-  ['QuotaPerCNY', 'QuotaPerCNY option payload in spec pricing editor'],
-  ['useEffect', 'effect-based state initialization'],
-  ['rounded-full', 'pill styling in pricing editor'],
-  ['shadow-lg', 'large decorative shadow'],
-  ['bg-gradient', 'decorative gradient background'],
-  ['IMAGE_QUALITY_OPTIONS', 'old image quality option set'],
-  ['spec.qualities[quality]', 'old image quality JSON writer'],
-  ['AlertDescription', 'developer-facing pricing explanation banner'],
-  ['PreviewLine', 'quota preview cards'],
-  ['Quota per CNY', 'raw quota-per-CNY label'],
-  ['Video preview', 'video quota preview'],
-  ['Image preview', 'image quota preview'],
-  [
-    'Specification prices are absolute CNY prices',
-    'developer-facing pricing explanation text',
-  ],
-]) {
-  assertNotContains(component, needle, label)
-}
-
-assertContains(registry, "id: 'spec-pricing'", 'billing section registration')
-assertContains(registry, 'AsyncSpecPricingSettings', 'settings component import')
-assertNotContains(
-  registry,
-  'quotaPerCNYDefault',
-  'QuotaPerCNY prop wiring in billing registry'
+const billingTypes = types.slice(
+  types.indexOf('export type BillingSettings = {'),
+  types.indexOf('export type OperationsSettings = {')
 )
-assertContains(billingIndex, 'QuotaPerCNY', 'QuotaPerCNY default value')
-assertContains(billingIndex, 'AsyncSpecPricing', 'AsyncSpecPricing default value')
-assertContains(types, 'QuotaPerCNY: number', 'QuotaPerCNY settings type')
-assertContains(types, 'AsyncSpecPricing: string', 'AsyncSpecPricing settings type')
+
+for (const section of [
+  'currency',
+  'model-pricing',
+  'spec-pricing',
+  'group-pricing',
+  'checkin',
+]) {
+  assertNotContains(
+    registry,
+    `id: '${section}'`,
+    `retired billing section ${section}`
+  )
+}
+assertContains(registry, "id: 'quota'", 'quota billing section')
+assertContains(registry, "id: 'payment'", 'payment gateway section')
+assertContains(registry, "id: 'advanced'", 'advanced billing section')
+assertContains(registry, 'ToolPriceSettings', 'advanced tool pricing editor')
+assertContains(
+  registry,
+  "settings['tool_price_setting.prices']",
+  'tool pricing option wiring'
+)
+assertNotContains(
+  billingIndex,
+  'AsyncSpecPricing',
+  'legacy spec pricing default'
+)
+assertNotContains(billingIndex, 'ModelRatio', 'legacy model pricing default')
+assertNotContains(billingIndex, 'GroupRatio', 'legacy group pricing default')
+assertNotContains(billingIndex, 'checkin_setting', 'legacy check-in defaults')
+assertNotContains(
+  billingTypes,
+  'AsyncSpecPricing: string',
+  'legacy spec pricing type'
+)
+assertNotContains(
+  billingTypes,
+  'ModelRatio: string',
+  'legacy model pricing type'
+)
+assertNotContains(
+  billingTypes,
+  'GroupRatio: string',
+  'legacy group pricing type'
+)
+assertNotContains(
+  billingTypes,
+  'checkin_setting',
+  'legacy check-in settings type'
+)
+assertContains(
+  billingRoute,
+  "'model-pricing': { to: '/models/$section', section: 'metadata' }",
+  'legacy model pricing redirect'
+)
+assertContains(
+  billingRoute,
+  "'spec-pricing': { to: '/models/$section', section: 'metadata' }",
+  'legacy spec pricing redirect'
+)
+assertContains(
+  billingRoute,
+  "'group-pricing': { to: '/users' }",
+  'legacy group pricing redirect'
+)
 assertContains(pricingTypes, 'pricing_mode?', 'pricing mode API field')
 assertContains(pricingTypes, 'spec_pricing?', 'spec pricing API field')
 assertContains(pricingTypes, 'amount_cny?', 'CNY amount API field')
@@ -272,9 +277,11 @@ for (const file of localeFiles) {
   for (const key of specPricingI18nKeys) {
     const value = data.translation[key]
     if (typeof value !== 'string' || value.trim() === '') {
-      throw new Error(`Missing Spec Pricing locale key in ${relativePath}: ${key}`)
+      throw new Error(
+        `Missing media pricing locale key in ${relativePath}: ${key}`
+      )
     }
   }
 }
 
-console.log('async spec pricing design verification passed')
+console.log('model pricing center cleanup verification passed')

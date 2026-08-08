@@ -574,8 +574,8 @@ function AudioPricingEditor(props: ModelPricingEditorProps) {
             onChange={props.onPricingConfigChange}
             keyPlaceholder='field'
             valuePlaceholder='value'
-            keyLabel='Field'
-            valueLabel='Value'
+            keyLabel={t('Field')}
+            valueLabel={t('Value')}
             valueType='any'
             emptyMessage={t('No compatibility pricing configured.')}
           />

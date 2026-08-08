@@ -312,8 +312,10 @@ export type TextPricingProfilesPayload =
   | OfficialPriceProfile[]
   | Record<string, OfficialPriceProfile>
 
+export type TextPricingMode = 'legacy' | 'shadow' | 'active'
+
 export interface TextPricingConfig {
-  mode: 'legacy' | 'shadow' | 'active' | string
+  mode: TextPricingMode | string
   catalog_version: string
   categories: TextPricingCategoriesPayload
   profiles: TextPricingProfilesPayload
@@ -357,6 +359,12 @@ export interface UpdateTextPricingCategoryResponse {
   success: boolean
   message?: string
   data?: TextPricingCategoryConfig
+}
+
+export interface UpdateTextPricingModeResponse {
+  success: boolean
+  message?: string
+  data?: { mode: TextPricingMode | string }
 }
 
 // ============================================================================

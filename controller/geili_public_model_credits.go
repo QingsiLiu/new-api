@@ -8,8 +8,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-
-	"github.com/shopspring/decimal"
 )
 
 const publicCatalogCreditsPerUSD = 200
@@ -91,7 +89,7 @@ func buildPublicCreditsPricing(
 	pricing operation_setting.AsyncSpecPricing,
 	categoryMultiplier *float64,
 ) *publicCreditsPricing {
-	if !common.CreditsV1Enabled() {
+	if !common.CreditsV1Enabled() && model.GetTextPricingMode() != model.TextPricingModeActive {
 		return nil
 	}
 	switch entry.Modality {
@@ -278,7 +276,7 @@ func buildPublicVideoCreditsPricing(modelName string, pricing operation_setting.
 	return finalizePublicCreditsPricing(unit, specs)
 }
 
-func buildPublicTextCreditsPricing(entry model.ModelRegistry, categoryMultiplier *float64) *publicCreditsPricing {
+func buildPublicTextCreditsPricing(entry model.ModelRegistry, _ *float64) *publicCreditsPricing {
 	if exact, ok := relayhelper.CreditsV1TextPricingForPublicCatalog(entry.ModelName); ok {
 		specs := make([]quotaPriceSpec, 0, 6*max(1, len(exact.Tiers)))
 		appendTier := func(
@@ -290,7 +288,7 @@ func buildPublicTextCreditsPricing(entry model.ModelRegistry, categoryMultiplier
 				cachedInputQuota = input
 			}
 			appendSpec := func(dimension string, quota int64) {
-				spec := textQuotaPriceSpec(dimension, quota, "geili", tier)
+				spec := textQuotaPriceSpec(dimension, quota, exact.PricingSource, tier)
 				if spec.quota <= 0 {
 					return
 				}
@@ -338,50 +336,7 @@ func buildPublicTextCreditsPricing(entry model.ModelRegistry, categoryMultiplier
 		}
 		return finalizePublicCreditsPricing("per_1M_tokens", specs)
 	}
-	if categoryMultiplier == nil || *categoryMultiplier <= 0 || *categoryMultiplier > 1 {
-		return nil
-	}
-	var official officialTokenPrice
-	if err := common.UnmarshalJsonStr(entry.OfficialPrice, &official); err != nil {
-		return nil
-	}
-	specs := make([]quotaPriceSpec, 0)
-	appendDimensions := func(dimensions map[string]float64, tier string, minTokens, maxTokens *int) {
-		keys := make([]string, 0, len(dimensions))
-		for dimension := range dimensions {
-			keys = append(keys, dimension)
-		}
-		sort.Strings(keys)
-		for _, dimension := range keys {
-			usd := dimensions[dimension]
-			quotaDecimal := decimal.NewFromFloat(usd).
-				Mul(decimal.NewFromFloat(*categoryMultiplier)).
-				Mul(decimal.NewFromInt(publicCatalogCreditsPerUSD)).
-				Mul(decimal.NewFromInt(int64(common.CreditsQuotaUnit)))
-			quota64 := quotaDecimal.Round(0).IntPart()
-			if quota64 <= 0 || quota64 > int64(^uint(0)>>1) {
-				continue
-			}
-			quota := int(quota64)
-			key := dimension
-			if tier != "" {
-				key = tier + ":" + dimension
-			}
-			spec := makeQuotaPriceSpec(key, quota, "geili")
-			spec.Dimension = dimension
-			spec.Tier = tier
-			spec.MinPromptTokens = minTokens
-			spec.MaxPromptTokens = maxTokens
-			specs = append(specs, spec)
-		}
-	}
-	if len(official.Dimensions) > 0 {
-		appendDimensions(official.Dimensions, "", nil, nil)
-	}
-	for _, tier := range official.Tiers {
-		appendDimensions(tier.Dimensions, tier.Label, tier.MinPromptTokens, tier.MaxPromptTokens)
-	}
-	return finalizePublicCreditsPricing("per_1M_tokens", specs)
+	return nil
 }
 
 func textQuotaPriceSpec(dimension string, quota int64, source, tier string) quotaPriceSpec {

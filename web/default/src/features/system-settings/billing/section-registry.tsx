@@ -16,42 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { parseCurrencyDisplayType } from '@/lib/currency'
-
-import { CheckinSettingsSection } from '../general/checkin-settings-section'
-import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
-import { AsyncSpecPricingSettings } from '../models/async-spec-pricing-settings'
-import { RatioSettingsCard } from '../models/ratio-settings-card'
+import { ToolPriceSettings } from '../models/tool-price-settings'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
-import { LegacyModelPricingNotice } from './legacy-model-pricing-notice'
-
-const getModelDefaults = (settings: BillingSettings) => ({
-  ModelPrice: settings.ModelPrice,
-  ModelRatio: settings.ModelRatio,
-  CacheRatio: settings.CacheRatio,
-  CreateCacheRatio: settings.CreateCacheRatio,
-  CompletionRatio: settings.CompletionRatio,
-  ImageRatio: settings.ImageRatio,
-  AudioRatio: settings.AudioRatio,
-  AudioCompletionRatio: settings.AudioCompletionRatio,
-  ExposeRatioEnabled: settings.ExposeRatioEnabled,
-  BillingMode: settings['billing_setting.billing_mode'],
-  BillingExpr: settings['billing_setting.billing_expr'],
-})
-
-const getGroupDefaults = (settings: BillingSettings) => ({
-  TopupGroupRatio: settings.TopupGroupRatio,
-  GroupRatio: settings.GroupRatio,
-  UserUsableGroups: settings.UserUsableGroups,
-  GroupGroupRatio: settings.GroupGroupRatio,
-  AutoGroups: settings.AutoGroups,
-  DefaultUseAutoGroup: settings.DefaultUseAutoGroup,
-  GroupSpecialUsableGroup:
-    settings['group_ratio_setting.group_special_usable_group'],
-})
 
 const BILLING_SECTIONS = [
   {
@@ -77,68 +46,6 @@ const BILLING_SECTIONS = [
           (settings['payment_setting.compliance_confirmed'] ?? false) &&
           settings['payment_setting.compliance_terms_version'] === 'v1'
         }
-      />
-    ),
-  },
-  {
-    id: 'currency',
-    titleKey: 'Currency & Display',
-    build: (settings: BillingSettings) => (
-      <PricingSection
-        defaultValues={{
-          QuotaPerUnit: settings.QuotaPerUnit,
-          USDExchangeRate: settings.USDExchangeRate,
-          DisplayInCurrencyEnabled: settings.DisplayInCurrencyEnabled,
-          DisplayTokenStatEnabled: settings.DisplayTokenStatEnabled,
-          general_setting: {
-            quota_display_type: parseCurrencyDisplayType(
-              settings['general_setting.quota_display_type']
-            ),
-            custom_currency_symbol:
-              settings['general_setting.custom_currency_symbol'] ?? '¤',
-            custom_currency_exchange_rate:
-              settings['general_setting.custom_currency_exchange_rate'] ?? 1,
-          },
-        }}
-      />
-    ),
-  },
-  {
-    id: 'model-pricing',
-    titleKey: 'Model Pricing',
-    build: (settings: BillingSettings) => (
-      <RatioSettingsCard
-        titleKey='Model Pricing'
-        modelDefaults={getModelDefaults(settings)}
-        groupDefaults={getGroupDefaults(settings)}
-        toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'unset-models', 'tool-prices', 'upstream-sync']}
-      />
-    ),
-  },
-  {
-    id: 'spec-pricing',
-    titleKey: 'Spec Pricing',
-    build: (settings: BillingSettings) => (
-      <>
-        <LegacyModelPricingNotice descriptionKey='Image and video spec prices now live on each row in the unified model center. These legacy options are retained as a fallback and audit source.' />
-        <AsyncSpecPricingSettings
-          pricingDefault={settings.AsyncSpecPricing}
-          readOnly
-        />
-      </>
-    ),
-  },
-  {
-    id: 'group-pricing',
-    titleKey: 'Group Pricing',
-    build: (settings: BillingSettings) => (
-      <RatioSettingsCard
-        titleKey='Group Pricing'
-        modelDefaults={getModelDefaults(settings)}
-        groupDefaults={getGroupDefaults(settings)}
-        toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['groups']}
       />
     ),
   },
@@ -203,16 +110,10 @@ const BILLING_SECTIONS = [
     ),
   },
   {
-    id: 'checkin',
-    titleKey: 'Check-in Rewards',
+    id: 'advanced',
+    titleKey: 'Advanced',
     build: (settings: BillingSettings) => (
-      <CheckinSettingsSection
-        defaultValues={{
-          enabled: settings['checkin_setting.enabled'],
-          minQuota: settings['checkin_setting.min_quota'],
-          maxQuota: settings['checkin_setting.max_quota'],
-        }}
-      />
+      <ToolPriceSettings defaultValue={settings['tool_price_setting.prices']} />
     ),
   },
 ] as const

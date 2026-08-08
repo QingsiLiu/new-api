@@ -1291,9 +1291,7 @@ function FailureResultContent({
             variant='outline'
             size='sm'
             className='h-7 w-fit px-2 text-xs'
-            onClick={() =>
-              window.open('/system-settings/billing/model-pricing', '_blank')
-            }
+            onClick={() => window.open('/models/metadata', '_blank')}
           >
             <Settings className='mr-1 h-3 w-3 shrink-0' />
             {t('Go to Settings')}
@@ -1376,7 +1374,7 @@ function FailureDetailsSheet({
                 onClick={() => copyToClipboard(details.details)}
               >
                 {copiedText === details.details ? (
-                  <Check className='mr-2 h-4 w-4 text-success' />
+                  <Check className='text-success mr-2 h-4 w-4' />
                 ) : (
                   <Copy className='mr-2 h-4 w-4' />
                 )}

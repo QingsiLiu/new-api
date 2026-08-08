@@ -81,12 +81,34 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
+	shadowTextGroupRatio := groupRatioInfo.GroupRatio
+	textPricingMode := model.GetTextPricingMode()
 
-	_, creditsExact := creditsV1TextPricing(info.OriginModelName)
+	creditsTextPricing, creditsExact, err := model.ResolveEffectiveTextPricingForMode(info.OriginModelName, textPricingMode)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+	shadowTextPricing, shadowTextExact, shadowTextErr := model.ResolveShadowTextPricingForMode(info.OriginModelName, textPricingMode)
+	shadowTextError := ""
+	if shadowTextErr != nil {
+		shadowTextError = shadowTextErr.Error()
+		common.SysError("text pricing shadow resolver failed: " + shadowTextError)
+	}
 	// Credits V1 exact snapshots take precedence over mutable legacy billing
 	// expressions. Non-matching Geili models keep their configured mode.
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr && !creditsExact {
-		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
+		priceData, err := modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
+		if err != nil {
+			return types.PriceData{}, err
+		}
+		if shadowTextExact {
+			priceData.ShadowTextPricing = shadowTextPricing
+			priceData.ShadowTextGroupRatio = shadowTextGroupRatio
+		}
+		priceData.TextPricingMode = textPricingMode
+		priceData.ShadowTextPricingError = shadowTextError
+		info.PriceData = priceData
+		return priceData, nil
 	}
 
 	var preConsumedQuota int
@@ -103,7 +125,6 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var modelPrice float64
 	var usePrice bool
 	var useModelPricingConfig bool
-	var creditsTextPricing *types.CreditsTextPricing
 
 	if cfg, ok := getModelPricingConfigForBilling(info.OriginModelName); ok {
 		switch cfg.Mode {
@@ -144,9 +165,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	if !useModelPricingConfig {
 		modelPrice, usePrice = ratio_setting.GetModelPrice(info.OriginModelName, false)
 	}
-	if exact, ok := creditsV1TextPricing(info.OriginModelName); ok {
-		creditsTextPricing = exact
-		effectiveCreditsPricing := exact.ForPromptTokens(promptTokens)
+	if creditsExact {
+		effectiveCreditsPricing := creditsTextPricing.ForPromptTokens(promptTokens)
 		usePrice = false
 		modelPrice = 0
 		modelRatio = float64(effectiveCreditsPricing.InputQuotaPerMillion) / 1_000_000
@@ -156,9 +176,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 			cacheRatio = float64(effectiveCreditsPricing.CachedInputQuotaPerMillion) / float64(effectiveCreditsPricing.InputQuotaPerMillion)
 		}
 		cacheCreationRatio = 1
-		groupRatioInfo.GroupRatio = 1
-		groupRatioInfo.GroupSpecialRatio = 1
-		groupRatioInfo.HasSpecialRatio = false
+		if !creditsTextPricing.ApplyGroupRatio {
+			groupRatioInfo.GroupRatio = 1
+			groupRatioInfo.GroupSpecialRatio = 1
+			groupRatioInfo.HasSpecialRatio = false
+		}
 	}
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
@@ -195,9 +217,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 			maxOutputTokens := common.Max(meta.MaxTokens, 0)
 			outputQuota := decimal.NewFromInt(int64(maxOutputTokens)).
 				Mul(decimal.NewFromInt(effectiveCreditsPricing.OutputQuotaPerMillion))
-			quota, clamp := common.QuotaFromDecimalChecked(
-				inputQuota.Add(outputQuota).Div(decimal.NewFromInt(1_000_000)),
-			)
+			quotaDecimal := inputQuota.Add(outputQuota).Div(decimal.NewFromInt(1_000_000))
+			if effectiveCreditsPricing.ApplyGroupRatio {
+				quotaDecimal = quotaDecimal.Mul(decimal.NewFromFloat(groupRatioInfo.GroupRatio))
+			}
+			quota, clamp := common.QuotaFromDecimalChecked(quotaDecimal)
 			if clamp != nil {
 				return types.PriceData{}, clamp
 			}
@@ -236,21 +260,25 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 
 	priceData := types.PriceData{
-		FreeModel:            freeModel,
-		ModelPrice:           modelPrice,
-		ModelRatio:           modelRatio,
-		CompletionRatio:      completionRatio,
-		GroupRatioInfo:       groupRatioInfo,
-		UsePrice:             usePrice,
-		CacheRatio:           cacheRatio,
-		ImageRatio:           imageRatio,
-		AudioRatio:           audioRatio,
-		AudioCompletionRatio: audioCompletionRatio,
-		CacheCreationRatio:   cacheCreationRatio,
-		CacheCreation5mRatio: cacheCreationRatio5m,
-		CacheCreation1hRatio: cacheCreationRatio1h,
-		QuotaToPreConsume:    preConsumedQuota,
-		CreditsTextPricing:   creditsTextPricing,
+		FreeModel:              freeModel,
+		ModelPrice:             modelPrice,
+		ModelRatio:             modelRatio,
+		CompletionRatio:        completionRatio,
+		GroupRatioInfo:         groupRatioInfo,
+		UsePrice:               usePrice,
+		CacheRatio:             cacheRatio,
+		ImageRatio:             imageRatio,
+		AudioRatio:             audioRatio,
+		AudioCompletionRatio:   audioCompletionRatio,
+		CacheCreationRatio:     cacheCreationRatio,
+		CacheCreation5mRatio:   cacheCreationRatio5m,
+		CacheCreation1hRatio:   cacheCreationRatio1h,
+		QuotaToPreConsume:      preConsumedQuota,
+		TextPricingMode:        textPricingMode,
+		CreditsTextPricing:     creditsTextPricing,
+		ShadowTextPricing:      shadowTextPricing,
+		ShadowTextGroupRatio:   shadowTextGroupRatio,
+		ShadowTextPricingError: shadowTextError,
 	}
 	if creditsTextPricing != nil {
 		priceData.PricingSource = creditsTextPricing.PricingSource

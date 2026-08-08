@@ -182,6 +182,7 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableStatusCodes"] = operation_setting.AutomaticDisableStatusCodesToString()
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
+	common.OptionMap[TextPricingModeOption] = TextPricingModeLegacy
 
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
@@ -195,6 +196,9 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	ensureAsyncSpecPricingOptionSeeded()
+	if err := SeedTextPricingCenter(); err != nil {
+		common.SysLog("failed to seed text pricing center: " + err.Error())
+	}
 	options, _ := AllOption()
 	for _, option := range options {
 		if option.Key == "AsyncSpecPricing" {
@@ -214,6 +218,9 @@ func loadOptionsFromDatabase() {
 		}
 	}
 	AutoMigrateModelPricingConfigsFromOptions()
+	if err := SeedTextPricingCenter(); err != nil {
+		common.SysLog("failed to seed migrated text model metadata: " + err.Error())
+	}
 	if err := SeedInitialModelAliases(); err != nil {
 		common.SysLog("failed to seed initial model aliases: " + err.Error())
 	}
@@ -298,6 +305,9 @@ func validateOptionBeforePersist(key string, value string) error {
 		}
 	case "AsyncSpecPricing":
 		return operation_setting.ValidateAsyncSpecPricingJSONString(value)
+	case TextPricingModeOption:
+		_, err := NormalizeTextPricingMode(value)
+		return err
 	}
 	return nil
 }

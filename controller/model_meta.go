@@ -22,6 +22,7 @@ func GetAllModelsMeta(c *gin.Context) {
 		Status:       c.Query("status"),
 		SyncOfficial: c.Query("sync_official"),
 		Modal:        c.Query("modal"),
+		TextCategory: c.Query("text_category"),
 		PricingMode:  c.Query("pricing_mode"),
 	}
 	modelsMeta, total, err := model.GetModelsByFilters(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
@@ -58,6 +59,7 @@ func SearchModelsMeta(c *gin.Context) {
 		Status:       c.Query("status"),
 		SyncOfficial: c.Query("sync_official"),
 		Modal:        c.Query("modal"),
+		TextCategory: c.Query("text_category"),
 		PricingMode:  c.Query("pricing_mode"),
 	}
 	modelsMeta, total, err := model.GetModelsByFilters(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
@@ -107,6 +109,13 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
 	}
+	model.PrepareModelTextPricingMetadata(&m)
+	if m.Status == 1 {
+		if err := model.ValidateModelTextPricing(&m); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	// 名称冲突检查
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
@@ -121,6 +130,12 @@ func CreateModelMeta(c *gin.Context) {
 		return
 	}
 	model.RefreshPricing()
+	model.EnrichTextPricingModels([]*model.Model{&m})
+	recordManageAudit(c, "model.create", map[string]interface{}{
+		"id":       m.Id,
+		"model":    m.ModelName,
+		"modality": m.Modal,
+	})
 	common.ApiSuccess(c, &m)
 }
 
@@ -139,12 +154,37 @@ func UpdateModelMeta(c *gin.Context) {
 	}
 
 	if statusOnly {
-		// 只更新状态，防止误清空其他字段
-		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
+		requestedStatus := m.Status
+		var existing model.Model
+		if err := model.DB.First(&existing, m.Id).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
+		if requestedStatus == 1 {
+			if err := model.ValidateModelTextPricing(&existing); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+		if err := model.DB.Model(&existing).Update("status", requestedStatus).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		m = existing
+		m.Status = requestedStatus
+		recordManageAudit(c, "model.status_update", map[string]interface{}{
+			"id":     existing.Id,
+			"model":  existing.ModelName,
+			"status": m.Status,
+		})
 	} else {
+		model.PrepareModelTextPricingMetadata(&m)
+		if m.Status == 1 {
+			if err := model.ValidateModelTextPricing(&m); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
 		// 名称冲突检查
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
 			common.ApiError(c, err)
@@ -158,8 +198,14 @@ func UpdateModelMeta(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		recordManageAudit(c, "model.update", map[string]interface{}{
+			"id":       m.Id,
+			"model":    m.ModelName,
+			"modality": m.Modal,
+		})
 	}
 	model.RefreshPricing()
+	model.EnrichTextPricingModels([]*model.Model{&m})
 	common.ApiSuccess(c, &m)
 }
 
@@ -225,6 +271,7 @@ func DeleteModelMeta(c *gin.Context) {
 		return
 	}
 	model.RefreshPricing()
+	recordManageAudit(c, "model.delete", map[string]interface{}{"id": id})
 	common.ApiSuccess(c, nil)
 }
 
@@ -233,6 +280,7 @@ func enrichModels(models []*model.Model) {
 	if len(models) == 0 {
 		return
 	}
+	model.EnrichTextPricingModels(models)
 
 	// 1) 拆分精确与规则匹配
 	exactNames := make([]string, 0)

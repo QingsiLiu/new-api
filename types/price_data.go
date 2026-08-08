@@ -14,36 +14,46 @@ type GroupRatioInfo struct {
 }
 
 type PriceData struct {
-	FreeModel            bool
-	ModelPrice           float64
-	ModelRatio           float64
-	CompletionRatio      float64
-	CacheRatio           float64
-	CacheCreationRatio   float64
-	CacheCreation5mRatio float64
-	CacheCreation1hRatio float64
-	ImageRatio           float64
-	AudioRatio           float64
-	AudioCompletionRatio float64
-	otherRatios          map[string]float64
-	UsePrice             bool
-	Quota                int // 按次计费的最终额度（MJ / Task）
-	QuotaToPreConsume    int // 按量计费的预消耗额度
-	GroupRatioInfo       GroupRatioInfo
-	SpecPricing          *SpecPricingInfo
-	CreditsTextPricing   *CreditsTextPricing
-	PricingSource        string
+	FreeModel              bool
+	ModelPrice             float64
+	ModelRatio             float64
+	CompletionRatio        float64
+	CacheRatio             float64
+	CacheCreationRatio     float64
+	CacheCreation5mRatio   float64
+	CacheCreation1hRatio   float64
+	ImageRatio             float64
+	AudioRatio             float64
+	AudioCompletionRatio   float64
+	otherRatios            map[string]float64
+	UsePrice               bool
+	Quota                  int // 按次计费的最终额度（MJ / Task）
+	QuotaToPreConsume      int // 按量计费的预消耗额度
+	GroupRatioInfo         GroupRatioInfo
+	SpecPricing            *SpecPricingInfo
+	TextPricingMode        string
+	CreditsTextPricing     *CreditsTextPricing
+	ShadowTextPricing      *CreditsTextPricing
+	ShadowTextGroupRatio   float64
+	ShadowTextPricingError string
+	PricingSource          string
 }
 
 type CreditsTextPricing struct {
-	InputQuotaPerMillion        int64
-	OutputQuotaPerMillion       int64
-	CachedInputQuotaPerMillion  int64
-	CacheWriteQuotaPerMillion   int64
-	CacheWrite5mQuotaPerMillion int64
-	CacheWrite1hQuotaPerMillion int64
-	PricingSource               string
-	Tiers                       []CreditsTextPricingTier
+	InputQuotaPerMillion        int64                    `json:"input_quota_per_million"`
+	OutputQuotaPerMillion       int64                    `json:"output_quota_per_million"`
+	CachedInputQuotaPerMillion  int64                    `json:"cached_input_quota_per_million,omitempty"`
+	CacheWriteQuotaPerMillion   int64                    `json:"cache_write_quota_per_million,omitempty"`
+	CacheWrite5mQuotaPerMillion int64                    `json:"cache_write_5m_quota_per_million,omitempty"`
+	CacheWrite1hQuotaPerMillion int64                    `json:"cache_write_1h_quota_per_million,omitempty"`
+	PricingSource               string                   `json:"pricing_source"`
+	Tiers                       []CreditsTextPricingTier `json:"tiers,omitempty"`
+	CatalogVersion              string                   `json:"catalog_version,omitempty"`
+	OfficialPriceKey            string                   `json:"official_price_key,omitempty"`
+	TextCategory                string                   `json:"text_category,omitempty"`
+	CategoryMultiplier          float64                  `json:"category_multiplier,omitempty"`
+	ApplyGroupRatio             bool                     `json:"apply_group_ratio,omitempty"`
+	Fallback                    bool                     `json:"fallback,omitempty"`
 }
 
 // CreditsTextPricingTier contains a context-length-specific price. A zero
@@ -51,15 +61,15 @@ type CreditsTextPricing struct {
 // path selects a tier from prompt tokens, while the base fields above remain
 // the short-context compatibility projection.
 type CreditsTextPricingTier struct {
-	Label                       string
-	MinPromptTokens             int
-	MaxPromptTokens             int
-	InputQuotaPerMillion        int64
-	OutputQuotaPerMillion       int64
-	CachedInputQuotaPerMillion  int64
-	CacheWriteQuotaPerMillion   int64
-	CacheWrite5mQuotaPerMillion int64
-	CacheWrite1hQuotaPerMillion int64
+	Label                       string `json:"label"`
+	MinPromptTokens             int    `json:"min_prompt_tokens,omitempty"`
+	MaxPromptTokens             int    `json:"max_prompt_tokens,omitempty"`
+	InputQuotaPerMillion        int64  `json:"input_quota_per_million"`
+	OutputQuotaPerMillion       int64  `json:"output_quota_per_million"`
+	CachedInputQuotaPerMillion  int64  `json:"cached_input_quota_per_million,omitempty"`
+	CacheWriteQuotaPerMillion   int64  `json:"cache_write_quota_per_million,omitempty"`
+	CacheWrite5mQuotaPerMillion int64  `json:"cache_write_5m_quota_per_million,omitempty"`
+	CacheWrite1hQuotaPerMillion int64  `json:"cache_write_1h_quota_per_million,omitempty"`
 }
 
 // ForPromptTokens returns the applicable immutable pricing projection. It
@@ -84,6 +94,12 @@ func (p *CreditsTextPricing) ForPromptTokens(promptTokens int) *CreditsTextPrici
 			CacheWrite5mQuotaPerMillion: tier.CacheWrite5mQuotaPerMillion,
 			CacheWrite1hQuotaPerMillion: tier.CacheWrite1hQuotaPerMillion,
 			PricingSource:               p.PricingSource,
+			CatalogVersion:              p.CatalogVersion,
+			OfficialPriceKey:            p.OfficialPriceKey,
+			TextCategory:                p.TextCategory,
+			CategoryMultiplier:          p.CategoryMultiplier,
+			ApplyGroupRatio:             p.ApplyGroupRatio,
+			Fallback:                    p.Fallback,
 		}
 	}
 	return p

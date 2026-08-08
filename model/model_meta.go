@@ -28,6 +28,7 @@ type ModelListFilters struct {
 	Status       string
 	SyncOfficial string
 	Modal        string
+	TextCategory string
 	PricingMode  string
 }
 
@@ -43,6 +44,8 @@ type Model struct {
 	Status             int            `json:"status" gorm:"default:1"`
 	SyncOfficial       int            `json:"sync_official" gorm:"default:1"`
 	Modal              string         `json:"modal,omitempty" gorm:"type:varchar(20);default:''"`
+	TextCategory       string         `json:"text_category,omitempty" gorm:"type:varchar(20);default:'';index"`
+	OfficialPriceKey   string         `json:"official_price_key,omitempty" gorm:"type:varchar(128);default:'';index"`
 	PricingMode        string         `json:"pricing_mode,omitempty" gorm:"type:varchar(20);default:''"`
 	PricingConfig      string         `json:"pricing_config,omitempty" gorm:"type:text"`
 	PricingUpdatedTime int64          `json:"pricing_updated_time,omitempty" gorm:"bigint;default:0"`
@@ -57,6 +60,11 @@ type Model struct {
 
 	MatchedModels []string `json:"matched_models,omitempty" gorm:"-"`
 	MatchedCount  int      `json:"matched_count,omitempty" gorm:"-"`
+
+	PricingReady         bool                      `json:"pricing_ready" gorm:"-"`
+	PricingError         string                    `json:"pricing_error,omitempty" gorm:"-"`
+	OfficialPriceProfile *TextPricingProfileView   `json:"official_price_profile,omitempty" gorm:"-"`
+	EffectiveTextPricing *EffectiveTextPricingView `json:"effective_text_pricing,omitempty" gorm:"-"`
 }
 
 func (mi *Model) Insert() error {
@@ -108,7 +116,7 @@ func (mi *Model) Update() error {
 
 	// 使用 Select 强制更新所有字段，包括零值
 	if err := tx.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "alias", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "modal", "pricing_mode", "pricing_config", "pricing_updated_time", "updated_time").
+		Select("model_name", "description", "alias", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "modal", "text_category", "official_price_key", "pricing_mode", "pricing_config", "pricing_updated_time", "updated_time").
 		Updates(mi).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -275,6 +283,9 @@ func applyModelListFilters(db *gorm.DB, filters ModelListFilters) *gorm.DB {
 	}
 	if modal := strings.TrimSpace(filters.Modal); modal != "" && !strings.EqualFold(modal, "all") {
 		db = db.Where("models.modal = ?", modal)
+	}
+	if category := strings.TrimSpace(filters.TextCategory); category != "" && !strings.EqualFold(category, "all") {
+		db = db.Where("models.text_category = ?", strings.ToLower(category))
 	}
 	if pricingMode := strings.TrimSpace(filters.PricingMode); pricingMode != "" && !strings.EqualFold(pricingMode, "all") {
 		db = db.Where("models.pricing_mode = ?", pricingMode)

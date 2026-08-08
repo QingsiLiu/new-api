@@ -652,8 +652,8 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
                         onChange={field.onChange}
                         keyPlaceholder='endpoint_type'
                         valuePlaceholder='{"path": "/v1/...", "method": "POST"}'
-                        keyLabel='Endpoint Type'
-                        valueLabel='Configuration'
+                        keyLabel={t('Endpoint Type')}
+                        valueLabel={t('Configuration')}
                         valueType='any'
                         emptyMessage={t(
                           'No endpoints configured. Switch to JSON mode or add rows to define endpoints.'

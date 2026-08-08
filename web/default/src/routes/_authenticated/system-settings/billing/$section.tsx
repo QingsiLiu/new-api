@@ -24,10 +24,33 @@ import {
   BILLING_SECTION_IDS,
 } from '@/features/system-settings/billing/section-registry.tsx'
 
+const REMOVED_BILLING_SECTION_REDIRECTS: Record<
+  string,
+  | { to: '/system-settings/billing/$section'; section: 'quota' }
+  | { to: '/models/$section'; section: 'metadata' }
+  | { to: '/users' }
+> = {
+  currency: { to: '/system-settings/billing/$section', section: 'quota' },
+  'model-pricing': { to: '/models/$section', section: 'metadata' },
+  'spec-pricing': { to: '/models/$section', section: 'metadata' },
+  'group-pricing': { to: '/users' },
+}
+
 export const Route = createFileRoute(
   '/_authenticated/system-settings/billing/$section'
 )({
   beforeLoad: ({ params }) => {
+    const removedSection = REMOVED_BILLING_SECTION_REDIRECTS[params.section]
+    if (removedSection) {
+      if ('section' in removedSection) {
+        throw redirect({
+          to: removedSection.to,
+          params: { section: removedSection.section },
+        })
+      }
+      throw redirect({ to: removedSection.to })
+    }
+
     const validSections = BILLING_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({

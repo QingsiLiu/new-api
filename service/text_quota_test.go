@@ -238,6 +238,85 @@ func TestCreditsTextQuotaSelectsLongContextRateFromTotalPromptTokens(t *testing.
 	require.Equal(t, 34_560, longWithCache.Quota)
 }
 
+func TestCreditsTextQuotaAppliesFrozenGroupRatio(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.5",
+		PriceData: types.PriceData{
+			CreditsTextPricing: &types.CreditsTextPricing{
+				InputQuotaPerMillion: 360_000,
+				ApplyGroupRatio:      true,
+			},
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1.5},
+		},
+		StartTime:   time.Now(),
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, info, &dto.Usage{PromptTokens: 1_000_000})
+	require.Equal(t, 540_000, summary.TextBaseQuota)
+	require.Equal(t, 540_000, summary.Quota)
+}
+
+func TestShadowTextPricingRecordsLegacyAndCandidateBaseQuota(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.5",
+		PriceData: types.PriceData{
+			CreditsTextPricing: &types.CreditsTextPricing{
+				InputQuotaPerMillion: 180_000,
+				ApplyGroupRatio:      false,
+			},
+			ShadowTextPricing: &types.CreditsTextPricing{
+				InputQuotaPerMillion: 360_000,
+				ApplyGroupRatio:      true,
+			},
+			ShadowTextGroupRatio: 2,
+			GroupRatioInfo:       types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime:   time.Now(),
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, info, &dto.Usage{PromptTokens: 1_000_000})
+	require.True(t, summary.HasShadowTextPricing)
+	require.Equal(t, 180_000, summary.TextBaseQuota)
+	require.Equal(t, 720_000, summary.ShadowTextBaseQuota)
+}
+
+func TestShadowTextPricingNormalizesTokenDimensionsForFixedPriceModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "legacy-fixed-price-model",
+		PriceData: types.PriceData{
+			UsePrice:             true,
+			ModelPrice:           0.5,
+			ImageRatio:           1,
+			ShadowTextPricing:    &types.CreditsTextPricing{InputQuotaPerMillion: 1_000_000},
+			ShadowTextGroupRatio: 1,
+			GroupRatioInfo:       types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime:   time.Now(),
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, info, &dto.Usage{
+		PromptTokens: 1_000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         200,
+			CachedCreationTokens: 100,
+			ImageTokens:          100,
+		},
+	})
+
+	require.Equal(t, 50_000, summary.TextBaseQuota)
+	require.True(t, summary.HasShadowTextPricing)
+	require.Equal(t, 1_000, summary.ShadowTextBaseQuota)
+}
+
 func TestTextQuotaKeepsLegacyRatiosWithoutCreditsPricing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

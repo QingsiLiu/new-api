@@ -22,10 +22,25 @@ import path from 'node:path'
 const ROOT = process.cwd()
 const MODELS_DIR = path.join(ROOT, 'src/features/models')
 const LOCALES_DIR = path.join(ROOT, 'src/i18n/locales')
-const LOCALES = ['en', 'zh', 'fr', 'ja', 'ru', 'vi']
+const LOCALES = ['en', 'zh', 'zh-TW', 'fr', 'ja', 'ru', 'vi']
 
-const ALLOWED_LITERAL_TEXT = new Set(['USDC', 'IOCOIN'])
-const ALLOWED_LITERAL_PROPS = new Set(['value', 'type', 'variant', 'size', 'side', 'align'])
+const ALLOWED_LITERAL_TEXT = new Set([
+  'USDC',
+  'IOCOIN',
+  'stdout',
+  'stderr',
+  'all',
+])
+const ALLOWED_LITERAL_PROPS = new Set([
+  'value',
+  'type',
+  'variant',
+  'size',
+  'side',
+  'align',
+  'keyPlaceholder',
+  'valuePlaceholder',
+])
 
 function walk(dir) {
   const out = []
@@ -75,15 +90,21 @@ function collectHardcodedText(files) {
     for (const match of source.matchAll(/>([^<>{}\n]*[A-Za-z][^<>{}\n]*)</g)) {
       const text = match[1].trim()
       if (!text || ALLOWED_LITERAL_TEXT.has(text)) continue
-      findings.push(`${rel}:${lineNumber(source, match.index)} JSX text "${text}"`)
+      findings.push(
+        `${rel}:${lineNumber(source, match.index)} JSX text "${text}"`
+      )
     }
 
-    for (const match of source.matchAll(/\b([a-zA-Z]+(?:Label|Text|Message|Title|Placeholder))=(['"])([^'"]*[A-Za-z][^'"]*)\2/g)) {
+    for (const match of source.matchAll(
+      /\b([a-zA-Z]+(?:Label|Text|Message|Title|Placeholder))=(['"])([^'"]*[A-Za-z][^'"]*)\2/g
+    )) {
       const prop = match[1]
       const text = match[3].trim()
       if (!text || ALLOWED_LITERAL_PROPS.has(prop)) continue
       if (text.startsWith('{') || text.startsWith('[')) continue
-      findings.push(`${rel}:${lineNumber(source, match.index)} prop ${prop}="${text}"`)
+      findings.push(
+        `${rel}:${lineNumber(source, match.index)} prop ${prop}="${text}"`
+      )
     }
   }
   return findings
@@ -96,10 +117,14 @@ function readLocale(locale) {
 
 const files = walk(MODELS_DIR)
 const keys = collectTranslationKeys(files)
-const locales = Object.fromEntries(LOCALES.map((locale) => [locale, readLocale(locale)]))
+const locales = Object.fromEntries(
+  LOCALES.map((locale) => [locale, readLocale(locale)])
+)
 const missing = []
 
-for (const [key, refs] of [...keys.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+for (const [key, refs] of [...keys.entries()].sort(([a], [b]) =>
+  a.localeCompare(b)
+)) {
   for (const locale of LOCALES) {
     if (!(key in locales[locale])) {
       missing.push(`${locale}: "${key}"\n  ${refs.slice(0, 3).join('\n  ')}`)
@@ -121,4 +146,6 @@ if (missing.length > 0 || hardcoded.length > 0) {
   process.exit(1)
 }
 
-console.log(`models i18n verified: ${keys.size} keys across ${LOCALES.length} locales`)
+console.log(
+  `models i18n verified: ${keys.size} keys across ${LOCALES.length} locales`
+)

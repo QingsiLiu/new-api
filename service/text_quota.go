@@ -55,6 +55,10 @@ type textQuotaSummary struct {
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
 	ToolCallSurchargeQuota   decimal.Decimal
+	TextBaseQuota            int
+	ShadowTextBaseQuota      int
+	HasShadowTextPricing     bool
+	ShadowTextPricingError   string
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -66,6 +70,91 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 		return splitCacheWriteTokens
 	}
 	return summary.CacheCreationTokens
+}
+
+func normalizedCreditsTextBaseTokens(
+	summary textQuotaSummary,
+	promptTokens decimal.Decimal,
+	cacheTokens decimal.Decimal,
+	cacheWriteTokens decimal.Decimal,
+	imageTokens decimal.Decimal,
+	legacyClaudeDerived bool,
+) decimal.Decimal {
+	baseTokens := promptTokens
+	if !cacheTokens.IsZero() && !summary.IsClaudeUsageSemantic && !legacyClaudeDerived {
+		baseTokens = baseTokens.Sub(cacheTokens)
+	}
+	if !cacheWriteTokens.IsZero() && !summary.IsClaudeUsageSemantic && !legacyClaudeDerived {
+		baseTokens = baseTokens.Sub(cacheWriteTokens)
+	}
+	if !imageTokens.IsZero() {
+		baseTokens = baseTokens.Sub(imageTokens)
+	}
+	if baseTokens.IsNegative() {
+		return decimal.Zero
+	}
+	return baseTokens
+}
+
+func calculateCreditsTextBaseQuota(
+	pricing *types.CreditsTextPricing,
+	groupRatio float64,
+	promptTokens int,
+	baseTokens decimal.Decimal,
+	cacheTokens decimal.Decimal,
+	cacheWriteTokens decimal.Decimal,
+	cacheWrite5mTokens int,
+	cacheWrite1hTokens int,
+	imageTokens decimal.Decimal,
+	completionTokens decimal.Decimal,
+	imageRatio decimal.Decimal,
+) decimal.Decimal {
+	exact := pricing.ForPromptTokens(promptTokens)
+	if exact == nil {
+		return decimal.Zero
+	}
+	inputRate := decimal.NewFromInt(exact.InputQuotaPerMillion)
+	outputRate := decimal.NewFromInt(exact.OutputQuotaPerMillion)
+	cachedRate := inputRate
+	if exact.CachedInputQuotaPerMillion > 0 {
+		cachedRate = decimal.NewFromInt(exact.CachedInputQuotaPerMillion)
+	}
+	cacheWriteRate := inputRate
+	if exact.CacheWriteQuotaPerMillion > 0 {
+		cacheWriteRate = decimal.NewFromInt(exact.CacheWriteQuotaPerMillion)
+	}
+	cacheWrite5mRate := cacheWriteRate
+	if exact.CacheWrite5mQuotaPerMillion > 0 {
+		cacheWrite5mRate = decimal.NewFromInt(exact.CacheWrite5mQuotaPerMillion)
+	}
+	cacheWrite1hRate := cacheWriteRate
+	if exact.CacheWrite1hQuotaPerMillion > 0 {
+		cacheWrite1hRate = decimal.NewFromInt(exact.CacheWrite1hQuotaPerMillion)
+	}
+	cacheWriteQuota := cacheWriteTokens.Mul(cacheWriteRate)
+	if cacheWrite5mTokens > 0 || cacheWrite1hTokens > 0 {
+		remaining := cacheWriteTokens.IntPart() - int64(cacheWrite5mTokens) - int64(cacheWrite1hTokens)
+		if remaining < 0 {
+			remaining = 0
+		}
+		cacheWriteQuota = decimal.NewFromInt(remaining).Mul(cacheWriteRate)
+		cacheWriteQuota = cacheWriteQuota.Add(
+			decimal.NewFromInt(int64(cacheWrite5mTokens)).Mul(cacheWrite5mRate),
+		)
+		cacheWriteQuota = cacheWriteQuota.Add(
+			decimal.NewFromInt(int64(cacheWrite1hTokens)).Mul(cacheWrite1hRate),
+		)
+	}
+	inputQuota := baseTokens.Mul(inputRate)
+	inputQuota = inputQuota.Add(cacheTokens.Mul(cachedRate))
+	inputQuota = inputQuota.Add(cacheWriteQuota)
+	inputQuota = inputQuota.Add(imageTokens.Mul(inputRate).Mul(imageRatio))
+	completionQuota := completionTokens.Mul(outputRate)
+	quota := inputQuota.Add(completionQuota).Div(decimal.NewFromInt(1_000_000))
+	if exact.ApplyGroupRatio {
+		quota = quota.Mul(decimal.NewFromFloat(groupRatio))
+	}
+	return quota
 }
 
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
@@ -298,56 +387,60 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		// cached_tokens + cache_write_tokens can exceed prompt_tokens and the
 		// remainder can go negative. Clamp at zero so overlap never turns into
 		// a negative base charge.
-		if baseTokens.IsNegative() {
-			baseTokens = decimal.Zero
-		}
+		baseTokens = normalizedCreditsTextBaseTokens(
+			summary,
+			dPromptTokens,
+			dCacheTokens,
+			dCachedCreationTokens,
+			dImageTokens,
+			legacyClaudeDerived,
+		)
 
-		var quotaCalculateDecimal decimal.Decimal
+		var textBaseQuotaDecimal decimal.Decimal
 		if exact := relayInfo.PriceData.CreditsTextPricing.ForPromptTokens(summary.PromptTokens); exact != nil {
-			inputRate := decimal.NewFromInt(exact.InputQuotaPerMillion)
-			outputRate := decimal.NewFromInt(exact.OutputQuotaPerMillion)
-			cachedRate := inputRate
-			if exact.CachedInputQuotaPerMillion > 0 {
-				cachedRate = decimal.NewFromInt(exact.CachedInputQuotaPerMillion)
-			}
-			cacheWriteRate := inputRate
-			if exact.CacheWriteQuotaPerMillion > 0 {
-				cacheWriteRate = decimal.NewFromInt(exact.CacheWriteQuotaPerMillion)
-			}
-			cacheWrite5mRate := cacheWriteRate
-			if exact.CacheWrite5mQuotaPerMillion > 0 {
-				cacheWrite5mRate = decimal.NewFromInt(exact.CacheWrite5mQuotaPerMillion)
-			}
-			cacheWrite1hRate := cacheWriteRate
-			if exact.CacheWrite1hQuotaPerMillion > 0 {
-				cacheWrite1hRate = decimal.NewFromInt(exact.CacheWrite1hQuotaPerMillion)
-			}
-			cacheWriteQuota := dCachedCreationTokens.Mul(cacheWriteRate)
-			if hasSplitCacheCreationTokens {
-				remaining := summary.CacheCreationTokens - summary.CacheCreationTokens5m - summary.CacheCreationTokens1h
-				if remaining < 0 {
-					remaining = 0
-				}
-				cacheWriteQuota = decimal.NewFromInt(int64(remaining)).Mul(cacheWriteRate)
-				cacheWriteQuota = cacheWriteQuota.Add(
-					decimal.NewFromInt(int64(summary.CacheCreationTokens5m)).Mul(cacheWrite5mRate),
-				)
-				cacheWriteQuota = cacheWriteQuota.Add(
-					decimal.NewFromInt(int64(summary.CacheCreationTokens1h)).Mul(cacheWrite1hRate),
-				)
-			}
-			inputQuota := baseTokens.Mul(inputRate)
-			inputQuota = inputQuota.Add(dCacheTokens.Mul(cachedRate))
-			inputQuota = inputQuota.Add(cacheWriteQuota)
-			inputQuota = inputQuota.Add(dImageTokens.Mul(inputRate).Mul(dImageRatio))
-			completionQuota := dCompletionTokens.Mul(outputRate)
-			quotaCalculateDecimal = inputQuota.Add(completionQuota).
-				Div(decimal.NewFromInt(1_000_000))
+			textBaseQuotaDecimal = calculateCreditsTextBaseQuota(
+				exact,
+				summary.GroupRatio,
+				summary.PromptTokens,
+				baseTokens,
+				dCacheTokens,
+				dCachedCreationTokens,
+				summary.CacheCreationTokens5m,
+				summary.CacheCreationTokens1h,
+				dImageTokens,
+				dCompletionTokens,
+				dImageRatio,
+			)
 		} else {
 			promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
 			completionQuota := dCompletionTokens.Mul(dCompletionRatio)
-			quotaCalculateDecimal = promptQuota.Add(completionQuota).Mul(ratio)
+			textBaseQuotaDecimal = promptQuota.Add(completionQuota).Mul(ratio)
 		}
+		textBaseQuota, textBaseClamp := common.QuotaFromDecimalChecked(textBaseQuotaDecimal)
+		summary.TextBaseQuota = textBaseQuota
+		noteQuotaClamp(relayInfo, textBaseClamp)
+		if shadow := relayInfo.PriceData.ShadowTextPricing; shadow != nil {
+			shadowQuotaDecimal := calculateCreditsTextBaseQuota(
+				shadow,
+				relayInfo.PriceData.ShadowTextGroupRatio,
+				summary.PromptTokens,
+				baseTokens,
+				dCacheTokens,
+				dCachedCreationTokens,
+				summary.CacheCreationTokens5m,
+				summary.CacheCreationTokens1h,
+				dImageTokens,
+				dCompletionTokens,
+				dImageRatio,
+			)
+			shadowQuota, shadowClamp := common.QuotaFromDecimalChecked(shadowQuotaDecimal)
+			summary.ShadowTextBaseQuota = shadowQuota
+			summary.HasShadowTextPricing = true
+			noteQuotaClamp(relayInfo, shadowClamp)
+		}
+		summary.ShadowTextPricingError = relayInfo.PriceData.ShadowTextPricingError
+
+		quotaCalculateDecimal := textBaseQuotaDecimal
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		if !summary.ToolCallSurchargeQuota.IsZero() || !audioInputQuota.IsZero() {
@@ -362,7 +455,40 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		summary.Quota = quota
 		noteQuotaClamp(relayInfo, clamp)
 	} else {
-		quotaCalculateDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
+		textBaseQuotaDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
+		textBaseQuota, textBaseClamp := common.QuotaFromDecimalChecked(textBaseQuotaDecimal)
+		summary.TextBaseQuota = textBaseQuota
+		noteQuotaClamp(relayInfo, textBaseClamp)
+		if shadow := relayInfo.PriceData.ShadowTextPricing; shadow != nil {
+			shadowBaseTokens := normalizedCreditsTextBaseTokens(
+				summary,
+				dPromptTokens,
+				dCacheTokens,
+				dCachedCreationTokens,
+				dImageTokens,
+				legacyClaudeDerived,
+			)
+			shadowQuotaDecimal := calculateCreditsTextBaseQuota(
+				shadow,
+				relayInfo.PriceData.ShadowTextGroupRatio,
+				summary.PromptTokens,
+				shadowBaseTokens,
+				dCacheTokens,
+				dCachedCreationTokens,
+				summary.CacheCreationTokens5m,
+				summary.CacheCreationTokens1h,
+				dImageTokens,
+				dCompletionTokens,
+				dImageRatio,
+			)
+			shadowQuota, shadowClamp := common.QuotaFromDecimalChecked(shadowQuotaDecimal)
+			summary.ShadowTextBaseQuota = shadowQuota
+			summary.HasShadowTextPricing = true
+			noteQuotaClamp(relayInfo, shadowClamp)
+		}
+		summary.ShadowTextPricingError = relayInfo.PriceData.ShadowTextPricingError
+
+		quotaCalculateDecimal := textBaseQuotaDecimal
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
@@ -414,6 +540,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		if tieredOk {
 			tieredBillingApplied = true
 			tieredResult = tieredRes
+			summary.TextBaseQuota = tieredQuota
 			summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
 		}
 	}
@@ -530,6 +657,31 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if relayInfo.PriceData.TextPricingMode != "" {
+		other["text_pricing_mode"] = relayInfo.PriceData.TextPricingMode
+	}
+	if exact := relayInfo.PriceData.CreditsTextPricing; exact != nil {
+		other["text_pricing_catalog_version"] = exact.CatalogVersion
+		other["text_pricing_official_price_key"] = exact.OfficialPriceKey
+		other["text_pricing_category"] = exact.TextCategory
+		other["text_pricing_category_multiplier"] = exact.CategoryMultiplier
+		other["text_pricing_fallback"] = exact.Fallback
+	}
+	if summary.HasShadowTextPricing {
+		other["shadow_text_base_quota"] = summary.ShadowTextBaseQuota
+		other["shadow_legacy_text_base_quota"] = summary.TextBaseQuota
+		other["shadow_text_quota_delta"] = summary.ShadowTextBaseQuota - summary.TextBaseQuota
+		other["shadow_text_pricing_match"] = summary.ShadowTextBaseQuota == summary.TextBaseQuota
+		if shadow := relayInfo.PriceData.ShadowTextPricing; shadow != nil {
+			other["shadow_text_pricing_catalog_version"] = shadow.CatalogVersion
+			other["shadow_text_pricing_official_price_key"] = shadow.OfficialPriceKey
+			other["shadow_text_pricing_category"] = shadow.TextCategory
+			other["shadow_text_pricing_category_multiplier"] = shadow.CategoryMultiplier
+		}
+	}
+	if summary.ShadowTextPricingError != "" {
+		other["shadow_text_pricing_error"] = summary.ShadowTextPricingError
 	}
 
 	attachQuotaSaturation(ctx, relayInfo, other)

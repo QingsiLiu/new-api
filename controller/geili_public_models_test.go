@@ -24,12 +24,17 @@ func setupModelRegistryTestDB(t *testing.T) {
 	t.Setenv(common.CreditsFeatureFlagEnv, "false")
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	common.OptionMapRWMutex.Unlock()
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	model.DB = db
-	require.NoError(t, db.AutoMigrate(&model.ModelRegistry{}, &model.TextCategoryPricing{}))
+	require.NoError(t, db.AutoMigrate(&model.ModelRegistry{}, &model.TextCategoryPricing{}, &model.Model{}, &model.Option{}))
 
 	// 公开端点缓存为包级状态：逐测试清空，避免跨用例串味
 	invalidateGeiliPublicModelCache()
@@ -588,7 +593,7 @@ func TestAdminUpsertModelRegistryIdempotent(t *testing.T) {
 	require.Contains(t, bad.Body.String(), "modality")
 }
 
-func TestAdminUpsertTextModelRegistryProjectsOfficialPricingAndSharedCategoryMultiplier(t *testing.T) {
+func TestAdminUpsertTextModelRegistryIgnoresManualPricingFields(t *testing.T) {
 	setupModelRegistryTestDB(t)
 
 	payload := `{
@@ -611,6 +616,11 @@ func TestAdminUpsertTextModelRegistryProjectsOfficialPricingAndSharedCategoryMul
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"success":true`)
+	entries, err := model.GetAllModelRegistries()
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Empty(t, entries[0].TextCategory)
+	require.Empty(t, entries[0].OfficialPrice)
 
 	detailRec := httptest.NewRecorder()
 	detailCtx, _ := gin.CreateTestContext(detailRec)
@@ -625,57 +635,48 @@ func TestAdminUpsertTextModelRegistryProjectsOfficialPricingAndSharedCategoryMul
 	}
 	require.NoError(t, json.Unmarshal(detailRec.Body.Bytes(), &detail))
 	require.Equal(t, "text", detail.Data["modality"])
-	require.Equal(t, "gpt", detail.Data["text_category"])
+	require.NotContains(t, detail.Data, "text_category")
 	require.NotContains(t, detail.Data, "pricing", "公开响应不得持久化或手抄成品价")
 	require.NotContains(t, detail.Data, "price_from_cny", "类目倍率未拍板时不得推导起价")
 	require.NotContains(t, detail.Data, "category_multiplier", "未配置类目倍率时应保持空值")
-	official := detail.Data["official_price"].(map[string]interface{})
-	dimensions := official["dimensions"].(map[string]interface{})
-	require.InDelta(t, 5, dimensions["input"].(float64), 1e-9)
-	require.InDelta(t, 0.5, dimensions["cached_input"].(float64), 1e-9)
-	require.InDelta(t, 30, dimensions["output"].(float64), 1e-9)
-
-	multiplierRec := httptest.NewRecorder()
-	multiplierCtx, _ := gin.CreateTestContext(multiplierRec)
-	multiplierCtx.Request = httptest.NewRequest(http.MethodPut, "/api/geili/text-category-pricing", strings.NewReader(`{"category":"gpt","multiplier":0.8}`))
-	multiplierCtx.Request.Header.Set("Content-Type", "application/json")
-	AdminUpsertTextCategoryPricing(multiplierCtx)
-	require.Contains(t, multiplierRec.Body.String(), `"success":true`)
-
-	detailAfterMultiplier := httptest.NewRecorder()
-	detailAfterCtx, _ := gin.CreateTestContext(detailAfterMultiplier)
-	detailAfterCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/public/models/gpt-5-5", nil)
-	detailAfterCtx.Params = gin.Params{{Key: "slug", Value: "gpt-5-5"}}
-	GetPublicModelBySlug(detailAfterCtx)
-	var after struct {
-		Data map[string]interface{} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(detailAfterMultiplier.Body.Bytes(), &after))
-	require.InDelta(t, 0.8, after.Data["category_multiplier"].(float64), 1e-9)
-	require.NotContains(t, after.Data, "pricing", "引擎只投影真源，页面负责运行时推导")
 }
 
-func TestAdminUpsertTextModelRegistryRejectsInvalidOfficialPricing(t *testing.T) {
+func TestPublicModelActivePricingUsesUnifiedMetadataResolver(t *testing.T) {
 	setupModelRegistryTestDB(t)
+	restoreTrust := model.SetModelPricingConfigTrustedForTest(true)
+	t.Cleanup(restoreTrust)
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName:        "gpt-5.5",
+		Modal:            model.ModelModalText,
+		TextCategory:     "gpt",
+		OfficialPriceKey: "openai.gpt-5.5",
+		Status:           1,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.TextCategoryPricing{
+		Category:   "gpt",
+		Multiplier: 0.1,
+	}).Error)
+	require.NoError(t, model.SetTextPricingMode(model.TextPricingModeActive))
+	t.Cleanup(func() {
+		_ = model.SetTextPricingMode(model.TextPricingModeLegacy)
+	})
+	require.NoError(t, model.DB.Create(&model.ModelRegistry{
+		ModelName:     "gpt-5.5",
+		Slug:          "gpt-5-5",
+		Modality:      "text",
+		TextCategory:  "grok",
+		OfficialPrice: `{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":999,"output":999},"source_url":"https://example.com"}`,
+		Enabled:       true,
+	}).Error)
 
-	cases := map[string]string{
-		"missing category":       `{"model":"bad-category","slug":"bad-category","modality":"text","official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":1,"output":2},"source_url":"https://example.com"}}`,
-		"missing official price": `{"model":"bad-missing","slug":"bad-missing","modality":"text","text_category":"gpt"}`,
-		"missing output":         `{"model":"bad-output","slug":"bad-output","modality":"text","text_category":"gpt","official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":1},"source_url":"https://example.com"}}`,
-		"negative cache":         `{"model":"bad-negative","slug":"bad-negative","modality":"text","text_category":"gpt","official_price":{"currency":"USD","unit":"per_1M_tokens","dimensions":{"input":1,"cache_read":-1,"output":2},"source_url":"https://example.com"}}`,
-	}
-	for name, payload := range cases {
-		t.Run(name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(rec)
-			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/geili/model-registry", strings.NewReader(payload))
-			ctx.Request.Header.Set("Content-Type", "application/json")
-			AdminUpsertModelRegistry(ctx)
-
-			require.Equal(t, http.StatusOK, rec.Code)
-			require.Contains(t, rec.Body.String(), `"success":false`)
-		})
-	}
+	detail := getPublicModelDetailForTest(t, "gpt-5-5")
+	require.Equal(t, "gpt", detail["text_category"])
+	require.InDelta(t, 0.1, detail["category_multiplier"].(float64), 1e-9)
+	official := detail["official_price"].(map[string]interface{})
+	require.Equal(t, "openai.gpt-5.5", official["key"])
+	dimensions := official["dimensions"].(map[string]interface{})
+	require.InDelta(t, 5, dimensions["input"].(float64), 1e-9)
+	require.InDelta(t, 30, dimensions["output"].(float64), 1e-9)
 }
 
 func TestAdminUpsertTextCategoryPricingRejectsUnsetSentinelsAndOutOfRangeValues(t *testing.T) {

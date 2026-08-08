@@ -2,16 +2,15 @@ package controller
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/textpricing"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
@@ -58,9 +57,10 @@ type publicModelDetail struct {
 const geiliPublicModelCacheTTL = 60 * time.Second
 
 type geiliCachedBody struct {
-	body      []byte
-	expires   time.Time
-	creditsV1 bool
+	body            []byte
+	expires         time.Time
+	creditsV1       bool
+	textPricingMode string
 }
 
 var (
@@ -98,82 +98,6 @@ func stringListFromJSON(s string) []string {
 }
 
 var textCategories = map[string]bool{"gpt": true, "claude": true, "gemini": true, "grok": true}
-
-var officialTokenDimensions = map[string]bool{
-	"input": true, "output": true, "cached_input": true, "cache_read": true,
-	"cache_write": true, "cache_write_5m": true, "cache_write_1h": true, "cache_storage_per_mtok_hour": true,
-}
-
-type officialTokenPriceTier struct {
-	Label           string             `json:"label"`
-	MinPromptTokens *int               `json:"min_prompt_tokens,omitempty"`
-	MaxPromptTokens *int               `json:"max_prompt_tokens,omitempty"`
-	Dimensions      map[string]float64 `json:"dimensions"`
-}
-
-type officialTokenPrice struct {
-	Currency   string                   `json:"currency"`
-	Unit       string                   `json:"unit"`
-	Dimensions map[string]float64       `json:"dimensions,omitempty"`
-	Tiers      []officialTokenPriceTier `json:"tiers,omitempty"`
-	SourceURL  string                   `json:"source_url"`
-}
-
-func validateOfficialDimensions(dimensions map[string]float64) error {
-	if _, ok := dimensions["input"]; !ok {
-		return fmt.Errorf("official_price dimensions.input 必填")
-	}
-	if _, ok := dimensions["output"]; !ok {
-		return fmt.Errorf("official_price dimensions.output 必填")
-	}
-	for name, value := range dimensions {
-		if !officialTokenDimensions[name] {
-			return fmt.Errorf("official_price dimension %s 不受支持", name)
-		}
-		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
-			return fmt.Errorf("official_price dimensions.%s 必须是非负有限数", name)
-		}
-	}
-	return nil
-}
-
-func validateOfficialTokenPrice(raw []byte) error {
-	if len(raw) == 0 {
-		return fmt.Errorf("official_price 必填")
-	}
-	var pricing officialTokenPrice
-	if err := json.Unmarshal(raw, &pricing); err != nil {
-		return fmt.Errorf("official_price JSON 无效: %w", err)
-	}
-	if pricing.Currency != "USD" || pricing.Unit != "per_1M_tokens" {
-		return fmt.Errorf("official_price 必须使用 USD per_1M_tokens")
-	}
-	parsedURL, err := url.ParseRequestURI(pricing.SourceURL)
-	if err != nil || parsedURL.Scheme != "https" || parsedURL.Host == "" {
-		return fmt.Errorf("official_price.source_url 必须是 HTTPS URL")
-	}
-	if len(pricing.Dimensions) == 0 && len(pricing.Tiers) == 0 {
-		return fmt.Errorf("official_price dimensions 或 tiers 必填")
-	}
-	if len(pricing.Dimensions) > 0 {
-		if err := validateOfficialDimensions(pricing.Dimensions); err != nil {
-			return err
-		}
-	}
-	for index, tier := range pricing.Tiers {
-		if strings.TrimSpace(tier.Label) == "" {
-			return fmt.Errorf("official_price tiers[%d].label 必填", index)
-		}
-		if (tier.MinPromptTokens != nil && *tier.MinPromptTokens < 0) ||
-			(tier.MaxPromptTokens != nil && *tier.MaxPromptTokens < 0) {
-			return fmt.Errorf("official_price tiers[%d] token 边界必须非负", index)
-		}
-		if err := validateOfficialDimensions(tier.Dimensions); err != nil {
-			return fmt.Errorf("official_price tiers[%d]: %w", index, err)
-		}
-	}
-	return nil
-}
 
 // currentAsyncSpecPricing 经导出的 JSON 访问器取当前规格价（避免向 setting 包新增接口）。
 func currentAsyncSpecPricing() operation_setting.AsyncSpecPricing {
@@ -260,8 +184,25 @@ func specPriceSummary(pricing operation_setting.AsyncSpecPricing, modality, mode
 func buildPublicModelSummary(entry model.ModelRegistry, pricing operation_setting.AsyncSpecPricing, multipliers map[string]float64) publicModelSummary {
 	unit, fromCNY, _ := specPriceSummary(pricing, entry.Modality, entry.ModelName)
 	var categoryMultiplier *float64
+	officialPrice := rawJSONOrNil(entry.OfficialPrice)
+	textCategory := entry.TextCategory
 	if multiplier, ok := multipliers[entry.TextCategory]; ok && entry.Modality == "text" {
 		categoryMultiplier = &multiplier
+	}
+	if entry.Modality == "text" && model.GetTextPricingMode() == model.TextPricingModeActive {
+		resolution, err := model.ResolveTextModelPricing(entry.ModelName)
+		if err == nil {
+			publicProfile := textpricing.ToPublicProfile(resolution.Profile)
+			if bytes, marshalErr := common.Marshal(publicProfile); marshalErr == nil {
+				officialPrice = bytes
+			}
+			multiplier := resolution.Multiplier
+			categoryMultiplier = &multiplier
+			textCategory = resolution.Profile.Category
+		} else {
+			officialPrice = nil
+			categoryMultiplier = nil
+		}
 	}
 	summary := publicModelSummary{
 		Slug:     entry.Slug,
@@ -280,8 +221,8 @@ func buildPublicModelSummary(entry model.ModelRegistry, pricing operation_settin
 		CapabilityTags:     stringListFromJSON(entry.CapabilityTags),
 		PriceUnit:          unit,
 		PriceFromCNY:       fromCNY,
-		OfficialPrice:      rawJSONOrNil(entry.OfficialPrice),
-		TextCategory:       entry.TextCategory,
+		OfficialPrice:      officialPrice,
+		TextCategory:       textCategory,
 		CategoryMultiplier: categoryMultiplier,
 	}
 	if creditsPricing := buildPublicCreditsPricing(entry, pricing, categoryMultiplier); creditsPricing != nil {
@@ -302,7 +243,8 @@ func GetPublicModels(c *gin.Context) {
 	cached := geiliPublicModelListCache
 	geiliPublicModelCacheMu.RUnlock()
 	creditsV1 := common.CreditsV1Enabled()
-	if cached.body != nil && cached.creditsV1 == creditsV1 && time.Now().Before(cached.expires) {
+	textPricingMode := model.GetTextPricingMode()
+	if cached.body != nil && cached.creditsV1 == creditsV1 && cached.textPricingMode == textPricingMode && time.Now().Before(cached.expires) {
 		writeGeiliPublicJSON(c, cached.body)
 		return
 	}
@@ -329,7 +271,7 @@ func GetPublicModels(c *gin.Context) {
 	}
 	geiliPublicModelCacheMu.Lock()
 	geiliPublicModelListCache = geiliCachedBody{
-		body: body, expires: time.Now().Add(geiliPublicModelCacheTTL), creditsV1: creditsV1,
+		body: body, expires: time.Now().Add(geiliPublicModelCacheTTL), creditsV1: creditsV1, textPricingMode: textPricingMode,
 	}
 	geiliPublicModelCacheMu.Unlock()
 	writeGeiliPublicJSON(c, body)
@@ -342,7 +284,8 @@ func GetPublicModelBySlug(c *gin.Context) {
 	cached, ok := geiliPublicModelDetailCache[slug]
 	geiliPublicModelCacheMu.RUnlock()
 	creditsV1 := common.CreditsV1Enabled()
-	if ok && cached.body != nil && cached.creditsV1 == creditsV1 && time.Now().Before(cached.expires) {
+	textPricingMode := model.GetTextPricingMode()
+	if ok && cached.body != nil && cached.creditsV1 == creditsV1 && cached.textPricingMode == textPricingMode && time.Now().Before(cached.expires) {
 		writeGeiliPublicJSON(c, cached.body)
 		return
 	}
@@ -380,7 +323,7 @@ func GetPublicModelBySlug(c *gin.Context) {
 	}
 	geiliPublicModelCacheMu.Lock()
 	geiliPublicModelDetailCache[slug] = geiliCachedBody{
-		body: body, expires: time.Now().Add(geiliPublicModelCacheTTL), creditsV1: creditsV1,
+		body: body, expires: time.Now().Add(geiliPublicModelCacheTTL), creditsV1: creditsV1, textPricingMode: textPricingMode,
 	}
 	geiliPublicModelCacheMu.Unlock()
 	writeGeiliPublicJSON(c, body)
@@ -433,16 +376,11 @@ func AdminUpsertModelRegistry(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "modality 必须是 image、video 或 text"})
 		return
 	}
-	if req.Modality == "text" {
-		req.TextCategory = strings.ToLower(strings.TrimSpace(req.TextCategory))
-		if !textCategories[req.TextCategory] {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "text_category 必须是 gpt、claude、gemini 或 grok"})
-			return
-		}
-		if err := validateOfficialTokenPrice(req.OfficialPrice); err != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
-			return
-		}
+	textCategory := ""
+	officialPrice := ""
+	if req.Modality != "text" {
+		textCategory = strings.ToLower(strings.TrimSpace(req.TextCategory))
+		officialPrice = marshalOrEmpty(req.OfficialPrice)
 	}
 	enabled := true
 	if req.Enabled != nil {
@@ -459,9 +397,9 @@ func AdminUpsertModelRegistry(c *gin.Context) {
 		VendorDisplayZh: req.VendorDisplay["zh"],
 		VendorDisplayEn: req.VendorDisplay["en"],
 		Modality:        req.Modality,
-		TextCategory:    req.TextCategory,
+		TextCategory:    textCategory,
 		CapabilityTags:  marshalOrEmpty(req.CapabilityTags),
-		OfficialPrice:   marshalOrEmpty(req.OfficialPrice),
+		OfficialPrice:   officialPrice,
 		ParamsSchema:    marshalOrEmpty(req.ParamsSchema),
 		ExampleParams:   marshalOrEmpty(req.ExampleParams),
 		FaqZh:           marshalOrEmpty(req.Faq["zh"]),
@@ -501,12 +439,8 @@ func AdminUpsertTextCategoryPricing(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multiplier 必须是大于 0 且不超过 1 的有限数"})
 		return
 	}
-	entry := model.TextCategoryPricing{
-		Category:    req.Category,
-		Multiplier:  *req.Multiplier,
-		UpdatedTime: common.GetTimestamp(),
-	}
-	if err := model.UpsertTextCategoryPricing(&entry); err != nil {
+	entry, err := model.UpdateTextCategoryMultiplier(req.Category, *req.Multiplier)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}

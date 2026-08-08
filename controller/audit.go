@@ -29,6 +29,13 @@ var auditContentTemplates = map[string]string{
 	"user.passkey_delete":   "Deleted a passkey",
 	"user.reset_passkey":    "Reset the user passkey",
 	"option.update":         "Updated system setting ${key}",
+	"model.create":          "Created model ${model} (ID: ${id})",
+	"model.update":          "Updated model ${model} (ID: ${id})",
+	"model.delete":          "Deleted model (ID: ${id})",
+	"model.status_update":   "Updated model ${model} status to ${status}",
+
+	"model.text_pricing_category_update": "Updated text pricing category ${category} multiplier to ${multiplier}",
+	"model.text_pricing_mode_update":     "Updated text pricing mode to ${mode}",
 
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
 	"channel.update":             "Updated channel ${name} (ID: ${id})",

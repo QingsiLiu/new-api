@@ -254,34 +254,7 @@ export type BillingSettings = {
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
-  QuotaPerUnit: number
-  QuotaPerCNY: number
-  USDExchangeRate: number
-  'general_setting.quota_display_type': string
-  'general_setting.custom_currency_symbol': string
-  'general_setting.custom_currency_exchange_rate': number
-  DisplayInCurrencyEnabled: boolean
-  DisplayTokenStatEnabled: boolean
-  ModelPrice: string
-  ModelRatio: string
-  CacheRatio: string
-  CreateCacheRatio: string
-  CompletionRatio: string
-  ImageRatio: string
-  AudioRatio: string
-  AudioCompletionRatio: string
-  AsyncSpecPricing: string
-  ExposeRatioEnabled: boolean
-  'billing_setting.billing_mode': string
-  'billing_setting.billing_expr': string
   'tool_price_setting.prices': string
-  TopupGroupRatio: string
-  GroupRatio: string
-  UserUsableGroups: string
-  GroupGroupRatio: string
-  AutoGroups: string
-  DefaultUseAutoGroup: boolean
-  'group_ratio_setting.group_special_usable_group': string
   PayAddress: string
   EpayId: string
   EpayKey: string
@@ -328,9 +301,6 @@ export type BillingSettings = {
   // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
-  'checkin_setting.enabled': boolean
-  'checkin_setting.min_quota': number
-  'checkin_setting.max_quota': number
 }
 
 export type OperationsSettings = {

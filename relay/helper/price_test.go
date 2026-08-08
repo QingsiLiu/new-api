@@ -239,7 +239,7 @@ func setupModelPricingHelperTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	model.DB = db
-	require.NoError(t, db.AutoMigrate(&model.Model{}))
+	require.NoError(t, db.AutoMigrate(&model.Model{}, &model.Option{}, &model.TextCategoryPricing{}))
 	restoreTrust := model.SetModelPricingConfigTrustedForTest(true)
 	t.Cleanup(func() {
 		restoreTrust()
@@ -249,6 +249,80 @@ func setupModelPricingHelperTestDB(t *testing.T) *gorm.DB {
 		model.DB = previousDB
 	})
 	return db
+}
+
+func withTextPricingModeForHelperTest(t *testing.T, mode string) {
+	t.Helper()
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	previous, existed := common.OptionMap[model.TextPricingModeOption]
+	common.OptionMap[model.TextPricingModeOption] = mode
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		if existed {
+			common.OptionMap[model.TextPricingModeOption] = previous
+		} else {
+			delete(common.OptionMap, model.TextPricingModeOption)
+		}
+		common.OptionMapRWMutex.Unlock()
+	})
+}
+
+func TestModelPriceHelperActiveTextPricingAppliesUserGroupRatio(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "false")
+	setupModelPricingHelperTestDB(t)
+	withTextPricingModeForHelperTest(t, model.TextPricingModeActive)
+	require.NoError(t, model.DB.Create(&model.TextCategoryPricing{Category: "gpt", Multiplier: 0.1}).Error)
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName:        "gpt-5.5",
+		Modal:            model.ModelModalText,
+		TextCategory:     "gpt",
+		OfficialPriceKey: "openai.gpt-5.5",
+		Status:           1,
+	}).Error)
+	previousGroups := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1.5}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousGroups)) })
+
+	priceData, err := ModelPriceHelper(
+		newPriceHelperTestContext(),
+		newPriceHelperRelayInfo("gpt-5.5"),
+		1_000_000,
+		&types.TokenCountMeta{},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, priceData.CreditsTextPricing)
+	require.True(t, priceData.CreditsTextPricing.ApplyGroupRatio)
+	require.Equal(t, 1.5, priceData.GroupRatioInfo.GroupRatio)
+	require.Equal(t, 1_080_000, priceData.QuotaToPreConsume)
+	require.Equal(t, model.TextPricingModeActive, priceData.TextPricingMode)
+}
+
+func TestModelPriceHelperGrokUsesLegacyModelRatio(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "false")
+	setupModelPricingHelperTestDB(t)
+	withTextPricingModeForHelperTest(t, model.TextPricingModeLegacy)
+	withModelRatioSettingForHelperTest(t, `{"grok-4.1":2}`)
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName:    "grok-4.1",
+		Modal:        model.ModelModalText,
+		TextCategory: "grok",
+		Status:       1,
+	}).Error)
+
+	priceData, err := ModelPriceHelper(
+		newPriceHelperTestContext(),
+		newPriceHelperRelayInfo("grok-4.1"),
+		1_000,
+		&types.TokenCountMeta{},
+	)
+	require.NoError(t, err)
+	require.Nil(t, priceData.CreditsTextPricing)
+	require.Equal(t, 2.0, priceData.ModelRatio)
+	require.Equal(t, model.TextPricingModeLegacy, priceData.TextPricingMode)
 }
 
 func TestModelPriceHelperPerCallSkipsModelPricingConfigWhenUntrusted(t *testing.T) {
