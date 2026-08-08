@@ -36,6 +36,9 @@ import type {
   SyncOverwritePayload,
   DeploymentSettingsResponse,
   ListDeploymentsResponse,
+  TextPricingConfigResponse,
+  TextPricingPreviewResponse,
+  UpdateTextPricingCategoryResponse,
 } from './types'
 
 // ============================================================================
@@ -110,6 +113,31 @@ export async function updateModelStatus(
   status: number
 ): Promise<{ success: boolean; message?: string }> {
   const res = await api.put('/api/models/?status_only=true', { id, status })
+  return res.data
+}
+
+// ============================================================================
+// Text Pricing Operations
+// ============================================================================
+
+export async function getTextPricingConfig(): Promise<TextPricingConfigResponse> {
+  const res = await api.get('/api/models/text-pricing/config')
+  return res.data
+}
+
+export async function previewTextPricingCategory(data: {
+  category: string
+  multiplier: number
+}): Promise<TextPricingPreviewResponse> {
+  const res = await api.post('/api/models/text-pricing/preview', data)
+  return res.data
+}
+
+export async function updateTextPricingCategory(data: {
+  category: string
+  multiplier: number
+}): Promise<UpdateTextPricingCategoryResponse> {
+  const res = await api.put('/api/models/text-pricing/category', data)
   return res.data
 }
 

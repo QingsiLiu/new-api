@@ -46,9 +46,15 @@ export interface Model {
   status: number
   sync_official: number
   modal?: string
+  text_category?: TextModelCategory | string
+  official_price_key?: string
   pricing_mode?: string
   pricing_config?: string
   pricing_updated_time?: number
+  pricing_ready?: boolean
+  pricing_error?: string
+  official_price_profile?: OfficialPriceProfile | null
+  effective_text_pricing?: EffectiveTextPricing | null
   created_time: number
   updated_time: number
   name_rule: number
@@ -98,6 +104,7 @@ export interface GetModelsParams {
   status?: string // filter by status
   sync_official?: string // filter by sync_official status
   modal?: string // filter by model modality
+  text_category?: string // filter text models by pricing category
   pricing_mode?: string // filter by pricing mode
 }
 
@@ -110,6 +117,7 @@ export interface SearchModelsParams {
   status?: string // filter by status
   sync_official?: string // filter by sync_official status
   modal?: string // filter by model modality
+  text_category?: string // filter text models by pricing category
   pricing_mode?: string // filter by pricing mode
   p?: number
   page_size?: number
@@ -231,6 +239,127 @@ export interface PrefillGroupsResponse {
 }
 
 // ============================================================================
+// Text Pricing Types
+// ============================================================================
+
+export const TEXT_MODEL_CATEGORIES = [
+  'gpt',
+  'claude',
+  'gemini',
+  'grok',
+  'unclassified',
+] as const
+
+export type TextModelCategory = (typeof TEXT_MODEL_CATEGORIES)[number]
+
+export interface OfficialPriceDimensions {
+  input?: number
+  output?: number
+  cached_input?: number
+  cache_write?: number
+  cache_write_5m?: number
+  cache_write_1h?: number
+}
+
+export interface OfficialPriceTier {
+  label: string
+  min_prompt_tokens?: number
+  max_prompt_tokens?: number
+  dimensions: OfficialPriceDimensions
+}
+
+export interface OfficialPriceProfile {
+  key: string
+  version?: string
+  category: TextModelCategory | string
+  display_name: string
+  currency?: string
+  unit?: string
+  source_url?: string
+  dimensions?: OfficialPriceDimensions
+  tiers?: OfficialPriceTier[]
+}
+
+export interface EffectiveTextPricing {
+  category?: TextModelCategory | string
+  category_multiplier?: number
+  catalog_version?: string
+  official_price_key?: string
+  pricing_source?: string
+  input_quota_per_million?: number
+  output_quota_per_million?: number
+  cached_input_quota_per_million?: number
+  cache_write_quota_per_million?: number
+  cache_write_5m_quota_per_million?: number
+  cache_write_1h_quota_per_million?: number
+  dimensions?: Record<string, number>
+  tiers?: Array<Record<string, unknown>>
+}
+
+export interface TextPricingCategoryConfig {
+  category: TextModelCategory | string
+  multiplier?: number
+  model_count?: number
+  pricing_ready_count?: number
+  updated_time?: number
+}
+
+export type TextPricingCategoriesPayload =
+  | TextPricingCategoryConfig[]
+  | Record<string, number | TextPricingCategoryConfig>
+
+export type TextPricingProfilesPayload =
+  | OfficialPriceProfile[]
+  | Record<string, OfficialPriceProfile>
+
+export interface TextPricingConfig {
+  mode: 'legacy' | 'shadow' | 'active' | string
+  catalog_version: string
+  categories: TextPricingCategoriesPayload
+  profiles: TextPricingProfilesPayload
+}
+
+export interface TextPricingConfigResponse {
+  success: boolean
+  message?: string
+  data?: TextPricingConfig
+}
+
+export interface TextPricingImpact {
+  id: number
+  model_name: string
+  official_price_key: string
+  input_quota_per_million: number
+  output_quota_per_million: number
+  pricing_ready: boolean
+  pricing_error?: string
+}
+
+export interface TextPricingPreviewSummary {
+  category: TextModelCategory | string
+  multiplier?: number
+  models: TextPricingImpact[]
+}
+
+export interface TextPricingPreview {
+  affected_count: number
+  before: TextPricingPreviewSummary
+  after: TextPricingPreviewSummary
+}
+
+export interface TextPricingPreviewResponse {
+  success: boolean
+  message?: string
+  data?: TextPricingPreview
+}
+
+export interface UpdateTextPricingCategoryResponse {
+  success: boolean
+  message?: string
+  data?: TextPricingCategoryConfig
+}
+
+// ============================================================================
 // Form Data Types
 // ============================================================================
 
@@ -240,17 +369,21 @@ export interface PrefillGroupsResponse {
 export const modelFormSchema = z.object({
   id: z.number().optional(),
   model_name: z.string().min(1, 'Model name is required'),
-  description: z.string().default(''),
-  icon: z.string().default(''),
-  tags: z.array(z.string()).default([]),
+  alias: z.string(),
+  description: z.string(),
+  icon: z.string(),
+  tags: z.array(z.string()),
   vendor_id: z.number().optional(),
-  endpoints: z.string().default(''),
-  name_rule: z.number().min(0).max(3).default(0),
-  status: z.boolean().default(true),
-  sync_official: z.boolean().default(true),
-  modal: z.string().default('text'),
-  pricing_mode: z.string().default('inherit'),
-  pricing_config: z.string().default(''),
+  endpoints: z.string(),
+  name_rule: z.number().min(0).max(3),
+  status: z.boolean(),
+  sync_official: z.boolean(),
+  modal: z.string(),
+  text_category: z.string(),
+  official_price_key: z.string(),
+  pricing_mode: z.string(),
+  pricing_config: z.string(),
+  pricing_updated_time: z.number(),
 })
 
 export type ModelFormValues = z.infer<typeof modelFormSchema>

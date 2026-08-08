@@ -39,10 +39,17 @@ import {
   getNameRuleConfig,
   getQuotaTypeConfig,
 } from '../constants'
-import { parseModelTags, formatEndpointsDisplay } from '../lib'
+import { formatEndpointsDisplay, parseModelTags } from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
+import {
+  CategoryMultiplierCell,
+  ModelClassificationCell,
+  OfficialPriceProfileCell,
+  PricingAvailabilityCell,
+  PricingSummaryCell,
+} from './model-pricing-cells'
 
 function getCompactModelIcon(iconKey: string) {
   const baseIconKey = iconKey.split('.')[0]
@@ -134,6 +141,46 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       },
       size: 260,
       minSize: 200,
+    },
+
+    {
+      id: 'classification',
+      header: t('Category'),
+      cell: ({ row }) => <ModelClassificationCell model={row.original} />,
+      size: 150,
+      enableSorting: false,
+    },
+
+    {
+      id: 'official_price_profile',
+      header: t('Official price profile'),
+      cell: ({ row }) => <OfficialPriceProfileCell model={row.original} />,
+      size: 230,
+      enableSorting: false,
+    },
+
+    {
+      id: 'category_multiplier',
+      header: t('Multiplier'),
+      cell: ({ row }) => <CategoryMultiplierCell model={row.original} />,
+      size: 105,
+      enableSorting: false,
+    },
+
+    {
+      id: 'pricing_ready',
+      header: t('Availability'),
+      cell: ({ row }) => <PricingAvailabilityCell model={row.original} />,
+      size: 120,
+      enableSorting: false,
+    },
+
+    {
+      id: 'pricing_summary',
+      header: t('Price summary'),
+      cell: ({ row }) => <PricingSummaryCell model={row.original} />,
+      size: 180,
+      enableSorting: false,
     },
 
     // Name Rule column

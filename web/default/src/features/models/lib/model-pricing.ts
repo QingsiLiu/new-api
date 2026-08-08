@@ -17,7 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
-import type { Model } from '../types'
+
+import type {
+  EffectiveTextPricing,
+  Model,
+  OfficialPriceDimensions,
+  OfficialPriceProfile,
+  TextModelCategory,
+  TextPricingCategoriesPayload,
+  TextPricingCategoryConfig,
+  TextPricingProfilesPayload,
+} from '../types'
 
 export const MODEL_MODAL_VALUES = ['text', 'image', 'video', 'audio'] as const
 export const MODEL_PRICING_MODE_VALUES = [
@@ -27,6 +37,10 @@ export const MODEL_PRICING_MODE_VALUES = [
   'free',
   'inherit',
 ] as const
+export const QUOTA_PER_CNY = 100_000
+export const QUOTA_PER_CREDIT = 3_600
+export const CNY_INPUT_PRECISION = 4
+export const CREDITS_INPUT_PRECISION = 6
 
 export type ModelModal = (typeof MODEL_MODAL_VALUES)[number]
 export type ModelPricingMode = (typeof MODEL_PRICING_MODE_VALUES)[number]
@@ -270,9 +284,141 @@ export function parseNonNegativeNumber(value?: string | number): number {
   return parsed
 }
 
+export function cnyToCredits(cny: number): number {
+  if (!Number.isFinite(cny) || cny < 0) return 0
+  return (cny * QUOTA_PER_CNY) / QUOTA_PER_CREDIT
+}
+
+export function creditsToCNY(credits: number): number {
+  if (!Number.isFinite(credits) || credits < 0) return 0
+  return (credits * QUOTA_PER_CREDIT) / QUOTA_PER_CNY
+}
+
+export function cnyInputToCredits(value: string): string {
+  if (!value.trim()) return ''
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return ''
+  return cnyToCredits(parsed).toFixed(CREDITS_INPUT_PRECISION)
+}
+
+export function creditsInputToCNY(value: string): string {
+  if (!value.trim()) return ''
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return ''
+  return creditsToCNY(parsed).toFixed(CNY_INPUT_PRECISION)
+}
+
+export function formatCNYInput(value?: number): string {
+  if (!Number.isFinite(value) || Number(value) < 0) return ''
+  return Number(value).toFixed(CNY_INPUT_PRECISION)
+}
+
+export function formatCreditsInput(value?: number): string {
+  if (!Number.isFinite(value) || Number(value) < 0) return ''
+  return Number(value).toFixed(CREDITS_INPUT_PRECISION)
+}
+
 export function quotaPreview(cny: number, quotaPerCNY: number): number {
   if (!Number.isFinite(cny) || !Number.isFinite(quotaPerCNY)) return 0
   return Math.round(Math.max(0, cny) * Math.max(0, quotaPerCNY))
+}
+
+export function normalizeTextPricingCategories(
+  payload?: TextPricingCategoriesPayload
+): TextPricingCategoryConfig[] {
+  if (!payload) return []
+  if (Array.isArray(payload)) {
+    return payload.map((entry) => ({ ...entry }))
+  }
+  return Object.entries(payload).map(([category, entry]) => {
+    if (typeof entry === 'number') {
+      return { category, multiplier: entry }
+    }
+    return { ...entry, category: entry.category || category }
+  })
+}
+
+export function normalizeOfficialPriceProfiles(
+  payload?: TextPricingProfilesPayload
+): OfficialPriceProfile[] {
+  if (!payload) return []
+  if (Array.isArray(payload)) {
+    return payload.map((profile) => ({ ...profile }))
+  }
+  return Object.entries(payload).map(([key, profile]) => ({
+    ...profile,
+    key: profile.key || key,
+  }))
+}
+
+export function getTextCategoryMultiplier(
+  categories: TextPricingCategoryConfig[],
+  category?: string
+): number | undefined {
+  return categories.find((entry) => entry.category === category)?.multiplier
+}
+
+export function getProfilesForCategory(
+  profiles: OfficialPriceProfile[],
+  category?: string
+): OfficialPriceProfile[] {
+  return profiles
+    .filter((profile) => profile.category === category)
+    .sort((left, right) => left.display_name.localeCompare(right.display_name))
+}
+
+export function getOfficialDimensionsSummary(
+  dimensions?: OfficialPriceDimensions
+): Array<{ key: keyof OfficialPriceDimensions; value: number }> {
+  if (!dimensions) return []
+  const order: Array<keyof OfficialPriceDimensions> = [
+    'input',
+    'output',
+    'cached_input',
+    'cache_write',
+    'cache_write_5m',
+    'cache_write_1h',
+  ]
+  return order.flatMap((key) => {
+    const value = dimensions[key]
+    return Number.isFinite(value) ? [{ key, value: Number(value) }] : []
+  })
+}
+
+export function getEffectiveTextPricingSummary(
+  pricing?: EffectiveTextPricing | null
+): Array<{ key: string; quota: number; credits: number }> {
+  if (!pricing) return []
+  const dimensions = [
+    ['input', pricing.input_quota_per_million],
+    ['output', pricing.output_quota_per_million],
+    ['cached_input', pricing.cached_input_quota_per_million],
+    ['cache_write', pricing.cache_write_quota_per_million],
+    ['cache_write_5m', pricing.cache_write_5m_quota_per_million],
+    ['cache_write_1h', pricing.cache_write_1h_quota_per_million],
+  ] as const
+  const explicit = dimensions.flatMap(([key, quota]) => {
+    if (!Number.isFinite(quota)) return []
+    return [
+      { key, quota: Number(quota), credits: Number(quota) / QUOTA_PER_CREDIT },
+    ]
+  })
+  if (explicit.length > 0) return explicit
+
+  return Object.entries(pricing.dimensions || {}).flatMap(([key, quota]) => {
+    if (!Number.isFinite(quota)) return []
+    return [
+      { key, quota: Number(quota), credits: Number(quota) / QUOTA_PER_CREDIT },
+    ]
+  })
+}
+
+export function isTextModelCategory(
+  value?: string
+): value is TextModelCategory {
+  return ['gpt', 'claude', 'gemini', 'grok', 'unclassified'].includes(
+    value || ''
+  )
 }
 
 export function formatNumber(value?: number): string {
@@ -283,5 +429,5 @@ export function formatNumber(value?: number): string {
 }
 
 function toInputNumber(value?: number): string {
-  return Number.isFinite(value) ? String(value) : ''
+  return formatCNYInput(value)
 }

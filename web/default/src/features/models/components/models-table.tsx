@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTablePage, useDataTable } from '@/components/data-table'
@@ -31,10 +31,13 @@ import {
   getModelStatusOptions,
   getSyncStatusOptions,
 } from '../constants'
-import { modelsQueryKeys, vendorsQueryKeys } from '../lib'
+import { modelsQueryKeys, type ModelModal, vendorsQueryKeys } from '../lib'
+import type { TextModelCategory } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
+import { ModelCategoryTabs } from './model-category-tabs'
 import { useModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
+import { TextPricingCategoryPanel } from './text-pricing-category-panel'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
@@ -42,6 +45,8 @@ export function ModelsTable() {
   const { t } = useTranslation()
   const { selectedVendor } = useModels()
   const isMobile = useMediaQuery('(max-width: 640px)')
+  const [modal, setModal] = useState<ModelModal>('text')
+  const [textCategory, setTextCategory] = useState<TextModelCategory>('gpt')
 
   // URL state management
   const {
@@ -111,12 +116,8 @@ export function ModelsTable() {
       : undefined
 
   // Use search API whenever any filter is active so status/sync are applied server-side
-  const shouldSearch = Boolean(
-    globalFilter?.trim() ||
-      activeVendorFilter ||
-      statusFilterValue ||
-      syncFilterValue
-  )
+  const shouldSearch = Boolean(globalFilter?.trim())
+  const activeTextCategory = modal === 'text' ? textCategory : undefined
 
   // Fetch models data
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -126,6 +127,8 @@ export function ModelsTable() {
       vendor: activeVendorFilter,
       status: statusFilterValue,
       sync_official: syncFilterValue,
+      modal,
+      text_category: activeTextCategory,
       p: pagination.pageIndex + 1,
       page_size: pagination.pageSize,
     }),
@@ -136,11 +139,18 @@ export function ModelsTable() {
           vendor: activeVendorFilter,
           status: statusFilterValue,
           sync_official: syncFilterValue,
+          modal,
+          text_category: activeTextCategory,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
       }
       return getModels({
+        vendor: activeVendorFilter,
+        status: statusFilterValue,
+        sync_official: syncFilterValue,
+        modal,
+        text_category: activeTextCategory,
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
       })
@@ -160,9 +170,16 @@ export function ModelsTable() {
     columns,
     totalCount,
     initialColumnVisibility: {
+      name_rule: false,
       description: false,
+      tags: false,
+      endpoints: false,
       bound_channels: false,
+      enable_groups: false,
       quota_types: false,
+      sync_official: false,
+      created_time: false,
+      updated_time: false,
     },
     columnFilters,
     pagination,
@@ -189,42 +206,68 @@ export function ModelsTable() {
     })),
   ]
 
+  const resetPagination = () => {
+    if (pagination.pageIndex === 0) return
+    onPaginationChange({ ...pagination, pageIndex: 0 })
+  }
+
   return (
-    <DataTablePage
-      table={table}
-      columns={columns}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      emptyTitle={t('No Models Found')}
-      emptyDescription={t(
-        'No models available. Create your first model to get started.'
-      )}
-      skeletonKeyPrefix='model-skeleton'
-      applyHeaderSize
-      toolbarProps={{
-        searchPlaceholder: t('Filter by model name...'),
-        filters: [
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: [...getModelStatusOptions(t)],
-            singleSelect: true,
-          },
-          {
-            columnId: 'vendor_id',
-            title: t('Vendor'),
-            options: vendorFilterOptions,
-            singleSelect: true,
-          },
-          {
-            columnId: 'sync_official',
-            title: t('Official Sync'),
-            options: [...getSyncStatusOptions(t)],
-            singleSelect: true,
-          },
-        ],
-      }}
-      bulkActions={<DataTableBulkActions table={table} />}
-    />
+    <div className='flex h-full min-h-0 flex-col gap-3'>
+      <ModelCategoryTabs
+        modal={modal}
+        textCategory={textCategory}
+        onModalChange={(value) => {
+          setModal(value)
+          resetPagination()
+        }}
+        onTextCategoryChange={(value) => {
+          setTextCategory(value)
+          resetPagination()
+        }}
+      />
+
+      {modal === 'text' ? (
+        <TextPricingCategoryPanel category={textCategory} />
+      ) : null}
+
+      <div className='min-h-0 flex-1'>
+        <DataTablePage
+          table={table}
+          columns={columns}
+          isLoading={isLoading}
+          isFetching={isFetching}
+          emptyTitle={t('No Models Found')}
+          emptyDescription={t(
+            'No models available in this category. Add or reclassify a model to get started.'
+          )}
+          skeletonKeyPrefix='model-skeleton'
+          applyHeaderSize
+          toolbarProps={{
+            searchPlaceholder: t('Filter by model name...'),
+            filters: [
+              {
+                columnId: 'status',
+                title: t('Status'),
+                options: [...getModelStatusOptions(t)],
+                singleSelect: true,
+              },
+              {
+                columnId: 'vendor_id',
+                title: t('Vendor'),
+                options: vendorFilterOptions,
+                singleSelect: true,
+              },
+              {
+                columnId: 'sync_official',
+                title: t('Official Sync'),
+                options: [...getSyncStatusOptions(t)],
+                singleSelect: true,
+              },
+            ],
+          }}
+          bulkActions={<DataTableBulkActions table={table} />}
+        />
+      </div>
+    </div>
   )
 }
