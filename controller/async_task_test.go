@@ -2332,8 +2332,15 @@ func TestAsyncLsSeedanceVideoTaskAssetUploadFailureRefundsQuota(t *testing.T) {
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
 	require.Eventually(t, func() bool {
 		var task model.Task
-		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
-		return err == nil && task.Status == model.TaskStatusFailure
+		if err := model.DB.Where("task_id = ?", created.ID).First(&task).Error; err != nil || task.Status != model.TaskStatusFailure {
+			return false
+		}
+		var user model.User
+		if err := model.DB.First(&user, 2001).Error; err != nil || user.Quota != 1000000 {
+			return false
+		}
+		var refundLogs []model.Log
+		return model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error == nil && len(refundLogs) == 1
 	}, 2*time.Second, 20*time.Millisecond)
 	require.False(t, generateCalled)
 	var user model.User
@@ -2381,8 +2388,15 @@ func TestAsyncLsSeedanceVideoTaskFailureRefundsQuota(t *testing.T) {
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &created))
 	require.Eventually(t, func() bool {
 		var task model.Task
-		err := model.DB.Where("task_id = ?", created.ID).First(&task).Error
-		return err == nil && task.Status == model.TaskStatusFailure
+		if err := model.DB.Where("task_id = ?", created.ID).First(&task).Error; err != nil || task.Status != model.TaskStatusFailure {
+			return false
+		}
+		var user model.User
+		if err := model.DB.First(&user, 2001).Error; err != nil || user.Quota != 1000000 {
+			return false
+		}
+		var refundLogs []model.Log
+		return model.LOG_DB.Where("type = ?", model.LogTypeRefund).Find(&refundLogs).Error == nil && len(refundLogs) == 1
 	}, 2*time.Second, 20*time.Millisecond)
 
 	var user model.User
