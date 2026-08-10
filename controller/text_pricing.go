@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,6 +18,29 @@ type textPricingCategoryRequest struct {
 
 type textPricingModeRequest struct {
 	Mode string `json:"mode"`
+}
+
+type textPricingModelRequest struct {
+	ModelID    int             `json:"model_id"`
+	Multiplier json.RawMessage `json:"multiplier"`
+}
+
+func bindTextPricingModelRequest(c *gin.Context) (int, *float64, error) {
+	var request textPricingModelRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		return 0, nil, err
+	}
+	if len(request.Multiplier) == 0 {
+		return 0, nil, errors.New("multiplier field is required")
+	}
+	if common.GetJsonType(request.Multiplier) == "null" {
+		return request.ModelID, nil, nil
+	}
+	var multiplier float64
+	if err := common.Unmarshal(request.Multiplier, &multiplier); err != nil {
+		return 0, nil, err
+	}
+	return request.ModelID, &multiplier, nil
 }
 
 func GetTextPricingConfig(c *gin.Context) {
@@ -47,6 +72,11 @@ func UpdateTextPricingCategory(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	preview, err := model.PreviewTextCategoryMultiplier(request.Category, request.Multiplier)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	entry, err := model.UpdateTextCategoryMultiplier(request.Category, request.Multiplier)
 	if err != nil {
 		common.ApiError(c, err)
@@ -54,8 +84,12 @@ func UpdateTextPricingCategory(c *gin.Context) {
 	}
 	invalidateGeiliPublicModelCache()
 	recordManageAudit(c, "model.text_pricing_category_update", map[string]interface{}{
-		"category":   entry.Category,
-		"multiplier": entry.Multiplier,
+		"category":            entry.Category,
+		"previous_multiplier": preview.Before.Multiplier,
+		"multiplier":          entry.Multiplier,
+		"affected_count":      preview.AffectedCount,
+		"override_count":      preview.OverrideCount,
+		"multiplier_source":   model.TextMultiplierSourceCategory,
 	})
 	config, err := model.GetTextPricingConfigView()
 	if err != nil {
@@ -69,6 +103,45 @@ func UpdateTextPricingCategory(c *gin.Context) {
 		}
 	}
 	common.ApiSuccess(c, entry)
+}
+
+func PreviewTextPricingModel(c *gin.Context) {
+	modelID, multiplier, err := bindTextPricingModelRequest(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	preview, err := model.PreviewTextModelMultiplier(modelID, multiplier)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, preview)
+}
+
+func UpdateTextPricingModel(c *gin.Context) {
+	modelID, multiplier, err := bindTextPricingModelRequest(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	preview, err := model.UpdateTextModelMultiplier(modelID, multiplier)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	invalidateGeiliPublicModelCache()
+	recordManageAudit(c, "model.text_pricing_model_update", map[string]interface{}{
+		"model_id":                      preview.ModelID,
+		"model":                         preview.ModelName,
+		"category_multiplier":           preview.After.CategoryMultiplier,
+		"previous_model_multiplier":     preview.Before.ModelMultiplierOverride,
+		"model_multiplier_override":     preview.After.ModelMultiplierOverride,
+		"previous_effective_multiplier": preview.Before.EffectiveMultiplier,
+		"effective_multiplier":          preview.After.EffectiveMultiplier,
+		"multiplier_source":             preview.After.MultiplierSource,
+	})
+	common.ApiSuccess(c, preview)
 }
 
 func UpdateTextPricingMode(c *gin.Context) {

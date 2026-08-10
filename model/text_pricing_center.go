@@ -20,13 +20,19 @@ const (
 	TextPricingModeLegacy = "legacy"
 	TextPricingModeShadow = "shadow"
 	TextPricingModeActive = "active"
+
+	TextMultiplierSourceCategory      = "category"
+	TextMultiplierSourceModelOverride = "model_override"
 )
 
 type TextPricingProfileView = textpricing.PublicProfile
 
 type EffectiveTextPricingView struct {
 	Category                    string                         `json:"category"`
-	CategoryMultiplier          float64                        `json:"category_multiplier"`
+	CategoryMultiplier          *float64                       `json:"category_multiplier,omitempty"`
+	ModelMultiplierOverride     *float64                       `json:"model_multiplier_override,omitempty"`
+	EffectiveMultiplier         float64                        `json:"effective_multiplier"`
+	MultiplierSource            string                         `json:"multiplier_source"`
 	CatalogVersion              string                         `json:"catalog_version"`
 	OfficialPriceKey            string                         `json:"official_price_key"`
 	PricingSource               string                         `json:"pricing_source"`
@@ -40,10 +46,14 @@ type EffectiveTextPricingView struct {
 }
 
 type TextPricingResolution struct {
-	Model      Model
-	Profile    textpricing.Profile
-	Multiplier float64
-	Pricing    *types.CreditsTextPricing
+	Model                   Model
+	Profile                 textpricing.Profile
+	CategoryMultiplier      *float64
+	ModelMultiplierOverride *float64
+	EffectiveMultiplier     float64
+	MultiplierSource        string
+	Multiplier              float64
+	Pricing                 *types.CreditsTextPricing
 }
 
 func ResolveLegacyTextPricingSnapshot(modelName string) (*types.CreditsTextPricing, bool) {
@@ -66,6 +76,8 @@ func resolveCreditsV1TextPricingSnapshot(modelName string) (*types.CreditsTextPr
 	if err != nil {
 		return nil, false
 	}
+	pricing.EffectiveMultiplier = multiplier
+	pricing.MultiplierSource = TextMultiplierSourceCategory
 	pricing.Fallback = true
 	return pricing, true
 }
@@ -84,10 +96,7 @@ func ResolveEffectiveTextPricingForMode(modelName string, mode string) (*types.C
 		return pricing, ok, nil
 	}
 	if !IsModelPricingConfigTrusted() {
-		if pricing, ok := resolveCreditsV1TextPricingSnapshot(modelName); ok {
-			return pricing, true, nil
-		}
-		return nil, false, errors.New("model pricing parity is not trusted and no Credits V1 snapshot is available")
+		return nil, false, errors.New("model pricing parity is not trusted; active text pricing is blocked")
 	}
 	entry, ok, err := GetTextPricingModel(modelName)
 	if err != nil {
@@ -102,6 +111,9 @@ func ResolveEffectiveTextPricingForMode(modelName string, mode string) (*types.C
 	resolution, err := ResolveTextModelPricingFromMetadata(entry, nil)
 	if err != nil {
 		return nil, false, err
+	}
+	if resolution.CategoryMultiplier == nil {
+		return nil, false, fmt.Errorf("text category %s has no configured multiplier", resolution.Profile.Category)
 	}
 	return resolution.Pricing, true, nil
 }
@@ -136,28 +148,44 @@ func ResolveShadowTextPricingForMode(modelName string, mode string) (*types.Cred
 }
 
 type TextPricingCategoryConfig struct {
-	Category          string   `json:"category"`
-	Multiplier        *float64 `json:"multiplier,omitempty"`
-	ModelCount        int      `json:"model_count"`
-	PricingReadyCount int      `json:"pricing_ready_count"`
-	UpdatedTime       int64    `json:"updated_time,omitempty"`
+	Category            string   `json:"category"`
+	Multiplier          *float64 `json:"multiplier,omitempty"`
+	ModelCount          int      `json:"model_count"`
+	PricingReadyCount   int      `json:"pricing_ready_count"`
+	PricingBlockedCount int      `json:"pricing_blocked_count"`
+	OverrideCount       int      `json:"override_count"`
+	InheritedCount      int      `json:"inherited_count"`
+	CatalogProfileCount int      `json:"catalog_profile_count"`
+	ActivationReady     bool     `json:"activation_ready"`
+	ActivationError     string   `json:"activation_error,omitempty"`
+	UpdatedTime         int64    `json:"updated_time,omitempty"`
 }
 
 type TextPricingConfigView struct {
-	Mode           string                      `json:"mode"`
-	CatalogVersion string                      `json:"catalog_version"`
-	Categories     []TextPricingCategoryConfig `json:"categories"`
-	Profiles       []textpricing.PublicProfile `json:"profiles"`
+	Mode                        string                      `json:"mode"`
+	CatalogVersion              string                      `json:"catalog_version"`
+	Categories                  []TextPricingCategoryConfig `json:"categories"`
+	Profiles                    []textpricing.PublicProfile `json:"profiles"`
+	PendingCount                int                         `json:"pending_count"`
+	UnclassifiedCount           int                         `json:"unclassified_count"`
+	MissingOfficialProfileCount int                         `json:"missing_official_profile_count"`
+	ActivationReady             bool                        `json:"activation_ready"`
+	ActivationBlockers          []string                    `json:"activation_blockers"`
 }
 
 type TextPricingImpact struct {
-	ID                    int    `json:"id"`
-	ModelName             string `json:"model_name"`
-	OfficialPriceKey      string `json:"official_price_key"`
-	InputQuotaPerMillion  int64  `json:"input_quota_per_million"`
-	OutputQuotaPerMillion int64  `json:"output_quota_per_million"`
-	PricingReady          bool   `json:"pricing_ready"`
-	PricingError          string `json:"pricing_error,omitempty"`
+	ID                      int      `json:"id"`
+	ModelName               string   `json:"model_name"`
+	OfficialPriceKey        string   `json:"official_price_key"`
+	CategoryMultiplier      *float64 `json:"category_multiplier,omitempty"`
+	ModelMultiplierOverride *float64 `json:"model_multiplier_override,omitempty"`
+	EffectiveMultiplier     float64  `json:"effective_multiplier,omitempty"`
+	MultiplierSource        string   `json:"multiplier_source,omitempty"`
+	InputQuotaPerMillion    int64    `json:"input_quota_per_million"`
+	OutputQuotaPerMillion   int64    `json:"output_quota_per_million"`
+	PricingReady            bool     `json:"pricing_ready"`
+	Affected                bool     `json:"affected"`
+	PricingError            string   `json:"pricing_error,omitempty"`
 }
 
 type TextPricingPreviewSummary struct {
@@ -168,8 +196,16 @@ type TextPricingPreviewSummary struct {
 
 type TextPricingPreview struct {
 	AffectedCount int                       `json:"affected_count"`
+	OverrideCount int                       `json:"override_count"`
 	Before        TextPricingPreviewSummary `json:"before"`
 	After         TextPricingPreviewSummary `json:"after"`
+}
+
+type TextPricingModelPreview struct {
+	ModelID   int               `json:"model_id"`
+	ModelName string            `json:"model_name"`
+	Before    TextPricingImpact `json:"before"`
+	After     TextPricingImpact `json:"after"`
 }
 
 func NormalizeTextPricingMode(mode string) (string, error) {
@@ -199,10 +235,7 @@ func SetTextPricingMode(mode string) error {
 		return err
 	}
 	if normalized == TextPricingModeActive {
-		if !IsModelPricingConfigTrusted() {
-			return errors.New("model pricing parity is not trusted; active text pricing is blocked")
-		}
-		if err := ValidateEnabledTextPricingModels(); err != nil {
+		if err := ValidateTextPricingActivationReadiness(); err != nil {
 			return err
 		}
 	}
@@ -306,12 +339,20 @@ func GetTextCategoryPricingRows() (map[string]TextCategoryPricing, error) {
 }
 
 func GetTextCategoryMultiplier(category string) (float64, bool, error) {
+	return getTextCategoryMultiplier(DB, category, false)
+}
+
+func getTextCategoryMultiplier(tx *gorm.DB, category string, forUpdate bool) (float64, bool, error) {
 	category = strings.ToLower(strings.TrimSpace(category))
 	if category == "" || category == textpricing.CategoryUnclassified {
 		return 0, false, nil
 	}
 	var row TextCategoryPricing
-	err := DB.Where("category = ?", category).First(&row).Error
+	query := tx
+	if forUpdate {
+		query = lockForUpdate(query)
+	}
+	err := query.Where("category = ?", category).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, false, nil
 	}
@@ -383,6 +424,26 @@ func ResolveTextModelPricing(modelName string) (TextPricingResolution, error) {
 }
 
 func ResolveTextModelPricingFromMetadata(entry Model, multiplierOverride *float64) (TextPricingResolution, error) {
+	return resolveTextModelPricingFromMetadata(entry, textPricingResolutionOptions{
+		categoryMultiplierOverride: multiplierOverride,
+	})
+}
+
+type textPricingResolutionOptions struct {
+	categoryMultiplierOverride *float64
+	replaceCategoryMultiplier  bool
+	modelMultiplierOverride    *float64
+	replaceModelOverride       bool
+}
+
+func ResolveTextModelPricingWithModelOverride(entry Model, multiplier *float64) (TextPricingResolution, error) {
+	return resolveTextModelPricingFromMetadata(entry, textPricingResolutionOptions{
+		modelMultiplierOverride: multiplier,
+		replaceModelOverride:    true,
+	})
+}
+
+func resolveTextModelPricingFromMetadata(entry Model, options textPricingResolutionOptions) (TextPricingResolution, error) {
 	if strings.TrimSpace(entry.Modal) != ModelModalText {
 		return TextPricingResolution{}, fmt.Errorf("model %s is not classified as text", entry.ModelName)
 	}
@@ -402,29 +463,68 @@ func ResolveTextModelPricingFromMetadata(entry Model, multiplierOverride *float6
 		return TextPricingResolution{}, fmt.Errorf("model %s category %s does not match official price profile category %s", entry.ModelName, category, profile.Category)
 	}
 
-	multiplier := 0.0
-	if multiplierOverride != nil {
-		multiplier = *multiplierOverride
+	var categoryMultiplier *float64
+	if options.replaceCategoryMultiplier || options.categoryMultiplierOverride != nil {
+		if options.categoryMultiplierOverride != nil {
+			value := *options.categoryMultiplierOverride
+			if err := textpricing.ValidateMultiplier(value); err != nil {
+				return TextPricingResolution{}, err
+			}
+			categoryMultiplier = &value
+		}
 	} else {
-		var found bool
-		var err error
-		multiplier, found, err = GetTextCategoryMultiplier(category)
+		value, found, err := GetTextCategoryMultiplier(category)
 		if err != nil {
 			return TextPricingResolution{}, err
 		}
-		if !found {
-			return TextPricingResolution{}, fmt.Errorf("text category %s has no configured multiplier", category)
+		if found {
+			categoryMultiplier = &value
 		}
 	}
-	pricing, err := textpricing.BuildPricing(profile, multiplier, true, "official_catalog")
+
+	modelMultiplierOverride := entry.TextMultiplierOverride
+	if options.replaceModelOverride {
+		modelMultiplierOverride = options.modelMultiplierOverride
+	}
+	if modelMultiplierOverride != nil {
+		value := *modelMultiplierOverride
+		if err := textpricing.ValidateMultiplier(value); err != nil {
+			return TextPricingResolution{}, fmt.Errorf("model %s has invalid multiplier override: %w", entry.ModelName, err)
+		}
+		modelMultiplierOverride = &value
+	}
+
+	effectiveMultiplier := 0.0
+	multiplierSource := TextMultiplierSourceCategory
+	if modelMultiplierOverride != nil {
+		effectiveMultiplier = *modelMultiplierOverride
+		multiplierSource = TextMultiplierSourceModelOverride
+	} else {
+		if categoryMultiplier == nil {
+			return TextPricingResolution{}, fmt.Errorf("text category %s has no configured multiplier", category)
+		}
+		effectiveMultiplier = *categoryMultiplier
+	}
+	pricing, err := textpricing.BuildPricing(profile, effectiveMultiplier, true, "official_catalog")
 	if err != nil {
 		return TextPricingResolution{}, err
 	}
+	pricing.CategoryMultiplier = 0
+	if categoryMultiplier != nil {
+		pricing.CategoryMultiplier = *categoryMultiplier
+	}
+	pricing.ModelMultiplierOverride = modelMultiplierOverride
+	pricing.EffectiveMultiplier = effectiveMultiplier
+	pricing.MultiplierSource = multiplierSource
 	return TextPricingResolution{
-		Model:      entry,
-		Profile:    profile,
-		Multiplier: multiplier,
-		Pricing:    pricing,
+		Model:                   entry,
+		Profile:                 profile,
+		CategoryMultiplier:      categoryMultiplier,
+		ModelMultiplierOverride: modelMultiplierOverride,
+		EffectiveMultiplier:     effectiveMultiplier,
+		MultiplierSource:        multiplierSource,
+		Multiplier:              effectiveMultiplier,
+		Pricing:                 pricing,
 	}, nil
 }
 
@@ -474,6 +574,20 @@ func ValidateEnabledTextPricingModels() error {
 	return nil
 }
 
+func ValidateTextPricingActivationReadiness() error {
+	if !IsModelPricingConfigTrusted() {
+		return errors.New("model pricing parity is not trusted; active text pricing is blocked")
+	}
+	for _, category := range textpricing.BillableCategories() {
+		if _, found, err := GetTextCategoryMultiplier(category); err != nil {
+			return err
+		} else if !found {
+			return fmt.Errorf("text category %s has no configured multiplier", category)
+		}
+	}
+	return ValidateEnabledTextPricingModels()
+}
+
 func EnrichTextPricingModels(models []*Model) {
 	for _, entry := range models {
 		if entry == nil || strings.TrimSpace(entry.Modal) != ModelModalText {
@@ -499,7 +613,10 @@ func effectiveTextPricingView(pricing *types.CreditsTextPricing) *EffectiveTextP
 	}
 	return &EffectiveTextPricingView{
 		Category:                    pricing.TextCategory,
-		CategoryMultiplier:          pricing.CategoryMultiplier,
+		CategoryMultiplier:          optionalMultiplier(pricing.CategoryMultiplier),
+		ModelMultiplierOverride:     pricing.ModelMultiplierOverride,
+		EffectiveMultiplier:         pricing.EffectiveMultiplier,
+		MultiplierSource:            pricing.MultiplierSource,
 		CatalogVersion:              pricing.CatalogVersion,
 		OfficialPriceKey:            pricing.OfficialPriceKey,
 		PricingSource:               pricing.PricingSource,
@@ -511,6 +628,13 @@ func effectiveTextPricingView(pricing *types.CreditsTextPricing) *EffectiveTextP
 		CacheWrite1hQuotaPerMillion: pricing.CacheWrite1hQuotaPerMillion,
 		Tiers:                       pricing.Tiers,
 	}
+}
+
+func optionalMultiplier(value float64) *float64 {
+	if value <= 0 {
+		return nil
+	}
+	return &value
 }
 
 func GetTextPricingConfigView() (TextPricingConfigView, error) {
@@ -525,37 +649,133 @@ func GetTextPricingConfigView() (TextPricingConfigView, error) {
 
 	counts := make(map[string]int)
 	ready := make(map[string]int)
+	blocked := make(map[string]int)
+	activationBlocked := make(map[string]int)
+	overrides := make(map[string]int)
+	inherited := make(map[string]int)
+	profileCounts := make(map[string]int)
+	for _, profile := range textpricing.List() {
+		profileCounts[profile.Category]++
+	}
+	pendingCount := 0
+	unclassifiedCount := 0
+	missingProfileCount := 0
+	activationBlockers := make([]string, 0)
+	if !IsModelPricingConfigTrusted() {
+		activationBlockers = append(activationBlockers, "model pricing parity is not trusted")
+	}
 	for _, entry := range models {
 		category := strings.ToLower(strings.TrimSpace(entry.TextCategory))
-		if category == "" {
-			category = textpricing.CategoryUnclassified
+		issueKind, metadataErr := textPricingMetadataIssue(entry)
+		if metadataErr != nil {
+			pendingCount++
+			if issueKind == textpricing.CategoryUnclassified {
+				unclassifiedCount++
+			} else {
+				missingProfileCount++
+			}
+			if entry.Status == 1 && len(activationBlockers) < 12 {
+				activationBlockers = append(activationBlockers, metadataErr.Error())
+			}
+		}
+		if !textpricing.IsBillableCategory(category) {
+			continue
 		}
 		counts[category]++
+		if entry.TextMultiplierOverride != nil {
+			overrides[category]++
+		} else {
+			inherited[category]++
+		}
 		if _, err := ResolveTextModelPricingFromMetadata(entry, nil); err == nil {
 			ready[category]++
+		} else {
+			blocked[category]++
+			if entry.Status == 1 {
+				activationBlocked[category]++
+				if metadataErr == nil && len(activationBlockers) < 12 {
+					activationBlockers = append(activationBlockers, err.Error())
+				}
+			}
 		}
 	}
 
-	categories := make([]TextPricingCategoryConfig, 0, len(textpricing.Categories()))
-	for _, category := range textpricing.Categories() {
+	categories := make([]TextPricingCategoryConfig, 0, len(textpricing.BillableCategories()))
+	for _, category := range textpricing.BillableCategories() {
 		config := TextPricingCategoryConfig{
-			Category:          category,
-			ModelCount:        counts[category],
-			PricingReadyCount: ready[category],
+			Category:            category,
+			ModelCount:          counts[category],
+			PricingReadyCount:   ready[category],
+			PricingBlockedCount: blocked[category],
+			OverrideCount:       overrides[category],
+			InheritedCount:      inherited[category],
+			CatalogProfileCount: profileCounts[category],
 		}
 		if row, ok := rows[category]; ok {
 			multiplier := row.Multiplier
-			config.Multiplier = &multiplier
-			config.UpdatedTime = row.UpdatedTime
+			if err := textpricing.ValidateMultiplier(multiplier); err == nil {
+				config.Multiplier = &multiplier
+				config.UpdatedTime = row.UpdatedTime
+			} else {
+				config.ActivationError = err.Error()
+			}
 		}
+		if config.Multiplier == nil && config.ActivationError == "" {
+			config.ActivationError = fmt.Sprintf("text category %s has no configured multiplier", category)
+		}
+		if config.ActivationError != "" {
+			activationBlockers = append(activationBlockers, config.ActivationError)
+		}
+		if activationBlocked[category] > 0 && config.ActivationError == "" {
+			config.ActivationError = fmt.Sprintf("%d enabled models are not pricing-ready", activationBlocked[category])
+		}
+		config.ActivationReady = config.ActivationError == ""
 		categories = append(categories, config)
 	}
 	return TextPricingConfigView{
-		Mode:           GetTextPricingMode(),
-		CatalogVersion: textpricing.CatalogVersion,
-		Categories:     categories,
-		Profiles:       textpricing.List(),
+		Mode:                        GetTextPricingMode(),
+		CatalogVersion:              textpricing.CatalogVersion,
+		Categories:                  categories,
+		Profiles:                    textpricing.List(),
+		PendingCount:                pendingCount,
+		UnclassifiedCount:           unclassifiedCount,
+		MissingOfficialProfileCount: missingProfileCount,
+		ActivationReady:             len(activationBlockers) == 0,
+		ActivationBlockers:          activationBlockers,
 	}, nil
+}
+
+func textPricingMetadataIssue(entry Model) (string, error) {
+	category := strings.ToLower(strings.TrimSpace(entry.TextCategory))
+	if !textpricing.IsBillableCategory(category) {
+		return textpricing.CategoryUnclassified, fmt.Errorf("model %s has no valid text category", entry.ModelName)
+	}
+	key := strings.TrimSpace(entry.OfficialPriceKey)
+	if key == "" {
+		return "missing_profile", fmt.Errorf("model %s has no official price profile", entry.ModelName)
+	}
+	profile, ok := textpricing.Get(key)
+	if !ok {
+		return "missing_profile", fmt.Errorf("model %s references unknown official price profile %s", entry.ModelName, key)
+	}
+	if profile.Category != category {
+		return "missing_profile", fmt.Errorf("model %s category %s does not match official price profile category %s", entry.ModelName, category, profile.Category)
+	}
+	return "", nil
+}
+
+func GetPendingTextPricingModelIDs() ([]int, error) {
+	var models []Model
+	if err := DB.Where("modal = ?", ModelModalText).Find(&models).Error; err != nil {
+		return nil, err
+	}
+	ids := make([]int, 0)
+	for _, entry := range models {
+		if _, err := textPricingMetadataIssue(entry); err != nil {
+			ids = append(ids, entry.Id)
+		}
+	}
+	return ids, nil
 }
 
 func PreviewTextCategoryMultiplier(category string, multiplier float64) (TextPricingPreview, error) {
@@ -580,7 +800,6 @@ func PreviewTextCategoryMultiplier(category string, multiplier float64) (TextPri
 		currentPtr = &current
 	}
 	preview := TextPricingPreview{
-		AffectedCount: len(models),
 		Before: TextPricingPreviewSummary{
 			Category:   category,
 			Multiplier: currentPtr,
@@ -591,31 +810,157 @@ func PreviewTextCategoryMultiplier(category string, multiplier float64) (TextPri
 		},
 	}
 	for _, entry := range models {
-		preview.Before.Models = append(preview.Before.Models, pricingImpact(entry, currentPtr))
-		preview.After.Models = append(preview.After.Models, pricingImpact(entry, &multiplier))
+		affected := entry.TextMultiplierOverride == nil
+		if affected {
+			preview.AffectedCount++
+		} else {
+			preview.OverrideCount++
+		}
+		preview.Before.Models = append(preview.Before.Models, pricingImpact(entry, currentPtr, affected))
+		preview.After.Models = append(preview.After.Models, pricingImpact(entry, &multiplier, affected))
 	}
 	return preview, nil
 }
 
-func pricingImpact(entry Model, multiplier *float64) TextPricingImpact {
+func pricingImpact(entry Model, categoryMultiplier *float64, affected bool) TextPricingImpact {
 	impact := TextPricingImpact{
-		ID:               entry.Id,
-		ModelName:        entry.ModelName,
-		OfficialPriceKey: entry.OfficialPriceKey,
+		ID:                      entry.Id,
+		ModelName:               entry.ModelName,
+		OfficialPriceKey:        entry.OfficialPriceKey,
+		CategoryMultiplier:      categoryMultiplier,
+		ModelMultiplierOverride: entry.TextMultiplierOverride,
+		Affected:                affected,
 	}
-	if multiplier == nil {
-		impact.PricingError = "category multiplier is not configured"
-		return impact
-	}
-	resolution, err := ResolveTextModelPricingFromMetadata(entry, multiplier)
+	resolution, err := ResolveTextModelPricingFromMetadata(entry, categoryMultiplier)
 	if err != nil {
 		impact.PricingError = err.Error()
 		return impact
 	}
+	impact.CategoryMultiplier = resolution.CategoryMultiplier
+	impact.ModelMultiplierOverride = resolution.ModelMultiplierOverride
+	impact.EffectiveMultiplier = resolution.EffectiveMultiplier
+	impact.MultiplierSource = resolution.MultiplierSource
 	impact.PricingReady = true
 	impact.InputQuotaPerMillion = resolution.Pricing.InputQuotaPerMillion
 	impact.OutputQuotaPerMillion = resolution.Pricing.OutputQuotaPerMillion
 	return impact
+}
+
+func pricingImpactWithResolvedMultipliers(
+	entry Model,
+	categoryMultiplier *float64,
+	modelMultiplier *float64,
+	affected bool,
+	replaceCategoryMultiplier bool,
+) TextPricingImpact {
+	impact := TextPricingImpact{
+		ID:                      entry.Id,
+		ModelName:               entry.ModelName,
+		OfficialPriceKey:        entry.OfficialPriceKey,
+		CategoryMultiplier:      categoryMultiplier,
+		ModelMultiplierOverride: modelMultiplier,
+		Affected:                affected,
+	}
+	resolution, err := resolveTextModelPricingFromMetadata(entry, textPricingResolutionOptions{
+		categoryMultiplierOverride: categoryMultiplier,
+		replaceCategoryMultiplier:  replaceCategoryMultiplier,
+		modelMultiplierOverride:    modelMultiplier,
+		replaceModelOverride:       true,
+	})
+	if err != nil {
+		impact.PricingError = err.Error()
+		return impact
+	}
+	impact.CategoryMultiplier = resolution.CategoryMultiplier
+	impact.ModelMultiplierOverride = resolution.ModelMultiplierOverride
+	impact.EffectiveMultiplier = resolution.EffectiveMultiplier
+	impact.MultiplierSource = resolution.MultiplierSource
+	impact.PricingReady = true
+	impact.InputQuotaPerMillion = resolution.Pricing.InputQuotaPerMillion
+	impact.OutputQuotaPerMillion = resolution.Pricing.OutputQuotaPerMillion
+	return impact
+}
+
+func PreviewTextModelMultiplier(modelID int, multiplier *float64) (TextPricingModelPreview, error) {
+	var preview TextPricingModelPreview
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		preview, err = previewTextModelMultiplier(tx, modelID, multiplier, false)
+		return err
+	})
+	return preview, err
+}
+
+func previewTextModelMultiplier(tx *gorm.DB, modelID int, multiplier *float64, forUpdate bool) (TextPricingModelPreview, error) {
+	if modelID <= 0 {
+		return TextPricingModelPreview{}, errors.New("model_id must be greater than 0")
+	}
+	if multiplier != nil {
+		if err := textpricing.ValidateMultiplier(*multiplier); err != nil {
+			return TextPricingModelPreview{}, err
+		}
+	}
+	var entry Model
+	query := tx
+	if forUpdate {
+		query = lockForUpdate(query)
+	}
+	if err := query.Where("id = ?", modelID).First(&entry).Error; err != nil {
+		return TextPricingModelPreview{}, err
+	}
+	if strings.TrimSpace(entry.Modal) != ModelModalText {
+		return TextPricingModelPreview{}, fmt.Errorf("model %s is not classified as text", entry.ModelName)
+	}
+	if _, err := textPricingMetadataIssue(entry); err != nil {
+		return TextPricingModelPreview{}, err
+	}
+	categoryMultiplierValue, found, err := getTextCategoryMultiplier(tx, entry.TextCategory, forUpdate)
+	if err != nil {
+		return TextPricingModelPreview{}, err
+	}
+	var categoryMultiplier *float64
+	if found {
+		categoryMultiplier = &categoryMultiplierValue
+	}
+	return TextPricingModelPreview{
+		ModelID:   entry.Id,
+		ModelName: entry.ModelName,
+		Before: pricingImpactWithResolvedMultipliers(
+			entry,
+			categoryMultiplier,
+			entry.TextMultiplierOverride,
+			false,
+			true,
+		),
+		After: pricingImpactWithResolvedMultipliers(
+			entry,
+			categoryMultiplier,
+			multiplier,
+			true,
+			true,
+		),
+	}, nil
+}
+
+func UpdateTextModelMultiplier(modelID int, multiplier *float64) (TextPricingModelPreview, error) {
+	var preview TextPricingModelPreview
+	now := common.GetTimestamp()
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		preview, err = previewTextModelMultiplier(tx, modelID, multiplier, true)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&Model{}).Where("id = ?", modelID).Updates(map[string]any{
+			"text_multiplier_override": multiplier,
+			"pricing_updated_time":     now,
+			"updated_time":             now,
+		}).Error
+	}); err != nil {
+		return TextPricingModelPreview{}, err
+	}
+	InvalidatePricingCache()
+	return preview, nil
 }
 
 func UpdateTextCategoryMultiplier(category string, multiplier float64) (TextCategoryPricing, error) {
@@ -636,7 +981,7 @@ func UpdateTextCategoryMultiplier(category string, multiplier float64) (TextCate
 		return TextCategoryPricing{}, tx.Error
 	}
 	var existing TextCategoryPricing
-	err := tx.Where("category = ?", category).First(&existing).Error
+	err := lockForUpdate(tx).Where("category = ?", category).First(&existing).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		if err := tx.Create(&entry).Error; err != nil {

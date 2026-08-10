@@ -645,16 +645,20 @@ func TestPublicModelActivePricingUsesUnifiedMetadataResolver(t *testing.T) {
 	setupModelRegistryTestDB(t)
 	restoreTrust := model.SetModelPricingConfigTrustedForTest(true)
 	t.Cleanup(restoreTrust)
+	modelOverride := 0.2
 	require.NoError(t, model.DB.Create(&model.Model{
-		ModelName:        "gpt-5.5",
-		Modal:            model.ModelModalText,
-		TextCategory:     "gpt",
-		OfficialPriceKey: "openai.gpt-5.5",
-		Status:           1,
+		ModelName:              "gpt-5.5",
+		Modal:                  model.ModelModalText,
+		TextCategory:           "gpt",
+		OfficialPriceKey:       "openai.gpt-5.5",
+		TextMultiplierOverride: &modelOverride,
+		Status:                 1,
 	}).Error)
-	require.NoError(t, model.DB.Create(&model.TextCategoryPricing{
-		Category:   "gpt",
-		Multiplier: 0.1,
+	require.NoError(t, model.DB.Create(&[]model.TextCategoryPricing{
+		{Category: "gpt", Multiplier: 0.1},
+		{Category: "claude", Multiplier: 0.22},
+		{Category: "gemini", Multiplier: 0.06},
+		{Category: "grok", Multiplier: 0.1},
 	}).Error)
 	require.NoError(t, model.SetTextPricingMode(model.TextPricingModeActive))
 	t.Cleanup(func() {
@@ -677,6 +681,8 @@ func TestPublicModelActivePricingUsesUnifiedMetadataResolver(t *testing.T) {
 	dimensions := official["dimensions"].(map[string]interface{})
 	require.InDelta(t, 5, dimensions["input"].(float64), 1e-9)
 	require.InDelta(t, 30, dimensions["output"].(float64), 1e-9)
+	requirePublicCreditsSpec(t, detail, "short:input", "200", "official_catalog")
+	requirePublicCreditsSpec(t, detail, "short:output", "1200", "official_catalog")
 }
 
 func TestAdminUpsertTextCategoryPricingRejectsUnsetSentinelsAndOutOfRangeValues(t *testing.T) {

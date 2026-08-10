@@ -11,7 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const CatalogVersion = "2026-08-08"
+const CatalogVersion = "2026-08-10"
 
 const (
 	CategoryGPT          = "gpt"
@@ -20,6 +20,13 @@ const (
 	CategoryGrok         = "grok"
 	CategoryUnclassified = "unclassified"
 )
+
+var billableCategories = []string{
+	CategoryGPT,
+	CategoryClaude,
+	CategoryGemini,
+	CategoryGrok,
+}
 
 var categories = []string{
 	CategoryGPT,
@@ -97,8 +104,10 @@ const (
 	openAIPriceURL    = "https://openai.com/api/pricing/"
 	googlePriceURL    = "https://ai.google.dev/gemini-api/docs/pricing"
 	anthropicPriceURL = "https://docs.anthropic.com/en/docs/about-claude/pricing"
+	xAIPriceURL       = "https://docs.x.ai/docs/models"
 	longContextGPTMin = 272001
 	longContextGemini = 200001
+	longContextGrok   = 200001
 )
 
 func usd(value string) int64 {
@@ -266,15 +275,56 @@ var catalog = []catalogEntry{
 	profile("anthropic.claude-sonnet-5", CategoryClaude, "Claude Sonnet 5", anthropicPriceURL, claudeDimensions("2", "2.5", "4", "0.2", "10"), claudeAlias("claude-sonnet-5")),
 	profile("anthropic.claude-haiku-4-5", CategoryClaude, "Claude Haiku 4.5", anthropicPriceURL, claudeDimensions("1", "1.25", "2", "0.1", "5"), claudeAlias("claude-haiku-4-5")),
 	profile("anthropic.claude-fable-5", CategoryClaude, "Claude Fable 5", anthropicPriceURL, claudeDimensions("10", "12.5", "20", "1", "50"), claudeAlias("claude-fable-5")),
+	tieredProfile("xai.grok-code-fast-1", CategoryGrok, "Grok Code Fast 1", xAIPriceURL, contextTiers(
+		dimensions("1", "0.2", "0", "2"), dimensions("2", "0.4", "0", "4"), longContextGrok,
+	), anyExact("grok-build-0.1", "grok-code-fast-1", "grok-code-fast", "grok-code-fast-1-0825")),
+	tieredProfile("xai.grok-4.3", CategoryGrok, "Grok 4.3", xAIPriceURL, contextTiers(
+		dimensions("1.25", "0.2", "0", "2.5"), dimensions("2.5", "0.4", "0", "5"), longContextGrok,
+	), anyExact("grok-4.3", "grok-4.3-latest", "grok-latest")),
+	tieredProfile("xai.grok-4.20", CategoryGrok, "Grok 4.20", xAIPriceURL, contextTiers(
+		dimensions("1.25", "0.2", "0", "2.5"), dimensions("2.5", "0.4", "0", "5"), longContextGrok,
+	), anyExact(
+		"grok-4.20-0309-non-reasoning", "grok-4.20-non-reasoning", "grok-4.20-non-reasoning-latest",
+		"grok-4.20-beta-non-reasoning", "grok-4.20-beta-latest-non-reasoning",
+		"grok-4.20-experimental-beta-0304-non-reasoning", "grok-4.20-experimental-beta-non-reasoning-latest",
+		"grok-4.20-beta-0309-non-reasoning", "grok-4.20-non-reasoning-gv2",
+		"grok-4.20-multi-agent-0309", "grok-4.20-multi-agent", "grok-4.20-multi-agent-latest",
+		"grok-4.20-multi-agent-beta-latest", "grok-4.20-multi-agent-experimental-beta-0304",
+		"grok-4.20-multi-agent-experimental-beta-latest", "grok-4.20-multi-agent-beta-0309",
+		"grok-4.20-0309-reasoning", "grok-4.20-reasoning-latest", "grok-4.20",
+		"grok-4.20-reasoning", "grok-4.20-0309", "grok-4.20-beta-0309-reasoning",
+		"grok-4.20-beta", "grok-4.20-beta-0309", "grok-4.20-beta-latest",
+		"grok-4.20-beta-latest-reasoning", "grok-4.20-beta-reasoning",
+		"grok-4.20-experimental-beta-0304-reasoning", "grok-4.20-experimental-beta-0304",
+		"grok-4.20-experimental-beta-reasoning-latest", "grok-4.20-experimental-beta-latest",
+		"grok-4.20-reasoning-gv2",
+	)),
+	tieredProfile("xai.grok-4.5", CategoryGrok, "Grok 4.5", xAIPriceURL, contextTiers(
+		dimensions("2", "0.3", "0", "6"), dimensions("4", "0.6", "0", "12"), longContextGrok,
+	), anyExact("grok-4.5", "grok-4.5-latest", "grok-build-latest")),
 }
 
 func Categories() []string {
 	return append([]string(nil), categories...)
 }
 
+func BillableCategories() []string {
+	return append([]string(nil), billableCategories...)
+}
+
 func IsCategory(category string) bool {
 	category = strings.ToLower(strings.TrimSpace(category))
 	for _, allowed := range categories {
+		if category == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func IsBillableCategory(category string) bool {
+	category = strings.ToLower(strings.TrimSpace(category))
+	for _, allowed := range billableCategories {
 		if category == allowed {
 			return true
 		}

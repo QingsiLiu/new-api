@@ -18,12 +18,13 @@ func GetAllModelsMeta(c *gin.Context) {
 
 	pageInfo := common.GetPageQuery(c)
 	filters := model.ModelListFilters{
-		Vendor:       c.Query("vendor"),
-		Status:       c.Query("status"),
-		SyncOfficial: c.Query("sync_official"),
-		Modal:        c.Query("modal"),
-		TextCategory: c.Query("text_category"),
-		PricingMode:  c.Query("pricing_mode"),
+		Vendor:            c.Query("vendor"),
+		Status:            c.Query("status"),
+		SyncOfficial:      c.Query("sync_official"),
+		Modal:             c.Query("modal"),
+		TextCategory:      c.Query("text_category"),
+		PricingMode:       c.Query("pricing_mode"),
+		TextPricingStatus: c.Query("text_pricing_status"),
 	}
 	modelsMeta, total, err := model.GetModelsByFilters(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
@@ -54,13 +55,14 @@ func SearchModelsMeta(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 
 	filters := model.ModelListFilters{
-		Keyword:      keyword,
-		Vendor:       c.Query("vendor"),
-		Status:       c.Query("status"),
-		SyncOfficial: c.Query("sync_official"),
-		Modal:        c.Query("modal"),
-		TextCategory: c.Query("text_category"),
-		PricingMode:  c.Query("pricing_mode"),
+		Keyword:           keyword,
+		Vendor:            c.Query("vendor"),
+		Status:            c.Query("status"),
+		SyncOfficial:      c.Query("sync_official"),
+		Modal:             c.Query("modal"),
+		TextCategory:      c.Query("text_category"),
+		PricingMode:       c.Query("pricing_mode"),
+		TextPricingStatus: c.Query("text_pricing_status"),
 	}
 	modelsMeta, total, err := model.GetModelsByFilters(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {

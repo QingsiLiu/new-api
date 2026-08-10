@@ -52,6 +52,9 @@ type CreditsTextPricing struct {
 	OfficialPriceKey            string                   `json:"official_price_key,omitempty"`
 	TextCategory                string                   `json:"text_category,omitempty"`
 	CategoryMultiplier          float64                  `json:"category_multiplier,omitempty"`
+	ModelMultiplierOverride     *float64                 `json:"model_multiplier_override,omitempty"`
+	EffectiveMultiplier         float64                  `json:"effective_multiplier,omitempty"`
+	MultiplierSource            string                   `json:"multiplier_source,omitempty"`
 	ApplyGroupRatio             bool                     `json:"apply_group_ratio,omitempty"`
 	Fallback                    bool                     `json:"fallback,omitempty"`
 }
@@ -98,6 +101,9 @@ func (p *CreditsTextPricing) ForPromptTokens(promptTokens int) *CreditsTextPrici
 			OfficialPriceKey:            p.OfficialPriceKey,
 			TextCategory:                p.TextCategory,
 			CategoryMultiplier:          p.CategoryMultiplier,
+			ModelMultiplierOverride:     p.ModelMultiplierOverride,
+			EffectiveMultiplier:         p.EffectiveMultiplier,
+			MultiplierSource:            p.MultiplierSource,
 			ApplyGroupRatio:             p.ApplyGroupRatio,
 			Fallback:                    p.Fallback,
 		}

@@ -666,6 +666,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["text_pricing_official_price_key"] = exact.OfficialPriceKey
 		other["text_pricing_category"] = exact.TextCategory
 		other["text_pricing_category_multiplier"] = exact.CategoryMultiplier
+		other["text_pricing_model_multiplier_override"] = exact.ModelMultiplierOverride
+		other["text_pricing_effective_multiplier"] = exact.EffectiveMultiplier
+		other["text_pricing_multiplier_source"] = exact.MultiplierSource
 		other["text_pricing_fallback"] = exact.Fallback
 	}
 	if summary.HasShadowTextPricing {
@@ -678,6 +681,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			other["shadow_text_pricing_official_price_key"] = shadow.OfficialPriceKey
 			other["shadow_text_pricing_category"] = shadow.TextCategory
 			other["shadow_text_pricing_category_multiplier"] = shadow.CategoryMultiplier
+			other["shadow_text_pricing_model_multiplier_override"] = shadow.ModelMultiplierOverride
+			other["shadow_text_pricing_effective_multiplier"] = shadow.EffectiveMultiplier
+			other["shadow_text_pricing_multiplier_source"] = shadow.MultiplierSource
 		}
 	}
 	if summary.ShadowTextPricingError != "" {

@@ -35,6 +35,7 @@ var auditContentTemplates = map[string]string{
 	"model.status_update":   "Updated model ${model} status to ${status}",
 
 	"model.text_pricing_category_update": "Updated text pricing category ${category} multiplier to ${multiplier}",
+	"model.text_pricing_model_update":    "Updated text pricing multiplier for model ${model} (ID: ${model_id})",
 	"model.text_pricing_mode_update":     "Updated text pricing mode to ${mode}",
 
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",

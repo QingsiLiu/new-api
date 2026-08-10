@@ -23,35 +23,37 @@ type BoundChannel struct {
 }
 
 type ModelListFilters struct {
-	Keyword      string
-	Vendor       string
-	Status       string
-	SyncOfficial string
-	Modal        string
-	TextCategory string
-	PricingMode  string
+	Keyword           string
+	Vendor            string
+	Status            string
+	SyncOfficial      string
+	Modal             string
+	TextCategory      string
+	PricingMode       string
+	TextPricingStatus string
 }
 
 type Model struct {
-	Id                 int            `json:"id"`
-	ModelName          string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
-	Description        string         `json:"description,omitempty" gorm:"type:text"`
-	Alias              string         `json:"alias,omitempty" gorm:"type:varchar(128);default:''"`
-	Icon               string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
-	Tags               string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
-	VendorID           int            `json:"vendor_id,omitempty" gorm:"index"`
-	Endpoints          string         `json:"endpoints,omitempty" gorm:"type:text"`
-	Status             int            `json:"status" gorm:"default:1"`
-	SyncOfficial       int            `json:"sync_official" gorm:"default:1"`
-	Modal              string         `json:"modal,omitempty" gorm:"type:varchar(20);default:''"`
-	TextCategory       string         `json:"text_category,omitempty" gorm:"type:varchar(20);default:'';index"`
-	OfficialPriceKey   string         `json:"official_price_key,omitempty" gorm:"type:varchar(128);default:'';index"`
-	PricingMode        string         `json:"pricing_mode,omitempty" gorm:"type:varchar(20);default:''"`
-	PricingConfig      string         `json:"pricing_config,omitempty" gorm:"type:text"`
-	PricingUpdatedTime int64          `json:"pricing_updated_time,omitempty" gorm:"bigint;default:0"`
-	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime        int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
+	Id                     int            `json:"id"`
+	ModelName              string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
+	Description            string         `json:"description,omitempty" gorm:"type:text"`
+	Alias                  string         `json:"alias,omitempty" gorm:"type:varchar(128);default:''"`
+	Icon                   string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
+	Tags                   string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
+	VendorID               int            `json:"vendor_id,omitempty" gorm:"index"`
+	Endpoints              string         `json:"endpoints,omitempty" gorm:"type:text"`
+	Status                 int            `json:"status" gorm:"default:1"`
+	SyncOfficial           int            `json:"sync_official" gorm:"default:1"`
+	Modal                  string         `json:"modal,omitempty" gorm:"type:varchar(20);default:''"`
+	TextCategory           string         `json:"text_category,omitempty" gorm:"type:varchar(20);default:'';index"`
+	OfficialPriceKey       string         `json:"official_price_key,omitempty" gorm:"type:varchar(128);default:'';index"`
+	TextMultiplierOverride *float64       `json:"text_multiplier_override,omitempty"`
+	PricingMode            string         `json:"pricing_mode,omitempty" gorm:"type:varchar(20);default:''"`
+	PricingConfig          string         `json:"pricing_config,omitempty" gorm:"type:text"`
+	PricingUpdatedTime     int64          `json:"pricing_updated_time,omitempty" gorm:"bigint;default:0"`
+	CreatedTime            int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime            int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt              gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
@@ -158,6 +160,17 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 func GetModelsByFilters(filters ModelListFilters, offset int, limit int) ([]*Model, int64, error) {
 	var models []*Model
 	db := applyModelListFilters(DB.Model(&Model{}), filters)
+	if strings.EqualFold(strings.TrimSpace(filters.TextPricingStatus), "pending") {
+		ids, err := GetPendingTextPricingModelIDs()
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(ids) == 0 {
+			db = db.Where("1 = 0")
+		} else {
+			db = db.Where("models.id IN ?", ids)
+		}
+	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err

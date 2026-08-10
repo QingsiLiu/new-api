@@ -369,6 +369,8 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.GET("/text-pricing/config", controller.GetTextPricingConfig)
 			modelsRoute.POST("/text-pricing/preview", controller.PreviewTextPricingCategory)
 			modelsRoute.PUT("/text-pricing/category", controller.UpdateTextPricingCategory)
+			modelsRoute.POST("/text-pricing/model/preview", controller.PreviewTextPricingModel)
+			modelsRoute.PUT("/text-pricing/model", controller.UpdateTextPricingModel)
 			modelsRoute.PUT("/text-pricing/mode", controller.UpdateTextPricingMode)
 			modelsRoute.GET("/", controller.GetAllModelsMeta)
 			modelsRoute.GET("/search", controller.SearchModelsMeta)

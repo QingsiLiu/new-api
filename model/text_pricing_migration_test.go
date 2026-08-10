@@ -89,6 +89,7 @@ func TestTextPricingModelMetadataMigratesAcrossSupportedDatabases(t *testing.T) 
 				"modal",
 				"text_category",
 				"official_price_key",
+				"text_multiplier_override",
 				"pricing_mode",
 				"pricing_config",
 				"pricing_updated_time",
@@ -102,6 +103,7 @@ func TestTextPricingModelMetadataMigratesAcrossSupportedDatabases(t *testing.T) 
 			require.Equal(t, 1, migrated.Status)
 			require.Empty(t, migrated.TextCategory)
 			require.Empty(t, migrated.OfficialPriceKey)
+			require.Nil(t, migrated.TextMultiplierOverride)
 		})
 	}
 }

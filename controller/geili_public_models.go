@@ -196,8 +196,7 @@ func buildPublicModelSummary(entry model.ModelRegistry, pricing operation_settin
 			if bytes, marshalErr := common.Marshal(publicProfile); marshalErr == nil {
 				officialPrice = bytes
 			}
-			multiplier := resolution.Multiplier
-			categoryMultiplier = &multiplier
+			categoryMultiplier = resolution.CategoryMultiplier
 			textCategory = resolution.Profile.Category
 		} else {
 			officialPrice = nil

@@ -301,6 +301,43 @@ func TestModelPriceHelperActiveTextPricingAppliesUserGroupRatio(t *testing.T) {
 	require.Equal(t, model.TextPricingModeActive, priceData.TextPricingMode)
 }
 
+func TestModelPriceHelperModelOverrideReplacesCategoryAndAppliesUserGroupOnce(t *testing.T) {
+	t.Setenv(common.CreditsFeatureFlagEnv, "false")
+	setupModelPricingHelperTestDB(t)
+	withTextPricingModeForHelperTest(t, model.TextPricingModeActive)
+	require.NoError(t, model.DB.Create(&model.TextCategoryPricing{Category: "gpt", Multiplier: 0.1}).Error)
+	modelOverride := 0.2
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName:              "gpt-5.5",
+		Modal:                  model.ModelModalText,
+		TextCategory:           "gpt",
+		OfficialPriceKey:       "openai.gpt-5.5",
+		TextMultiplierOverride: &modelOverride,
+		Status:                 1,
+	}).Error)
+	previousGroups := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1.5}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousGroups)) })
+
+	promptTokens := 1_000_000
+	priceData, err := ModelPriceHelper(
+		newPriceHelperTestContext(),
+		newPriceHelperRelayInfo("gpt-5.5"),
+		promptTokens,
+		&types.TokenCountMeta{},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, priceData.CreditsTextPricing)
+	require.Equal(t, 0.1, priceData.CreditsTextPricing.CategoryMultiplier)
+	require.NotNil(t, priceData.CreditsTextPricing.ModelMultiplierOverride)
+	require.Equal(t, 0.2, *priceData.CreditsTextPricing.ModelMultiplierOverride)
+	require.Equal(t, 0.2, priceData.CreditsTextPricing.EffectiveMultiplier)
+	preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
+	effectivePricing := priceData.CreditsTextPricing.ForPromptTokens(promptTokens)
+	expectedQuota := int(float64(preConsumedTokens) * float64(effectivePricing.InputQuotaPerMillion) / 1_000_000 * 1.5)
+	require.Equal(t, expectedQuota, priceData.QuotaToPreConsume)
+}
+
 func TestModelPriceHelperGrokUsesLegacyModelRatio(t *testing.T) {
 	t.Setenv(common.CreditsFeatureFlagEnv, "false")
 	setupModelPricingHelperTestDB(t)
