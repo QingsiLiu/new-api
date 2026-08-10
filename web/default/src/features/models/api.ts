@@ -41,6 +41,8 @@ import type {
   UpdateTextPricingCategoryResponse,
   TextPricingMode,
   UpdateTextPricingModeResponse,
+  TextPricingModelPreviewResponse,
+  UpdateTextPricingModelResponse,
 } from './types'
 
 // ============================================================================
@@ -147,6 +149,22 @@ export async function updateTextPricingMode(
   mode: TextPricingMode
 ): Promise<UpdateTextPricingModeResponse> {
   const res = await api.put('/api/models/text-pricing/mode', { mode })
+  return res.data
+}
+
+export async function previewTextPricingModel(data: {
+  model_id: number
+  multiplier: number | null
+}): Promise<TextPricingModelPreviewResponse> {
+  const res = await api.post('/api/models/text-pricing/model/preview', data)
+  return res.data
+}
+
+export async function updateTextPricingModel(data: {
+  model_id: number
+  multiplier: number | null
+}): Promise<UpdateTextPricingModelResponse> {
+  const res = await api.put('/api/models/text-pricing/model', data)
   return res.data
 }
 

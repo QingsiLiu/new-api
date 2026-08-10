@@ -48,6 +48,7 @@ export interface Model {
   modal?: string
   text_category?: TextModelCategory | string
   official_price_key?: string
+  text_multiplier_override?: number
   pricing_mode?: string
   pricing_config?: string
   pricing_updated_time?: number
@@ -106,6 +107,7 @@ export interface GetModelsParams {
   modal?: string // filter by model modality
   text_category?: string // filter text models by pricing category
   pricing_mode?: string // filter by pricing mode
+  text_pricing_status?: 'pending' // filter unresolved text pricing metadata
 }
 
 /**
@@ -119,6 +121,7 @@ export interface SearchModelsParams {
   modal?: string // filter by model modality
   text_category?: string // filter text models by pricing category
   pricing_mode?: string // filter by pricing mode
+  text_pricing_status?: 'pending' // filter unresolved text pricing metadata
   p?: number
   page_size?: number
 }
@@ -252,6 +255,10 @@ export const TEXT_MODEL_CATEGORIES = [
 
 export type TextModelCategory = (typeof TEXT_MODEL_CATEGORIES)[number]
 
+export const TEXT_PRICING_GROUPS = ['gpt', 'claude', 'gemini', 'grok'] as const
+
+export type TextPricingGroup = (typeof TEXT_PRICING_GROUPS)[number]
+
 export interface OfficialPriceDimensions {
   input?: number
   output?: number
@@ -283,6 +290,9 @@ export interface OfficialPriceProfile {
 export interface EffectiveTextPricing {
   category?: TextModelCategory | string
   category_multiplier?: number
+  model_multiplier_override?: number
+  effective_multiplier?: number
+  multiplier_source?: 'category' | 'model_override' | string
   catalog_version?: string
   official_price_key?: string
   pricing_source?: string
@@ -293,7 +303,19 @@ export interface EffectiveTextPricing {
   cache_write_5m_quota_per_million?: number
   cache_write_1h_quota_per_million?: number
   dimensions?: Record<string, number>
-  tiers?: Array<Record<string, unknown>>
+  tiers?: EffectiveTextPricingTier[]
+}
+
+export interface EffectiveTextPricingTier {
+  label: string
+  min_prompt_tokens?: number
+  max_prompt_tokens?: number
+  input_quota_per_million: number
+  output_quota_per_million: number
+  cached_input_quota_per_million?: number
+  cache_write_quota_per_million?: number
+  cache_write_5m_quota_per_million?: number
+  cache_write_1h_quota_per_million?: number
 }
 
 export interface TextPricingCategoryConfig {
@@ -301,6 +323,12 @@ export interface TextPricingCategoryConfig {
   multiplier?: number
   model_count?: number
   pricing_ready_count?: number
+  pricing_blocked_count?: number
+  override_count?: number
+  inherited_count?: number
+  catalog_profile_count?: number
+  activation_ready?: boolean
+  activation_error?: string
   updated_time?: number
 }
 
@@ -319,6 +347,11 @@ export interface TextPricingConfig {
   catalog_version: string
   categories: TextPricingCategoriesPayload
   profiles: TextPricingProfilesPayload
+  pending_count?: number
+  unclassified_count?: number
+  missing_official_profile_count?: number
+  activation_ready?: boolean
+  activation_blockers?: string[]
 }
 
 export interface TextPricingConfigResponse {
@@ -331,9 +364,14 @@ export interface TextPricingImpact {
   id: number
   model_name: string
   official_price_key: string
+  category_multiplier?: number
+  model_multiplier_override?: number
+  effective_multiplier?: number
+  multiplier_source?: 'category' | 'model_override' | string
   input_quota_per_million: number
   output_quota_per_million: number
   pricing_ready: boolean
+  affected?: boolean
   pricing_error?: string
 }
 
@@ -345,6 +383,7 @@ export interface TextPricingPreviewSummary {
 
 export interface TextPricingPreview {
   affected_count: number
+  override_count?: number
   before: TextPricingPreviewSummary
   after: TextPricingPreviewSummary
 }
@@ -366,6 +405,21 @@ export interface UpdateTextPricingModeResponse {
   message?: string
   data?: { mode: TextPricingMode | string }
 }
+
+export interface TextPricingModelPreview {
+  model_id: number
+  model_name: string
+  before: TextPricingImpact
+  after: TextPricingImpact
+}
+
+export interface TextPricingModelPreviewResponse {
+  success: boolean
+  message?: string
+  data?: TextPricingModelPreview
+}
+
+export type UpdateTextPricingModelResponse = TextPricingModelPreviewResponse
 
 // ============================================================================
 // Form Data Types

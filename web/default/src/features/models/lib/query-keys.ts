@@ -29,6 +29,12 @@ export const modelsQueryKeys = {
   detail: (id: number) => [...modelsQueryKeys.all, 'detail', id] as const,
   missing: () => [...modelsQueryKeys.all, 'missing'] as const,
   textPricing: () => [...modelsQueryKeys.all, 'text-pricing'] as const,
+  textPricingModels: (
+    category: string,
+    filters: GetModelsParams | SearchModelsParams
+  ) => [...modelsQueryKeys.textPricing(), 'models', category, filters] as const,
+  pendingTextPricingModels: (filters: GetModelsParams | SearchModelsParams) =>
+    [...modelsQueryKeys.textPricing(), 'pending', filters] as const,
 }
 
 /**

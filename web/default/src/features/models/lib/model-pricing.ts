@@ -18,15 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
-import type {
-  EffectiveTextPricing,
-  Model,
-  OfficialPriceDimensions,
-  OfficialPriceProfile,
-  TextModelCategory,
-  TextPricingCategoriesPayload,
-  TextPricingCategoryConfig,
-  TextPricingProfilesPayload,
+import {
+  TEXT_PRICING_GROUPS,
+  type EffectiveTextPricing,
+  type Model,
+  type OfficialPriceDimensions,
+  type OfficialPriceProfile,
+  type TextModelCategory,
+  type TextPricingCategoriesPayload,
+  type TextPricingCategoryConfig,
+  type TextPricingGroup,
+  type TextPricingProfilesPayload,
 } from '../types'
 
 export const MODEL_MODAL_VALUES = ['text', 'image', 'video', 'audio'] as const
@@ -336,6 +338,65 @@ export function normalizeTextPricingCategories(
     }
     return { ...entry, category: entry.category || category }
   })
+}
+
+export function normalizeTextPricingGroups(
+  payload?: TextPricingCategoriesPayload
+): TextPricingCategoryConfig[] {
+  const categories = normalizeTextPricingCategories(payload)
+  const byCategory = new Map(
+    categories.map((category) => [category.category, category])
+  )
+  return TEXT_PRICING_GROUPS.map((category) => ({
+    ...byCategory.get(category),
+    category,
+  }))
+}
+
+export function parseTextPricingMultiplierInput(
+  value: string
+):
+  | { valid: true; multiplier: number }
+  | { valid: false; multiplier?: undefined } {
+  const trimmed = value.trim()
+  if (!/^\d+(?:\.\d{1,4})?$/.test(trimmed)) return { valid: false }
+  const multiplier = Number(trimmed)
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 1) {
+    return { valid: false }
+  }
+  return { valid: true, multiplier }
+}
+
+export function buildTextPricingModelQuery(
+  open: boolean,
+  category: TextPricingGroup,
+  search: string,
+  page: number,
+  pageSize: number
+):
+  | {
+      useSearch: boolean
+      params: {
+        modal: 'text'
+        text_category: TextPricingGroup
+        keyword?: string
+        p: number
+        page_size: number
+      }
+    }
+  | undefined {
+  if (!open) return undefined
+  const keyword = search.trim()
+  return {
+    useSearch: keyword.length > 0,
+    params: {
+      modal: 'text',
+      text_category: category,
+      keyword: keyword || undefined,
+      p: Math.max(1, page),
+      page_size: Math.max(1, pageSize),
+    },
+  }
 }
 
 export function normalizeOfficialPriceProfiles(

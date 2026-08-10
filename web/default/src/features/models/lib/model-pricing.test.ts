@@ -6,6 +6,7 @@ import {
   cnyToCredits,
   creditsInputToCNY,
   creditsToCNY,
+  buildTextPricingModelQuery,
   formatCNYInput,
   formatCreditsInput,
   getEffectiveTextPricingSummary,
@@ -13,6 +14,8 @@ import {
   imageRowsToResolutions,
   normalizeOfficialPriceProfiles,
   normalizeTextPricingCategories,
+  normalizeTextPricingGroups,
+  parseTextPricingMultiplierInput,
   videoRowsFromConfig,
   videoRowsToPrices,
 } from './model-pricing'
@@ -110,6 +113,49 @@ describe('text pricing contract normalization', () => {
         },
       ]
     )
+  })
+
+  test('always exposes the four supported pricing groups in order', () => {
+    assert.deepEqual(
+      normalizeTextPricingGroups({
+        claude: { category: 'claude', multiplier: 0.22 },
+        unclassified: { category: 'unclassified', model_count: 9 },
+      }).map((group) => [group.category, group.multiplier]),
+      [
+        ['gpt', undefined],
+        ['claude', 0.22],
+        ['gemini', undefined],
+        ['grok', undefined],
+      ]
+    )
+  })
+
+  test('validates multiplier bounds and four-decimal precision', () => {
+    assert.deepEqual(parseTextPricingMultiplierInput('0.125'), {
+      valid: true,
+      multiplier: 0.125,
+    })
+    assert.deepEqual(parseTextPricingMultiplierInput('1'), {
+      valid: true,
+      multiplier: 1,
+    })
+    assert.equal(parseTextPricingMultiplierInput('0').valid, false)
+    assert.equal(parseTextPricingMultiplierInput('1.0001').valid, false)
+    assert.equal(parseTextPricingMultiplierInput('0.12345').valid, false)
+  })
+
+  test('does not build a model-list request before a group is expanded', () => {
+    assert.equal(buildTextPricingModelQuery(false, 'gpt', '', 1, 10), undefined)
+    assert.deepEqual(buildTextPricingModelQuery(true, 'gpt', ' 5.5 ', 2, 10), {
+      useSearch: true,
+      params: {
+        modal: 'text',
+        text_category: 'gpt',
+        keyword: '5.5',
+        p: 2,
+        page_size: 10,
+      },
+    })
   })
 
   test('summarizes effective quota fields as Credits', () => {
