@@ -429,6 +429,22 @@ func ResolveTextModelPricingFromMetadata(entry Model, multiplierOverride *float6
 	})
 }
 
+func resolveTextModelPricingFromRows(entry Model, rows map[string]TextCategoryPricing) (TextPricingResolution, error) {
+	category := strings.ToLower(strings.TrimSpace(entry.TextCategory))
+	var categoryMultiplier *float64
+	if row, ok := rows[category]; ok {
+		if err := textpricing.ValidateMultiplier(row.Multiplier); err != nil {
+			return TextPricingResolution{}, err
+		}
+		value := row.Multiplier
+		categoryMultiplier = &value
+	}
+	return resolveTextModelPricingFromMetadata(entry, textPricingResolutionOptions{
+		categoryMultiplierOverride: categoryMultiplier,
+		replaceCategoryMultiplier:  true,
+	})
+}
+
 type textPricingResolutionOptions struct {
 	categoryMultiplierOverride *float64
 	replaceCategoryMultiplier  bool
@@ -589,11 +605,17 @@ func ValidateTextPricingActivationReadiness() error {
 }
 
 func EnrichTextPricingModels(models []*Model) {
+	rows, rowsErr := GetTextCategoryPricingRows()
 	for _, entry := range models {
 		if entry == nil || strings.TrimSpace(entry.Modal) != ModelModalText {
 			continue
 		}
-		resolution, err := ResolveTextModelPricingFromMetadata(*entry, nil)
+		if rowsErr != nil {
+			entry.PricingReady = false
+			entry.PricingError = rowsErr.Error()
+			continue
+		}
+		resolution, err := resolveTextModelPricingFromRows(*entry, rows)
 		if err != nil {
 			entry.PricingReady = false
 			entry.PricingError = err.Error()
@@ -643,7 +665,9 @@ func GetTextPricingConfigView() (TextPricingConfigView, error) {
 		return TextPricingConfigView{}, err
 	}
 	var models []Model
-	if err := DB.Where("modal = ?", ModelModalText).Find(&models).Error; err != nil {
+	if err := DB.Select("id", "model_name", "status", "modal", "text_category", "official_price_key", "text_multiplier_override").
+		Where("modal = ?", ModelModalText).
+		Find(&models).Error; err != nil {
 		return TextPricingConfigView{}, err
 	}
 
@@ -687,7 +711,7 @@ func GetTextPricingConfigView() (TextPricingConfigView, error) {
 		} else {
 			inherited[category]++
 		}
-		if _, err := ResolveTextModelPricingFromMetadata(entry, nil); err == nil {
+		if _, err := resolveTextModelPricingFromRows(entry, rows); err == nil {
 			ready[category]++
 		} else {
 			blocked[category]++
@@ -766,7 +790,9 @@ func textPricingMetadataIssue(entry Model) (string, error) {
 
 func GetPendingTextPricingModelIDs() ([]int, error) {
 	var models []Model
-	if err := DB.Where("modal = ?", ModelModalText).Find(&models).Error; err != nil {
+	if err := DB.Select("id", "model_name", "modal", "text_category", "official_price_key").
+		Where("modal = ?", ModelModalText).
+		Find(&models).Error; err != nil {
 		return nil, err
 	}
 	ids := make([]int, 0)

@@ -230,6 +230,30 @@ func TestTextModelMultiplierOverrideReplacesCategoryMultiplier(t *testing.T) {
 	require.Equal(t, 0.2, *persisted.TextMultiplierOverride)
 }
 
+func TestGenericModelUpdatePreservesTextMultiplierOverride(t *testing.T) {
+	setupTextPricingCenterTest(t)
+	modelOverride := 0.2
+	entry := Model{
+		ModelName:              "gpt-5.5-generic-update",
+		Modal:                  ModelModalText,
+		TextCategory:           textpricing.CategoryGPT,
+		OfficialPriceKey:       "openai.gpt-5.5",
+		TextMultiplierOverride: &modelOverride,
+		Status:                 0,
+	}
+	require.NoError(t, DB.Create(&entry).Error)
+
+	entry.Description = "updated"
+	entry.TextMultiplierOverride = nil
+	require.NoError(t, entry.Update())
+
+	var persisted Model
+	require.NoError(t, DB.First(&persisted, entry.Id).Error)
+	require.Equal(t, "updated", persisted.Description)
+	require.NotNil(t, persisted.TextMultiplierOverride)
+	require.Equal(t, modelOverride, *persisted.TextMultiplierOverride)
+}
+
 func TestTextModelMultiplierPreviewUpdateAndClear(t *testing.T) {
 	setupTextPricingCenterTest(t)
 	require.NoError(t, DB.Create(&TextCategoryPricing{Category: textpricing.CategoryGPT, Multiplier: 0.1}).Error)
@@ -403,4 +427,46 @@ func TestTextPricingConfigHasFourGroupsAndBlocksActiveUntilGrokMultiplier(t *tes
 	require.NoError(t, DB.Model(&pendingModel).Update("status", 0).Error)
 	require.NoError(t, SetTextPricingMode(TextPricingModeActive))
 	require.Equal(t, TextPricingModeActive, GetTextPricingMode())
+}
+
+func TestTextPricingConfigViewResolvesModelsWithoutPerModelQueries(t *testing.T) {
+	setupTextPricingCenterTest(t)
+	restoreTrust := SetModelPricingConfigTrustedForTest(true)
+	t.Cleanup(restoreTrust)
+	require.NoError(t, DB.Create(&TextCategoryPricing{Category: textpricing.CategoryGPT, Multiplier: 0.1}).Error)
+	require.NoError(t, DB.Create(&[]Model{
+		{
+			ModelName:        "gpt-5.5-batch-one",
+			Modal:            ModelModalText,
+			TextCategory:     textpricing.CategoryGPT,
+			OfficialPriceKey: "openai.gpt-5.5",
+		},
+		{
+			ModelName:        "gpt-5.5-batch-two",
+			Modal:            ModelModalText,
+			TextCategory:     textpricing.CategoryGPT,
+			OfficialPriceKey: "openai.gpt-5.5",
+		},
+	}).Error)
+
+	callbackName := "test:text-pricing-config-batch-resolution"
+	modelQueries := 0
+	categoryQueries := 0
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		switch tx.Statement.Table {
+		case "models":
+			modelQueries++
+		case "text_category_pricing":
+			categoryQueries++
+		}
+	}))
+	t.Cleanup(func() {
+		_ = DB.Callback().Query().Remove(callbackName)
+	})
+
+	config, err := GetTextPricingConfigView()
+	require.NoError(t, err)
+	require.Equal(t, 2, config.Categories[0].PricingReadyCount)
+	require.Equal(t, 1, modelQueries)
+	require.Equal(t, 1, categoryQueries)
 }
