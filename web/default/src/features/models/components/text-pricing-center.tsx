@@ -26,6 +26,7 @@ import {
   Pencil,
   Search,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,10 +48,11 @@ import {
   getModels,
   getTextPricingConfig,
   searchModels,
+  deleteModel,
   updateTextPricingMode,
 } from '../api'
 import { modelsQueryKeys, normalizeTextPricingGroups } from '../lib'
-import { TEXT_PRICING_GROUPS, type TextPricingMode } from '../types'
+import { TEXT_PRICING_GROUPS, type Model, type TextPricingMode } from '../types'
 import { useModels } from './models-provider'
 import { TextPricingGroupRow } from './text-pricing-group-row'
 
@@ -119,14 +121,12 @@ export function TextPricingCenter() {
       {pendingCount > 0 ? <PendingPricingNotice count={pendingCount} /> : null}
 
       <div className='border-border overflow-hidden rounded-lg border'>
-        <div className='bg-muted/40 hidden grid-cols-[auto_minmax(120px,1.1fr)_repeat(3,minmax(80px,0.7fr))_minmax(190px,1fr)_auto] gap-3 border-b px-3 py-2 text-xs font-medium lg:grid'>
+        <div className='bg-muted/40 hidden grid-cols-[auto_minmax(120px,1.1fr)_minmax(110px,0.8fr)_minmax(150px,0.9fr)_minmax(230px,1fr)] gap-3 border-b px-3 py-2 text-xs font-medium lg:grid'>
           <span aria-hidden='true' />
           <span>{t('Vendor')}</span>
-          <span>{t('Models')}</span>
           <span>{t('Billable')}</span>
           <span>{t('Overrides / catalog')}</span>
           <span>{t('Group multiplier')}</span>
-          <span className='sr-only'>{t('Actions')}</span>
         </div>
         {TEXT_PRICING_GROUPS.map((category) => {
           const group = groups.find((entry) => entry.category === category) || {
@@ -190,6 +190,7 @@ function PendingPricingNotice(props: { count: number }) {
 
 function PendingPricingModels(props: { open: boolean }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { setCurrentRow, setOpen } = useModels()
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -210,6 +211,25 @@ function PendingPricingModels(props: { open: boolean }) {
   const models = query.data?.data?.items || []
   const total = query.data?.data?.total || 0
   const totalPages = Math.max(1, Math.ceil(total / PENDING_PAGE_SIZE))
+  const deleteMutation = useMutation({
+    mutationFn: deleteModel,
+    onSuccess: async (response) => {
+      if (!response.success) {
+        toast.error(response.message || t('Failed to delete model'))
+        return
+      }
+      toast.success(t('Model deleted successfully'))
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: modelsQueryKeys.textPricing(),
+        }),
+        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() }),
+      ])
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('Failed to delete model'))
+    },
+  })
 
   const renderPendingContent = () => {
     if (query.isLoading) {
@@ -233,33 +253,16 @@ function PendingPricingModels(props: { open: boolean }) {
     return (
       <div className='divide-y divide-current/15'>
         {models.map((model) => (
-          <div
+          <PendingPricingModelRow
             key={model.id}
-            className='flex min-w-0 flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between'
-          >
-            <div className='min-w-0'>
-              <div className='font-mono text-xs font-medium break-all'>
-                {model.model_name}
-              </div>
-              <div className='mt-1 text-xs break-words opacity-75'>
-                {model.pricing_error ||
-                  t('Official profile or category is missing.')}
-              </div>
-            </div>
-            <Button
-              type='button'
-              size='sm'
-              variant='outline'
-              className='shrink-0 self-start sm:self-auto'
-              onClick={() => {
-                setCurrentRow(model)
-                setOpen('update-model')
-              }}
-            >
-              <Pencil className='size-4' aria-hidden='true' />
-              {t('Fix metadata')}
-            </Button>
-          </div>
+            model={model}
+            deleting={deleteMutation.isPending}
+            onDelete={() => deleteMutation.mutate(model.id)}
+            onEdit={() => {
+              setCurrentRow(model)
+              setOpen('update-model')
+            }}
+          />
         ))}
       </div>
     )
@@ -318,6 +321,68 @@ function PendingPricingModels(props: { open: boolean }) {
           </div>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function PendingPricingModelRow(props: {
+  model: Model
+  deleting: boolean
+  onDelete: () => void
+  onEdit: () => void
+}) {
+  const { t } = useTranslation()
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
+  return (
+    <div className='flex min-w-0 flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between'>
+      <div className='min-w-0'>
+        <div className='font-mono text-xs font-medium break-all'>
+          {props.model.model_name}
+        </div>
+        <div className='mt-1 text-xs break-words opacity-75'>
+          {props.model.pricing_error ||
+            t('Official profile or category is missing.')}
+        </div>
+      </div>
+      <div className='flex shrink-0 gap-2 self-start sm:self-auto'>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          onClick={props.onEdit}
+        >
+          <Pencil className='size-4' aria-hidden='true' />
+          {t('Fix metadata')}
+        </Button>
+        <Button
+          type='button'
+          size='sm'
+          variant='destructive'
+          onClick={() => setDeleteConfirmOpen(true)}
+        >
+          <Trash2 className='size-4' aria-hidden='true' />
+          {t('Delete')}
+        </Button>
+      </div>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title={t('Delete Model')}
+        desc={t(
+          'Are you sure you want to delete model "{{name}}"? This action cannot be undone.',
+          {
+            name: props.model.model_name,
+          }
+        )}
+        confirmText={t('Delete')}
+        destructive
+        isLoading={props.deleting}
+        handleConfirm={() => {
+          props.onDelete()
+          setDeleteConfirmOpen(false)
+        }}
+      />
     </div>
   )
 }

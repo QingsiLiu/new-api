@@ -98,3 +98,50 @@ func TestModelUpdateRenamesChannelAccessInSameTransaction(t *testing.T) {
 	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ? AND model = ?", channel.Id, "new-name").Count(&newAbilityCount).Error)
 	require.EqualValues(t, 1, newAbilityCount)
 }
+
+func TestDeleteModelAndReferencesRemovesChannelBindings(t *testing.T) {
+	truncateTables(t)
+	t.Cleanup(func() {
+		DB.Unscoped().Where("model_name = ?", "target").Delete(&Model{})
+	})
+
+	channel := Channel{
+		Type:   1,
+		Key:    "delete-target-channel",
+		Status: common.ChannelStatusEnabled,
+		Name:   "delete-target-channel",
+		Models: "target,other,target",
+		Group:  "default,vip",
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+
+	modelMeta := Model{
+		ModelName:    "target",
+		Status:       1,
+		SyncOfficial: 1,
+		NameRule:     NameRuleExact,
+	}
+	require.NoError(t, modelMeta.Insert())
+
+	result, err := DeleteModelAndReferences(modelMeta.Id)
+
+	require.NoError(t, err)
+	require.Equal(t, "target", result.Model.ModelName)
+	require.Equal(t, 1, result.UpdatedChannels)
+
+	var refreshedChannel Channel
+	require.NoError(t, DB.First(&refreshedChannel, channel.Id).Error)
+	require.Equal(t, "other", refreshedChannel.Models)
+
+	var targetAbilityCount int64
+	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ? AND model = ?", channel.Id, "target").Count(&targetAbilityCount).Error)
+	require.Zero(t, targetAbilityCount)
+
+	var otherAbilityCount int64
+	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ? AND model = ?", channel.Id, "other").Count(&otherAbilityCount).Error)
+	require.EqualValues(t, 2, otherAbilityCount)
+
+	var deleted Model
+	require.Error(t, DB.First(&deleted, modelMeta.Id).Error)
+}

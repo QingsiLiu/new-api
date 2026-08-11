@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -20,6 +21,12 @@ type BoundChannel struct {
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 	Type int    `json:"type"`
+}
+
+type ModelDeletionResult struct {
+	Model            Model
+	UpdatedChannels  int
+	DeletedAbilities int64
 }
 
 type ModelListFilters struct {
@@ -132,6 +139,95 @@ func (mi *Model) Update() error {
 
 func (mi *Model) Delete() error {
 	return DB.Delete(mi).Error
+}
+
+func DeleteModelAndReferences(id int) (ModelDeletionResult, error) {
+	if id <= 0 {
+		return ModelDeletionResult{}, errors.New("model id is required")
+	}
+
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return ModelDeletionResult{}, tx.Error
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var entry Model
+	if err := tx.First(&entry, id).Error; err != nil {
+		tx.Rollback()
+		return ModelDeletionResult{}, err
+	}
+	var deletedAbilities int64
+	if err := tx.Model(&Ability{}).Where("model = ?", entry.ModelName).Count(&deletedAbilities).Error; err != nil {
+		tx.Rollback()
+		return ModelDeletionResult{}, err
+	}
+
+	var channels []Channel
+	if err := tx.Find(&channels).Error; err != nil {
+		tx.Rollback()
+		return ModelDeletionResult{}, err
+	}
+
+	updatedChannels := 0
+	for index := range channels {
+		channel := &channels[index]
+		updatedModels, changed := removeModelFromChannelList(channel.Models, entry.ModelName)
+		if !changed {
+			continue
+		}
+		channel.Models = updatedModels
+		if err := tx.Model(channel).Update("models", channel.Models).Error; err != nil {
+			tx.Rollback()
+			return ModelDeletionResult{}, err
+		}
+		if err := channel.UpdateAbilities(tx); err != nil {
+			tx.Rollback()
+			return ModelDeletionResult{}, err
+		}
+		updatedChannels++
+	}
+
+	deleteResult := tx.Where("model = ?", entry.ModelName).Delete(&Ability{})
+	if deleteResult.Error != nil {
+		tx.Rollback()
+		return ModelDeletionResult{}, deleteResult.Error
+	}
+	if err := tx.Delete(&entry).Error; err != nil {
+		tx.Rollback()
+		return ModelDeletionResult{}, err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return ModelDeletionResult{}, err
+	}
+
+	return ModelDeletionResult{
+		Model:            entry,
+		UpdatedChannels:  updatedChannels,
+		DeletedAbilities: deletedAbilities,
+	}, nil
+}
+
+func removeModelFromChannelList(models string, modelName string) (string, bool) {
+	items := strings.Split(models, ",")
+	kept := make([]string, 0, len(items))
+	changed := false
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if item == modelName {
+			changed = true
+			continue
+		}
+		kept = append(kept, item)
+	}
+	return strings.Join(kept, ","), changed
 }
 
 func GetVendorModelCounts() (map[int64]int64, error) {

@@ -157,7 +157,7 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className='grid min-h-20 grid-cols-[auto_minmax(0,1fr)] gap-3 px-3 py-3 lg:grid-cols-[auto_minmax(120px,1.1fr)_repeat(3,minmax(80px,0.7fr))_minmax(190px,1fr)_auto] lg:items-center'>
+      <div className='grid min-h-20 grid-cols-[auto_minmax(0,1fr)] gap-3 px-3 py-3 lg:grid-cols-[auto_minmax(120px,1.1fr)_minmax(110px,0.8fr)_minmax(150px,0.9fr)_minmax(230px,1fr)] lg:items-center'>
         <CollapsibleTrigger
           className='hover:bg-muted focus-visible:ring-ring mt-0.5 flex size-8 items-center justify-center rounded-md outline-none focus-visible:ring-2 lg:mt-0'
           aria-label={
@@ -178,9 +178,9 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
 
         <div className='min-w-0'>
           <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-sm font-semibold'>
+            <CollapsibleTrigger className='hover:text-primary focus-visible:ring-ring rounded-sm text-left text-sm font-semibold outline-none focus-visible:ring-2'>
               {props.group.category.toUpperCase()}
-            </span>
+            </CollapsibleTrigger>
             {props.group.activation_ready ? (
               <Badge variant='outline'>
                 <CheckCircle2 aria-hidden='true' />
@@ -200,10 +200,9 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
           ) : null}
         </div>
 
-        <GroupMetric label={t('Models')} value={props.group.model_count || 0} />
         <GroupMetric
           label={t('Billable')}
-          value={props.group.pricing_ready_count || 0}
+          value={`${props.group.pricing_ready_count || 0} / ${props.group.model_count || 0}`}
         />
         <div className='grid grid-cols-2 gap-3 lg:block'>
           <GroupMetric
@@ -267,6 +266,20 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
             )}
             {t('Preview')}
           </Button>
+          <CollapsibleTrigger
+            render={<Button type='button' size='sm' variant='ghost' />}
+            aria-label={
+              open
+                ? t('Collapse {{group}} models', {
+                    group: props.group.category.toUpperCase(),
+                  })
+                : t('Expand {{group}} models', {
+                    group: props.group.category.toUpperCase(),
+                  })
+            }
+          >
+            {open ? t('Collapse') : t('View details')}
+          </CollapsibleTrigger>
         </div>
       </div>
 
@@ -328,7 +341,7 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
   )
 }
 
-function GroupMetric(props: { label: string; value: number }) {
+function GroupMetric(props: { label: string; value: number | string }) {
   return (
     <div className='min-w-0'>
       <span className='text-muted-foreground block text-xs'>{props.label}</span>
