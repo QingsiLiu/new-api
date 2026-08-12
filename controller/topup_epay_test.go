@@ -201,7 +201,7 @@ func TestEpayNotifyCreditsRejectsMerchantAndMethodMismatch(t *testing.T) {
 			"out_trade_no": topUp.TradeNo,
 			"trade_no":     eventID,
 			"name":         "1000 Credits",
-			"money":        "36.00",
+			"money":        formatPriceMinor(pkg.PriceMinor),
 			"trade_status": epay.StatusTradeSuccess,
 		}, operation_setting.EpayKey))
 	}
