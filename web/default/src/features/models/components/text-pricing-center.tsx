@@ -18,14 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
   Loader2,
   Pencil,
   Search,
-  ShieldCheck,
   Trash2,
 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
@@ -42,17 +40,15 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 import {
   getModels,
   getTextPricingConfig,
   searchModels,
   deleteModel,
-  updateTextPricingMode,
 } from '../api'
 import { modelsQueryKeys, normalizeTextPricingGroups } from '../lib'
-import { TEXT_PRICING_GROUPS, type Model, type TextPricingMode } from '../types'
+import { TEXT_PRICING_GROUPS, type Model } from '../types'
 import { useModels } from './models-provider'
 import { TextPricingGroupRow } from './text-pricing-group-row'
 
@@ -141,12 +137,6 @@ export function TextPricingCenter() {
           )
         })}
       </div>
-
-      <AdvancedReleaseControls
-        mode={normalizeTextPricingMode(config.mode)}
-        activationReady={Boolean(config.activation_ready)}
-        blockers={config.activation_blockers || []}
-      />
     </div>
   )
 }
@@ -385,181 +375,4 @@ function PendingPricingModelRow(props: {
       />
     </div>
   )
-}
-
-function AdvancedReleaseControls(props: {
-  mode: TextPricingMode
-  activationReady: boolean
-  blockers: string[]
-}) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
-  const [pendingMode, setPendingMode] = useState<TextPricingMode | null>(null)
-
-  const modeMutation = useMutation({
-    mutationFn: updateTextPricingMode,
-    onSuccess: async (response) => {
-      if (!response.success) {
-        toast.error(response.message || t('Unable to update text pricing mode'))
-        return
-      }
-      toast.success(t('Text pricing mode updated'))
-      setPendingMode(null)
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: modelsQueryKeys.textPricing(),
-        }),
-        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() }),
-      ])
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || t('Unable to update text pricing mode'))
-    },
-  })
-
-  const modeOptions: Array<{ value: TextPricingMode; label: string }> = [
-    { value: 'legacy', label: t('Legacy billing') },
-    { value: 'shadow', label: t('Reconciliation validation') },
-    { value: 'active', label: t('Production pricing') },
-  ]
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div className='border-border rounded-lg border'>
-        <CollapsibleTrigger className='hover:bg-muted/40 focus-visible:ring-ring flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left outline-none focus-visible:ring-2'>
-          <span className='flex min-w-0 items-center gap-2'>
-            <ShieldCheck className='size-4 shrink-0' aria-hidden='true' />
-            <span className='min-w-0'>
-              <span className='block text-sm font-medium'>
-                {t('Advanced release controls')}
-              </span>
-              <span className='text-muted-foreground block text-xs'>
-                {getTextPricingModeLabel(t, props.mode)}
-              </span>
-            </span>
-          </span>
-          <ChevronDown
-            className={`size-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-            aria-hidden='true'
-          />
-        </CollapsibleTrigger>
-        <CollapsibleContent className='border-t p-3'>
-          <div className='space-y-3'>
-            <ToggleGroup
-              value={[props.mode]}
-              onValueChange={(values) => {
-                const nextMode = values[0]
-                if (!nextMode || nextMode === props.mode) return
-                setPendingMode(nextMode as TextPricingMode)
-              }}
-              variant='outline'
-              size='sm'
-              className='max-w-full flex-wrap'
-              aria-label={t('Text pricing release mode')}
-            >
-              {modeOptions.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {option.label}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-
-            <div className='grid gap-2 md:grid-cols-3'>
-              {modeOptions.map((option) => (
-                <div
-                  key={option.value}
-                  className='border-border rounded-lg border p-3'
-                >
-                  <div className='flex flex-wrap items-center gap-2 text-sm font-medium'>
-                    {option.label}
-                    {props.mode === option.value ? (
-                      <Badge variant='secondary'>{t('Current')}</Badge>
-                    ) : null}
-                  </div>
-                  <p className='text-muted-foreground mt-1 text-xs'>
-                    {getTextPricingModeDescription(t, option.value)}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {!props.activationReady ? (
-              <Alert variant='destructive'>
-                <CircleAlert aria-hidden='true' />
-                <AlertTitle>{t('Production pricing is blocked')}</AlertTitle>
-                <AlertDescription>
-                  <ul className='mt-1 list-disc space-y-1 pl-4'>
-                    {props.blockers.slice(0, 8).map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
-        </CollapsibleContent>
-      </div>
-
-      <ConfirmDialog
-        open={pendingMode !== null}
-        onOpenChange={(confirmOpen) => {
-          if (!confirmOpen) setPendingMode(null)
-        }}
-        title={t('Change text pricing release mode?')}
-        desc={
-          pendingMode
-            ? getTextPricingModeDescription(t, pendingMode)
-            : t('The selected mode applies globally to text model billing.')
-        }
-        confirmText={t('Apply release mode')}
-        destructive={pendingMode === 'active'}
-        disabled={pendingMode === 'active' && !props.activationReady}
-        isLoading={modeMutation.isPending}
-        handleConfirm={() => {
-          if (!pendingMode) return
-          modeMutation.mutate(pendingMode)
-        }}
-      >
-        {pendingMode === 'active' && !props.activationReady ? (
-          <Alert variant='destructive'>
-            <CircleAlert aria-hidden='true' />
-            <AlertTitle>{t('Production pricing is not ready')}</AlertTitle>
-            <AlertDescription>
-              {props.blockers[0] || t('Resolve all pricing blockers first.')}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-      </ConfirmDialog>
-    </Collapsible>
-  )
-}
-
-function normalizeTextPricingMode(mode?: string): TextPricingMode {
-  if (mode === 'shadow' || mode === 'active') return mode
-  return 'legacy'
-}
-
-function getTextPricingModeLabel(
-  t: ReturnType<typeof useTranslation>['t'],
-  mode: TextPricingMode
-): string {
-  if (mode === 'active') return t('Production pricing')
-  if (mode === 'shadow') return t('Reconciliation validation')
-  return t('Legacy billing')
-}
-
-function getTextPricingModeDescription(
-  t: ReturnType<typeof useTranslation>['t'],
-  mode: TextPricingMode
-): string {
-  if (mode === 'active') {
-    return t('The new official-catalog pricing rules perform real billing.')
-  }
-  if (mode === 'shadow') {
-    return t(
-      'Legacy billing remains in charge while new prices are recorded for reconciliation.'
-    )
-  }
-  return t('Existing legacy pricing continues to perform real billing.')
 }

@@ -732,7 +732,7 @@ export function ModelMutateDrawer(props: ModelMutateDrawerProps) {
             {isSubmitting ? (
               <Loader2 className='size-4 animate-spin' aria-hidden='true' />
             ) : null}
-            {isEditing ? t('Update Model') : t('Save changes')}
+            {t('Save changes')}
           </Button>
         </SheetFooter>
       </SheetContent>
