@@ -6,7 +6,6 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import type { ModelModal } from '../lib'
@@ -34,23 +33,18 @@ export function ModelCategoryTabs(props: ModelCategoryTabsProps) {
       <TabsList className='!h-auto max-w-full flex-wrap justify-start'>
         {MODAL_ITEMS.map((item) => {
           const Icon = item.icon
+          const isUnavailable = item.value === 'audio'
           return (
             <TabsTrigger
               key={item.value}
               value={item.value}
+              disabled={isUnavailable}
               className={
-                item.value === 'audio'
-                  ? 'ml-1 opacity-60 data-active:opacity-100'
-                  : undefined
+                isUnavailable ? 'cursor-not-allowed opacity-45' : undefined
               }
             >
               <Icon aria-hidden='true' />
               {t(item.labelKey)}
-              {item.value === 'audio' ? (
-                <Badge variant='outline' className='ml-1 px-1.5'>
-                  {t('Compatible')}
-                </Badge>
-              ) : null}
             </TabsTrigger>
           )
         })}

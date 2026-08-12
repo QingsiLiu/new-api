@@ -264,7 +264,7 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
             ) : (
               <Calculator className='size-4' aria-hidden='true' />
             )}
-            {t('Preview')}
+            {t('Preview and save')}
           </Button>
           <CollapsibleTrigger
             render={<Button type='button' size='sm' variant='ghost' />}
@@ -294,8 +294,10 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={t('Apply group multiplier?')}
-        desc={t('Existing model overrides remain unchanged.')}
+        title={t('Confirm save to server')}
+        desc={t(
+          'This saves to the server immediately. No deployment is required.'
+        )}
         confirmText={t('Save group multiplier')}
         isLoading={updateMutation.isPending}
         handleConfirm={() => {
@@ -326,6 +328,10 @@ export function TextPricingGroupRow(props: TextPricingGroupRowProps) {
             </span>
           </div>
         </div>
+        <p className='text-muted-foreground mt-3 text-xs'>
+          {t('Existing model overrides remain unchanged.')}{' '}
+          {t('Legacy keeps the current text billing path.')}
+        </p>
       </ConfirmDialog>
 
       {editingModel ? (
