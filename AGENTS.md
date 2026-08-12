@@ -45,7 +45,7 @@ constant/      — Constants (API types, channel types, context keys)
 types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
-pkg/           — Internal packages (cachex, ionet)
+pkg/           — Internal packages (cachex)
 web/default/   — Frontend (React 19, Rsbuild, Base UI, Tailwind)
 web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
 ```
