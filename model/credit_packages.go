@@ -26,11 +26,21 @@ var creditPackages = []CreditPackage{
 	newCreditPackage("credits-usd-10000", 10000, "USD", 5000, PaymentMethodWaffoPancake),
 	newCreditPackage("credits-usd-105000", 105000, "USD", 50000, PaymentMethodWaffoPancake),
 	newCreditPackage("credits-usd-275000", 275000, "USD", 125000, PaymentMethodWaffoPancake),
-	newCreditPackage("credits-cny-1000", 1000, "CNY", 3600, "alipay"),
-	newCreditPackage("credits-cny-5000", 5000, "CNY", 18000, "alipay"),
-	newCreditPackage("credits-cny-10000", 10000, "CNY", 36000, "alipay"),
-	newCreditPackage("credits-cny-105000", 105000, "CNY", 360000, "alipay"),
-	newCreditPackage("credits-cny-275000", 275000, "CNY", 900000, "alipay"),
+	newCNYCreditPackage("credits-cny-1000", 1000, 500),
+	newCNYCreditPackage("credits-cny-5000", 5000, 2500),
+	newCNYCreditPackage("credits-cny-10000", 10000, 5000),
+	newCNYCreditPackage("credits-cny-105000", 105000, 50000),
+	newCNYCreditPackage("credits-cny-275000", 275000, 125000),
+}
+
+func newCNYCreditPackage(id string, credits int64, usdPriceMinor int64) CreditPackage {
+	return newCreditPackage(
+		id,
+		credits,
+		"CNY",
+		usdPriceMinor*common.CNYPerUSDCents/100,
+		"alipay",
+	)
 }
 
 func newCreditPackage(id string, credits int64, currency string, priceMinor int64, paymentMethods ...string) CreditPackage {

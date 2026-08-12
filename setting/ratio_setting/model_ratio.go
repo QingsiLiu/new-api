@@ -10,8 +10,8 @@ import (
 
 // from songquanpeng/one-api
 const (
-	USD2RMB = 7.3 // 暂定 1 USD = 7.3 RMB
-	USD     = 500 // $0.002 = 1 -> $1 = 500
+	USD2RMB = common.CNYPerUSD // 1 USD = 6.8 RMB
+	USD     = 500              // $0.002 = 1 -> $1 = 500
 	RMB     = USD / USD2RMB
 )
 
@@ -221,7 +221,7 @@ var defaultModelRatio = map[string]float64{
 	"SparkDesk-v4.0":                            1.2858,
 	"hunyuan":                                   7.143, // ¥0.1 / 1k tokens  // https://cloud.tencent.com/document/product/1729/97731#e0e6be58-60c8-469f-bdeb-6c264ce3b4d0
 	// https://platform.lingyiwanwu.com/docs#-计费单元
-	// 已经按照 7.2 来换算美元价格
+	// 已按固定汇率 1 USD = 6.8 RMB 换算美元价格。
 	"yi-34b-chat-0205":       0.18,
 	"yi-34b-chat-200k":       0.864,
 	"yi-vl-plus":             0.432,

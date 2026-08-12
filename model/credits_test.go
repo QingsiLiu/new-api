@@ -29,11 +29,34 @@ func TestCreditPackagesAreFixedServerSnapshots(t *testing.T) {
 	require.Equal(t, 990000000, cny.Quota)
 	require.EqualValues(t, 250000, cny.BaseCredits)
 	require.EqualValues(t, 25000, cny.BonusCredits)
-	require.EqualValues(t, 900000, cny.PriceMinor)
+	require.EqualValues(t, 850000, cny.PriceMinor)
 	require.True(t, cny.SupportsPaymentMethod("alipay"))
 
 	_, ok = FindCreditPackage("credits-usd-1000-tampered")
 	require.False(t, ok)
+}
+
+func TestCNYCreditPackagesUseFixedCNYPerUSDExchangeRate(t *testing.T) {
+	testCases := []struct {
+		packageID     string
+		usdPriceMinor int64
+		cnyPriceMinor int64
+	}{
+		{packageID: "credits-cny-1000", usdPriceMinor: 500, cnyPriceMinor: 3400},
+		{packageID: "credits-cny-5000", usdPriceMinor: 2500, cnyPriceMinor: 17000},
+		{packageID: "credits-cny-10000", usdPriceMinor: 5000, cnyPriceMinor: 34000},
+		{packageID: "credits-cny-105000", usdPriceMinor: 50000, cnyPriceMinor: 340000},
+		{packageID: "credits-cny-275000", usdPriceMinor: 125000, cnyPriceMinor: 850000},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.packageID, func(t *testing.T) {
+			pkg, ok := FindCreditPackage(testCase.packageID)
+			require.True(t, ok)
+			require.EqualValues(t, testCase.cnyPriceMinor, pkg.PriceMinor)
+			require.EqualValues(t, testCase.usdPriceMinor*common.CNYPerUSDCents/100, pkg.PriceMinor)
+		})
+	}
 }
 
 func TestSignupCreditGrantIsIdempotentAndIdentityBound(t *testing.T) {

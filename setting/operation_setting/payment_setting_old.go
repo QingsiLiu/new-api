@@ -15,7 +15,7 @@ var EpayId = ""
 var EpayKey = ""
 var Price = 1.0
 var MinTopUp = 1
-var USDExchangeRate = 7.3
+var USDExchangeRate = common.CNYPerUSD
 
 var PayMethods = []map[string]string{
 	{

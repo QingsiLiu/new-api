@@ -8,10 +8,13 @@ import (
 
 const (
 	CreditsQuotaUnit      = 3600
+	CNYPerUSDCents        = 680
 	SignupCreditAmount    = int64(20)
 	SignupCreditQuota     = int(SignupCreditAmount) * CreditsQuotaUnit
 	CreditsFeatureFlagEnv = "GEILI_CREDITS_V1"
 )
+
+const CNYPerUSD = float64(CNYPerUSDCents) / 100
 
 // CreditsV1Enabled is intentionally evaluated at request time so tests and
 // rolling deployments can toggle the additive contract without process state.
