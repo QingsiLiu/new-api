@@ -28,7 +28,7 @@ func GetGeiliFunnelHealth(ctx context.Context, now int64, environment string) (d
 		!model.DB.Migrator().HasTable(&model.FunnelActivityDay{}) {
 		return response, ErrGeiliFunnelHealthUnavailable
 	}
-	response.SchemaVersion = 1
+	response.SchemaVersion = 2
 
 	response.CollectionStartedAt, err = model.LoadFunnelCollectionStart(ctx, environment)
 	if err != nil {
@@ -72,6 +72,23 @@ func GetGeiliFunnelHealth(ctx context.Context, now int64, environment string) (d
 	if err != nil {
 		return response, ErrGeiliFunnelHealthUnavailable
 	}
+	apiKeys, invalidTokenTimes, err := model.LoadIndependentFirstAPIKeys(ctx, now-86400, now)
+	if err != nil {
+		return response, ErrGeiliFunnelHealthUnavailable
+	}
+	textSuccesses, invalidTextLogTimes, err := model.LoadIndependentFirstSuccessfulTextCalls(ctx, now-86400, now)
+	if err != nil {
+		return response, ErrGeiliFunnelHealthUnavailable
+	}
+	activations, err := model.LoadIndependentFirstActivations(ctx, now-86400, now)
+	if err != nil {
+		return response, ErrGeiliFunnelHealthUnavailable
+	}
+	response.Business.InvalidTokenTimes = invalidTokenTimes
+	response.Business.InvalidTextLogTimes = invalidTextLogTimes
+	response.Business.FirstAPIKeysLast24h = int64(len(apiKeys))
+	response.Business.FirstActivatedLast24h = int64(len(activations))
+	response.Business.FirstSuccessfulTextLast24h = int64(len(textSuccesses))
 	taskStatuses, err := model.LoadTaskStatusFacts(ctx, now-86400, now)
 	if err != nil {
 		return response, ErrGeiliFunnelHealthUnavailable

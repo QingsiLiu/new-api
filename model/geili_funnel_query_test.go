@@ -55,6 +55,59 @@ func TestLoadFunnelMilestonesUsesGlobalFirstSuccessfulRows(t *testing.T) {
 	require.Empty(t, independent, "a later success must not repair a first success outside the window")
 }
 
+func TestLoadFirstAPIKeysUsesUserCreatedTokensAndKeepsDeletedHistory(t *testing.T) {
+	setupFunnelTestDB(t)
+	tokens := []Token{
+		{UserId: 7, Name: GeiliStudioOnlineTokenName, Key: "studio-7", CreatedTime: 105},
+		{UserId: 7, Name: "production", Key: "user-7-first", CreatedTime: 120},
+		{UserId: 7, Name: "backup", Key: "user-7-second", CreatedTime: 130},
+		{UserId: 8, Name: "outside", Key: "user-8", CreatedTime: 90},
+		{UserId: 9, Name: "invalid", Key: "user-9", CreatedTime: 0},
+		{UserId: 10, Name: "deleted", Key: "user-10", CreatedTime: 125},
+	}
+	for index := range tokens {
+		require.NoError(t, DB.Create(&tokens[index]).Error)
+	}
+	require.NoError(t, DB.Delete(&tokens[5]).Error)
+
+	rows, invalid, err := LoadIndependentFirstAPIKeys(context.Background(), 100, 130)
+	require.NoError(t, err)
+	require.Equal(t, []FunnelTimedUser{{UserID: 7, At: 120}, {UserID: 10, At: 125}}, rows)
+	require.EqualValues(t, 1, invalid)
+}
+
+func TestLoadFirstSuccessfulTextCallsUsesConsumeLogsAndGlobalFirstTime(t *testing.T) {
+	setupFunnelTestDB(t)
+	require.NoError(t, DB.Create(&ModelRegistry{ModelName: "gpt-5.5", Slug: "gpt-5-5", Modality: "text"}).Error)
+	require.NoError(t, DB.Create(&ModelRegistry{ModelName: "gpt-image-2", Slug: "gpt-image-2", Modality: "image"}).Error)
+	logs := []Log{
+		{UserId: 7, Type: LogTypeConsume, CreatedAt: 105, ModelName: "gpt-image-2", PromptTokens: 1, RequestId: "image-7"},
+		{UserId: 7, Type: LogTypeConsume, CreatedAt: 120, ModelName: "gpt-5.5", PromptTokens: 1, RequestId: "text-7-first"},
+		{UserId: 7, Type: LogTypeConsume, CreatedAt: 130, ModelName: "gpt-5.5", CompletionTokens: 1, RequestId: "text-7-second"},
+		{UserId: 8, Type: LogTypeConsume, CreatedAt: 90, ModelName: "gpt-5.5", PromptTokens: 1, RequestId: "text-8-first"},
+		{UserId: 8, Type: LogTypeConsume, CreatedAt: 125, ModelName: "gpt-5.5", CompletionTokens: 1, RequestId: "text-8-second"},
+		{UserId: 9, Type: LogTypeError, CreatedAt: 125, ModelName: "gpt-5.5", RequestId: "text-9-error"},
+		{UserId: 10, Type: LogTypeConsume, CreatedAt: -1, ModelName: "gpt-5.5", PromptTokens: 1, RequestId: "text-10-invalid"},
+		{UserId: 11, Type: LogTypeConsume, CreatedAt: 125, ModelName: "gpt-5.5", CompletionTokens: 1, RequestId: "text-11"},
+		{UserId: 12, Type: LogTypeConsume, CreatedAt: 126, ModelName: "gpt-5.5", RequestId: "text-12-zero-token"},
+	}
+	for index := range logs {
+		require.NoError(t, LOG_DB.Create(&logs[index]).Error)
+	}
+	require.NoError(t, DB.Create(&Task{TaskID: "activation-7-media", UserId: 7, Status: TaskStatusSuccess, FinishTime: 121}).Error)
+	require.NoError(t, DB.Create(&Task{TaskID: "activation-8-media", UserId: 8, Status: TaskStatusSuccess, FinishTime: 125}).Error)
+	require.NoError(t, DB.Create(&Task{TaskID: "activation-13-media", UserId: 13, Status: TaskStatusSuccess, FinishTime: 126}).Error)
+
+	rows, invalid, err := LoadIndependentFirstSuccessfulTextCalls(context.Background(), 100, 130)
+	require.NoError(t, err)
+	require.Equal(t, []FunnelTimedUser{{UserID: 7, At: 120}, {UserID: 11, At: 125}}, rows)
+	require.EqualValues(t, 1, invalid)
+
+	activations, err := LoadIndependentFirstActivations(context.Background(), 100, 130)
+	require.NoError(t, err)
+	require.Equal(t, []FunnelTimedUser{{UserID: 7, At: 120}, {UserID: 11, At: 125}, {UserID: 13, At: 126}}, activations)
+}
+
 func TestLoadFunnelMilestonesExcludesInvalidSuccessTimes(t *testing.T) {
 	setupFunnelTestDB(t)
 	seedFunnelUser(t, 8, 100)

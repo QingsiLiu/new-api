@@ -26,6 +26,9 @@ type FunnelSummaryFacts struct {
 	FirstTasks               map[int]int64
 	StudioOpens              map[int][]int64
 	IndependentRegistrations []model.FunnelTimedUser
+	IndependentAPIKeys       []model.FunnelTimedUser
+	IndependentActivations   []model.FunnelTimedUser
+	IndependentTextSuccesses []model.FunnelTimedUser
 	IndependentTopUps        []model.FunnelTimedUser
 	IndependentTasks         []model.FunnelTimedUser
 	IndependentStudio        []model.FunnelTimedUser
@@ -39,6 +42,8 @@ type FunnelSummaryFacts struct {
 	CounterSince             int64
 	InvalidTopUpTimes        int64
 	InvalidTaskTimes         int64
+	InvalidTokenTimes        int64
+	InvalidTextLogTimes      int64
 }
 
 type FunnelSummaryQuery struct {
@@ -78,6 +83,8 @@ func BuildFunnelSummary(query FunnelSummaryQuery, facts FunnelSummaryFacts) (dto
 			LastEventAt:         facts.LastEventAt,
 			InvalidTopUpTimes:   facts.InvalidTopUpTimes,
 			InvalidTaskTimes:    facts.InvalidTaskTimes,
+			InvalidTokenTimes:   facts.InvalidTokenTimes,
+			InvalidTextLogTimes: facts.InvalidTextLogTimes,
 		},
 		Segments: make([]dto.FunnelSegment, 0),
 	}
@@ -138,6 +145,18 @@ func QueryGeiliFunnelSummary(ctx context.Context, query FunnelSummaryQuery) (dto
 	if err != nil {
 		return dto.GeiliFunnelSummaryResponse{}, err
 	}
+	apiKeys, invalidTokenTimes, err := model.LoadIndependentFirstAPIKeys(ctx, query.From, query.To)
+	if err != nil {
+		return dto.GeiliFunnelSummaryResponse{}, err
+	}
+	textSuccesses, invalidTextLogTimes, err := model.LoadIndependentFirstSuccessfulTextCalls(ctx, query.From, query.To)
+	if err != nil {
+		return dto.GeiliFunnelSummaryResponse{}, err
+	}
+	activations, err := model.LoadIndependentFirstActivations(ctx, query.From, query.To)
+	if err != nil {
+		return dto.GeiliFunnelSummaryResponse{}, err
+	}
 	topUps, _, err := model.LoadIndependentFirstTopUps(ctx, query.From, query.To)
 	if err != nil {
 		return dto.GeiliFunnelSummaryResponse{}, err
@@ -151,7 +170,7 @@ func QueryGeiliFunnelSummary(ctx context.Context, query FunnelSummaryQuery) (dto
 		return dto.GeiliFunnelSummaryResponse{}, err
 	}
 
-	userIDs := funnelSummaryUserIDs(entries, registrations, topUps, tasks, studio)
+	userIDs := funnelSummaryUserIDs(entries, registrations, apiKeys, activations, textSuccesses, topUps, tasks, studio)
 	linkedTouches, err := model.LoadLinkedFirstTouches(ctx, query.Environment, userIDs)
 	if err != nil {
 		return dto.GeiliFunnelSummaryResponse{}, err
@@ -201,11 +220,13 @@ func QueryGeiliFunnelSummary(ctx context.Context, query FunnelSummaryQuery) (dto
 		EntryVisitors: entries, LinkedFirstTouches: linkedTouches, UserCreated: created,
 		FirstTopUps: firstTopUps, FirstTasks: firstTasks, StudioOpens: studioOpens,
 		IndependentRegistrations: registrations, IndependentTopUps: topUps,
+		IndependentAPIKeys: apiKeys, IndependentActivations: activations, IndependentTextSuccesses: textSuccesses,
 		IndependentTasks: tasks, IndependentStudio: studio, ActivityDays: activity,
 		Failures: failures, TaskStatuses: taskStatuses, CollectionStartedAt: collectionStartedAt,
 		LastEventAt: lastEventAt, DuplicateSinceStart: counters.Duplicate,
 		RejectedSinceStart: counters.Rejected, CounterSince: counters.Since,
 		InvalidTopUpTimes: invalidTopUps, InvalidTaskTimes: invalidTasks,
+		InvalidTokenTimes: invalidTokenTimes, InvalidTextLogTimes: invalidTextLogTimes,
 	}
 	return BuildFunnelSummary(query, facts)
 }
@@ -296,22 +317,36 @@ func buildIndependentMilestones(query FunnelSummaryQuery, facts FunnelSummaryFac
 	}
 	sources := []milestoneSource{
 		{name: "registered", rows: facts.IndependentRegistrations},
+		{name: "first_api_key", rows: facts.IndependentAPIKeys},
+		{name: "first_activation", rows: facts.IndependentActivations},
+		{name: "first_successful_text", rows: facts.IndependentTextSuccesses},
 		{name: "first_top_up", rows: facts.IndependentTopUps},
 		{name: "first_generation", rows: facts.IndependentTasks},
 		{name: "opened_studio", rows: facts.IndependentStudio},
 	}
 	result := make([]dto.FunnelMilestone, 0, len(sources))
-	for index, source := range sources {
+	for _, source := range sources {
 		coverage := "business_only"
 		if filter != nil {
 			coverage = "attributed_only"
 		}
-		if index == 3 && query.From < rawCutoff {
+		if source.name == "opened_studio" && query.From < rawCutoff {
 			result = append(result, dto.FunnelMilestone{Name: source.name, Ordered: false, Coverage: "unavailable"})
 			continue
 		}
-		if index == 3 && filter == nil {
+		if source.name == "opened_studio" && filter == nil {
 			coverage = "event_only"
+		} else if filter == nil {
+			switch source.name {
+			case "first_api_key":
+				coverage = "token_table"
+			case "first_activation":
+				coverage = "text_or_media"
+			case "first_successful_text":
+				coverage = "consume_logs"
+			case "first_generation":
+				coverage = "media_tasks"
+			}
 		}
 		count := countTimedUsers(source.rows, facts.LinkedFirstTouches, filter)
 		milestone := dto.FunnelMilestone{

@@ -14,18 +14,24 @@ import (
 func setupFunnelTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	previousDB := DB
+	previousLogDB := LOG_DB
 	previousDatabaseType := common.MainDatabaseType()
+	previousLogDatabaseType := common.LogDatabaseType()
 	previousRedisEnabled := common.RedisEnabled
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	DB = db
-	require.NoError(t, db.AutoMigrate(&Option{}, &User{}, &TopUp{}, &Task{}, &FunnelVisitor{}, &FunnelEvent{}, &FunnelActivityDay{}))
+	LOG_DB = db
+	require.NoError(t, db.AutoMigrate(&Option{}, &User{}, &Token{}, &TopUp{}, &Task{}, &Log{}, &ModelRegistry{}, &FunnelVisitor{}, &FunnelEvent{}, &FunnelActivityDay{}))
 	t.Cleanup(func() {
 		DB = previousDB
+		LOG_DB = previousLogDB
 		common.SetMainDatabaseType(previousDatabaseType)
+		common.SetLogDatabaseType(previousLogDatabaseType)
 		common.RedisEnabled = previousRedisEnabled
 		sqlDB, err := db.DB()
 		if err == nil {

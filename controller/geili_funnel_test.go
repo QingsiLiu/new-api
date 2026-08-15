@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
@@ -21,8 +22,10 @@ const validFunnelEventBody = `{"event_id":"7dfb2d2c-7f40-4f39-b8f4-5fb27db06041"
 func setupFunnelControllerTestDB(t *testing.T) {
 	t.Helper()
 	setupModelRegistryTestDB(t)
+	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
+	model.LOG_DB = model.DB
 	require.NoError(t, model.DB.AutoMigrate(
-		&model.Option{}, &model.User{}, &model.TopUp{}, &model.Task{},
+		&model.Option{}, &model.User{}, &model.Token{}, &model.TopUp{}, &model.Task{}, &model.Log{},
 		&model.FunnelVisitor{}, &model.FunnelEvent{}, &model.FunnelActivityDay{},
 	))
 }

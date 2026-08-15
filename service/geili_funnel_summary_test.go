@@ -35,12 +35,16 @@ func TestBuildFunnelSummaryStrictAndIndependentPolicy(t *testing.T) {
 	require.Equal(t, "all", response.Segments[0].Dimension)
 	require.Equal(t, "all", response.Segments[0].Value)
 
-	require.Equal(t, []int64{5, 5, 5, 5}, milestonePeople(t, response.Metrics.Independent))
+	require.Equal(t, []int64{5, 5, 5, 5, 5, 5, 5}, milestonePeople(t, response.Metrics.Independent))
 	for _, milestone := range response.Metrics.Independent {
 		require.False(t, milestone.Ordered)
 	}
 	require.Equal(t, "business_only", response.Metrics.Independent[0].Coverage)
-	require.Equal(t, "event_only", response.Metrics.Independent[3].Coverage)
+	require.Equal(t, "token_table", response.Metrics.Independent[1].Coverage)
+	require.Equal(t, "text_or_media", response.Metrics.Independent[2].Coverage)
+	require.Equal(t, "consume_logs", response.Metrics.Independent[3].Coverage)
+	require.Equal(t, "media_tasks", response.Metrics.Independent[5].Coverage)
+	require.Equal(t, "event_only", response.Metrics.Independent[6].Coverage)
 }
 
 func TestBuildFunnelSummaryAttributedMilestonesExcludeUnlinkedBusinessUsers(t *testing.T) {
@@ -173,6 +177,9 @@ func TestQueryGeiliFunnelSummaryUsesAuthoritativeJourney(t *testing.T) {
 	require.NoError(t, model.DB.Create(&model.TopUp{UserId: 7, TradeNo: "summary-success", Status: common.TopUpStatusSuccess, CompleteTime: 120}).Error)
 	require.NoError(t, model.DB.Create(&model.Task{TaskID: "summary-failed", UserId: 7, Status: model.TaskStatusFailure, FinishTime: 130}).Error)
 	require.NoError(t, model.DB.Create(&model.Task{TaskID: "summary-success", UserId: 7, Status: model.TaskStatusSuccess, FinishTime: 140}).Error)
+	require.NoError(t, model.DB.Create(&model.Token{UserId: 7, Name: "production", Key: "summary-key", CreatedTime: 115}).Error)
+	require.NoError(t, model.DB.Create(&model.ModelRegistry{ModelName: "gpt-5.5", Slug: "gpt-5-5", Modality: "text"}).Error)
+	require.NoError(t, model.LOG_DB.Create(&model.Log{UserId: 7, Type: model.LogTypeConsume, CreatedAt: 135, ModelName: "gpt-5.5", PromptTokens: 1, RequestId: "summary-text"}).Error)
 
 	inputs := []model.FunnelEventInput{
 		summaryEvent("00000000-0000-4000-8000-000000000001", model.FunnelEventSLPView, 100),
@@ -194,6 +201,9 @@ func TestQueryGeiliFunnelSummaryUsesAuthoritativeJourney(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []int64{1, 1, 1, 1, 1}, stagePeople(t, response.Metrics.Strict.Stages))
 	require.EqualValues(t, 1, *response.Metrics.Independent[0].People)
+	require.EqualValues(t, 1, *response.Metrics.Independent[1].People)
+	require.EqualValues(t, 1, *response.Metrics.Independent[2].People)
+	require.EqualValues(t, 1, *response.Metrics.Independent[3].People)
 	require.GreaterOrEqual(t, response.Quality.DuplicateSinceStart, uint64(1))
 
 	require.NoError(t, model.DB.Migrator().DropTable(&model.FunnelEvent{}))
@@ -226,6 +236,9 @@ func strictSummaryFacts() FunnelSummaryFacts {
 		FirstTasks:               map[int]int64{1: 130, 2: 131, 4: 125, 5: 124},
 		StudioOpens:              map[int][]int64{1: {140}, 3: {150}, 4: {151}, 5: {152}},
 		IndependentRegistrations: []model.FunnelTimedUser{{UserID: 1, At: 110}, {UserID: 2, At: 111}, {UserID: 3, At: 112}, {UserID: 4, At: 113}, {UserID: 9, At: 115}},
+		IndependentAPIKeys:       []model.FunnelTimedUser{{UserID: 1, At: 115}, {UserID: 2, At: 116}, {UserID: 3, At: 117}, {UserID: 4, At: 118}, {UserID: 9, At: 119}},
+		IndependentActivations:   []model.FunnelTimedUser{{UserID: 1, At: 125}, {UserID: 2, At: 126}, {UserID: 3, At: 127}, {UserID: 4, At: 125}, {UserID: 9, At: 127}},
+		IndependentTextSuccesses: []model.FunnelTimedUser{{UserID: 1, At: 125}, {UserID: 2, At: 126}, {UserID: 3, At: 127}, {UserID: 4, At: 128}, {UserID: 9, At: 129}},
 		IndependentTopUps:        []model.FunnelTimedUser{{UserID: 1, At: 120}, {UserID: 2, At: 121}, {UserID: 3, At: 122}, {UserID: 5, At: 123}, {UserID: 9, At: 126}},
 		IndependentTasks:         []model.FunnelTimedUser{{UserID: 1, At: 130}, {UserID: 2, At: 131}, {UserID: 4, At: 125}, {UserID: 5, At: 124}, {UserID: 9, At: 127}},
 		IndependentStudio:        []model.FunnelTimedUser{{UserID: 1, At: 140}, {UserID: 3, At: 150}, {UserID: 4, At: 151}, {UserID: 5, At: 152}, {UserID: 9, At: 153}},

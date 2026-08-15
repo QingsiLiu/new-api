@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const GeiliStudioOnlineTokenName = "Geili Studio Online"
+
 type Token struct {
 	Id                 int            `json:"id"`
 	UserId             int            `json:"user_id" gorm:"index"`

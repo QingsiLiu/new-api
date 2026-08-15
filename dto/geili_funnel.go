@@ -86,6 +86,8 @@ type FunnelQuality struct {
 	LastEventAt         int64  `json:"last_event_at"`
 	InvalidTopUpTimes   int64  `json:"invalid_top_up_times"`
 	InvalidTaskTimes    int64  `json:"invalid_task_times"`
+	InvalidTokenTimes   int64  `json:"invalid_token_times"`
+	InvalidTextLogTimes int64  `json:"invalid_text_log_times"`
 	SuppressedSegments  int64  `json:"suppressed_segments"`
 }
 
@@ -116,10 +118,15 @@ type FunnelHealthIdentity struct {
 }
 
 type FunnelHealthBusiness struct {
-	InvalidTopUpTimes  int64 `json:"invalid_top_up_times"`
-	InvalidTaskTimes   int64 `json:"invalid_task_times"`
-	TaskSuccessLast24h int64 `json:"task_success_last_24h"`
-	TaskFailureLast24h int64 `json:"task_failure_last_24h"`
+	InvalidTopUpTimes          int64 `json:"invalid_top_up_times"`
+	InvalidTaskTimes           int64 `json:"invalid_task_times"`
+	InvalidTokenTimes          int64 `json:"invalid_token_times"`
+	InvalidTextLogTimes        int64 `json:"invalid_text_log_times"`
+	FirstAPIKeysLast24h        int64 `json:"first_api_keys_last_24h"`
+	FirstActivatedLast24h      int64 `json:"first_activated_last_24h"`
+	FirstSuccessfulTextLast24h int64 `json:"first_successful_text_last_24h"`
+	TaskSuccessLast24h         int64 `json:"task_success_last_24h"`
+	TaskFailureLast24h         int64 `json:"task_failure_last_24h"`
 }
 
 type FunnelHealthMaintenance struct {

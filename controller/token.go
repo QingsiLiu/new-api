@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const studioOnlineTokenName = "Geili Studio Online"
+const studioOnlineTokenName = model.GeiliStudioOnlineTokenName
 
 type maskedTokenResponse struct {
 	*model.Token

@@ -179,6 +179,83 @@ func LoadIndependentRegistrations(ctx context.Context, from, to int64) ([]Funnel
 	return rows, err
 }
 
+func LoadIndependentFirstAPIKeys(ctx context.Context, from, to int64) ([]FunnelTimedUser, int64, error) {
+	first := DB.WithContext(ctx).Unscoped().Model(&Token{}).
+		Select("user_id, MIN(created_time) AS at").
+		Where("user_id > 0 AND created_time > 0 AND name <> ?", GeiliStudioOnlineTokenName).
+		Group("user_id")
+	rows := make([]FunnelTimedUser, 0)
+	err := DB.WithContext(ctx).Table("(?) AS first_api_keys", first).
+		Where("at >= ? AND at < ?", from, to).Order("at ASC, user_id ASC").Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	var invalid int64
+	err = DB.WithContext(ctx).Unscoped().Model(&Token{}).
+		Where("user_id > 0 AND created_time <= 0 AND name <> ?", GeiliStudioOnlineTokenName).
+		Count(&invalid).Error
+	return rows, invalid, err
+}
+
+func LoadIndependentFirstSuccessfulTextCalls(ctx context.Context, from, to int64) ([]FunnelTimedUser, int64, error) {
+	modelNames := make([]string, 0)
+	if err := DB.WithContext(ctx).Model(&ModelRegistry{}).
+		Where("modality = ?", "text").
+		Distinct().
+		Order("model_name ASC").
+		Pluck("model_name", &modelNames).Error; err != nil {
+		return nil, 0, err
+	}
+	if len(modelNames) == 0 {
+		return []FunnelTimedUser{}, 0, nil
+	}
+	first := LOG_DB.WithContext(ctx).Model(&Log{}).
+		Select("user_id, MIN(created_at) AS at").
+		Where("user_id > 0 AND type = ? AND created_at > 0 AND model_name IN ? AND (prompt_tokens > 0 OR completion_tokens > 0)", LogTypeConsume, modelNames).
+		Group("user_id")
+	rows := make([]FunnelTimedUser, 0)
+	err := LOG_DB.WithContext(ctx).Table("(?) AS first_text_calls", first).
+		Where("at >= ? AND at < ?", from, to).Order("at ASC, user_id ASC").Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	var invalid int64
+	err = LOG_DB.WithContext(ctx).Model(&Log{}).
+		Where("user_id > 0 AND type = ? AND created_at <= 0 AND model_name IN ? AND (prompt_tokens > 0 OR completion_tokens > 0)", LogTypeConsume, modelNames).
+		Count(&invalid).Error
+	return rows, invalid, err
+}
+
+func LoadIndependentFirstActivations(ctx context.Context, from, to int64) ([]FunnelTimedUser, error) {
+	textRows, _, err := LoadIndependentFirstSuccessfulTextCalls(ctx, 1, to)
+	if err != nil {
+		return nil, err
+	}
+	taskRows, _, err := LoadIndependentFirstTasks(ctx, 1, to)
+	if err != nil {
+		return nil, err
+	}
+	firstByUser := make(map[int]int64, len(textRows)+len(taskRows))
+	for _, row := range append(textRows, taskRows...) {
+		if existing, ok := firstByUser[row.UserID]; !ok || row.At < existing {
+			firstByUser[row.UserID] = row.At
+		}
+	}
+	rows := make([]FunnelTimedUser, 0, len(firstByUser))
+	for userID, at := range firstByUser {
+		if at >= from && at < to {
+			rows = append(rows, FunnelTimedUser{UserID: userID, At: at})
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].At == rows[j].At {
+			return rows[i].UserID < rows[j].UserID
+		}
+		return rows[i].At < rows[j].At
+	})
+	return rows, nil
+}
+
 func LoadIndependentFirstTopUps(ctx context.Context, from, to int64) ([]FunnelTimedUser, int64, error) {
 	first := DB.WithContext(ctx).Model(&TopUp{}).
 		Select("user_id, MIN(complete_time) AS at").
