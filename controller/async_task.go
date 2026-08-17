@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -227,11 +228,18 @@ type asyncTaskStoredOutput struct {
 }
 
 type asyncTaskExecution struct {
-	Request      asyncTaskRequest
-	Multipart    *multipart.Form
-	MultipartErr error
-	RelayInfo    *relaycommon.RelayInfo
-	Context      context.Context
+	Request           asyncTaskRequest
+	Multipart         *multipart.Form
+	MultipartErr      error
+	RelayInfo         *relaycommon.RelayInfo
+	Context           context.Context
+	Candidates        []asyncTaskExecutionCandidate
+	UpstreamModelName string
+}
+
+type asyncTaskExecutionCandidate struct {
+	ChannelID int
+	Group     string
 }
 
 func CreateAsyncTask(c *gin.Context) {
@@ -280,11 +288,12 @@ func CreateAsyncTask(c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": gin.H{"message": "async task queue is full", "code": "queued_limit_exceeded"}})
 		return
 	}
-	channel, err := selectAsyncTaskChannel(c, request)
+	candidates, err := selectAsyncTaskCandidates(c, request)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{"message": err.Error()}})
 		return
 	}
+	channel := candidates[0].Channel
 	if setupErr := middleware.SetupContextForSelectedChannel(c, channel, request.Model); setupErr != nil {
 		status := setupErr.StatusCode
 		if status == 0 {
@@ -334,6 +343,11 @@ func CreateAsyncTask(c *gin.Context) {
 			SpecPricing:     asyncTaskSpecPricingForTask(relayInfo.PriceData.SpecPricing),
 		}
 	}
+	for _, candidate := range candidates {
+		if candidate.Channel != nil {
+			task.PrivateData.CandidateChannelIDs = append(task.PrivateData.CandidateChannelIDs, candidate.Channel.Id)
+		}
+	}
 	task.SetData(asyncTaskData{Kind: request.Kind, Action: request.Action, Model: request.Model})
 	if err := model.DB.Create(&task).Error; err != nil {
 		// Task is not persisted yet, so background/sweeper paths cannot see it;
@@ -347,9 +361,21 @@ func CreateAsyncTask(c *gin.Context) {
 	if relayInfo != nil && relayInfo.TaskRelayInfo != nil {
 		relayInfo.TaskRelayInfo.PublicTaskID = task.TaskID
 	}
-	service.LogTaskConsumption(c, relayInfo)
+	service.LogAsyncTaskConsumption(c, relayInfo)
 
-	execution := asyncTaskExecution{Request: request, Multipart: cloneAsyncMultipartForm(c.Request.MultipartForm), RelayInfo: relayInfo}
+	executionCandidates := make([]asyncTaskExecutionCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Channel == nil {
+			continue
+		}
+		executionCandidates = append(executionCandidates, asyncTaskExecutionCandidate{ChannelID: candidate.Channel.Id, Group: candidate.Group})
+	}
+	execution := asyncTaskExecution{
+		Request:    request,
+		Multipart:  cloneAsyncMultipartForm(c.Request.MultipartForm),
+		RelayInfo:  relayInfo,
+		Candidates: executionCandidates,
+	}
 	if err := startAsyncTaskExecution(task.TaskID, channel.Id, execution); err != nil {
 		completeAsyncTaskFailure(&task, request, "queued_limit_exceeded")
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": gin.H{"message": "async task queue is full", "code": "queued_limit_exceeded"}})
@@ -830,6 +856,23 @@ func asyncTaskCreateErrorStatus(err error) int {
 }
 
 func selectAsyncTaskChannel(c *gin.Context, request asyncTaskRequest) (*model.Channel, error) {
+	candidates, err := selectAsyncTaskCandidatesWithLimit(c, request, 1)
+	if err != nil {
+		return nil, err
+	}
+	return candidates[0].Channel, nil
+}
+
+func selectAsyncTaskCandidates(c *gin.Context, request asyncTaskRequest) ([]service.AsyncChannelCandidate, error) {
+	setting := operation_setting.GetAsyncFailoverSetting()
+	limit := 1
+	if setting.Enabled {
+		limit = setting.MaxAttempts
+	}
+	return selectAsyncTaskCandidatesWithLimit(c, request, limit)
+}
+
+func selectAsyncTaskCandidatesWithLimit(c *gin.Context, request asyncTaskRequest, limit int) ([]service.AsyncChannelCandidate, error) {
 	modelName := request.Model
 	if strings.TrimSpace(modelName) == "" {
 		return nil, errors.New("model is required")
@@ -838,20 +881,27 @@ func selectAsyncTaskChannel(c *gin.Context, request asyncTaskRequest) (*model.Ch
 	if group == "" {
 		group = "default"
 	}
-	channel, _, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+	candidates, err := service.CacheGetAsyncChannelCandidates(&service.AsyncChannelCandidateParam{
 		Ctx:        c,
 		ModelName:  modelName,
 		TokenGroup: group,
-		Retry:      common.GetPointer(0),
 		AsyncSpec:  asyncTaskRouteConstraint(request),
+		Limit:      limit,
+		Availability: func(_ string, channel *model.Channel) bool {
+			if channel == nil {
+				return false
+			}
+			status := service.GetAsyncCircuitStatus(asyncTaskCircuitKey(channel.Id, request))
+			return status.State != service.AsyncCircuitStateOpen && !(status.State == service.AsyncCircuitStateHalfOpen && status.ProbeActive)
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	if channel == nil {
+	if len(candidates) == 0 {
 		return nil, fmt.Errorf("no available channel for model %s", modelName)
 	}
-	return channel, nil
+	return candidates, nil
 }
 
 func asyncTaskRouteConstraint(request asyncTaskRequest) *service.AsyncSpecRouteConstraint {
@@ -1110,6 +1160,7 @@ var (
 
 	asyncTaskIdempotencyMu    sync.Mutex
 	asyncTaskIdempotencyLocks = map[string]*sync.Mutex{}
+	asyncTaskAttemptCleanupAt atomic.Int64
 )
 
 func newAsyncTaskHTTPClient() *http.Client {
@@ -1412,30 +1463,224 @@ func executeAsyncTaskInBackground(taskID string, channelID int, execution asyncT
 	if !ok {
 		return
 	}
-	channel, err := model.CacheGetChannel(channelID)
-	if err != nil || channel == nil {
-		completeAsyncTaskFailure(task, execution.Request, "channel not found")
-		return
+	candidates := asyncTaskExecutionCandidates(task, channelID, execution)
+	setting := operation_setting.GetAsyncFailoverSetting()
+	if !setting.Enabled && len(candidates) > 1 {
+		candidates = candidates[:1]
 	}
-	var outputs []asyncTaskStoredOutput
+	if setting.Enabled && setting.MaxAttempts > 0 && len(candidates) > setting.MaxAttempts {
+		candidates = candidates[:setting.MaxAttempts]
+	}
+	var finalErr *asyncAttemptError
+	attemptCount := 0
+	for _, candidate := range candidates {
+		if execution.Context != nil && execution.Context.Err() != nil {
+			return
+		}
+		reloaded, exists, reloadErr := model.GetByOnlyTaskId(taskID)
+		if reloadErr != nil || !exists || asyncTaskIsTerminal(reloaded.Status) {
+			return
+		}
+		if reloaded.Status != model.TaskStatusInProgress {
+			return
+		}
+		task = reloaded
+		channel, channelErr := model.CacheGetChannel(candidate.ChannelID)
+		if channelErr != nil || channel == nil {
+			finalErr = classifyAsyncAttemptError(errors.New("channel not found"), model.AsyncAttemptStageSelect, model.AsyncAttemptAcceptanceNotAccepted)
+			finalErr.Retryable = true
+			continue
+		}
+		circuitKey := asyncTaskCircuitKey(channel.Id, execution.Request)
+		circuitDecision := service.AcquireAsyncCircuit(circuitKey)
+		if !circuitDecision.Allowed {
+			continue
+		}
+		attemptCount++
+		if setting.MaxAttempts > 0 && attemptCount > setting.MaxAttempts {
+			break
+		}
+		upstreamModel, mappingErr := asyncMappedModelForChannel(channel, execution.Request.Model)
+		if mappingErr != nil {
+			finalErr = classifyAsyncAttemptError(mappingErr, model.AsyncAttemptStageSelect, model.AsyncAttemptAcceptanceNotAccepted)
+			break
+		}
+		attemptNo := attemptCount
+		won, routeErr := task.UpdateAttemptRoute(model.TaskStatusInProgress, channel.Id, upstreamModel, attemptNo)
+		if routeErr != nil || !won {
+			return
+		}
+		attempt := &model.AsyncTaskAttempt{
+			TaskID:          task.TaskID,
+			UserID:          task.UserId,
+			AttemptNo:       attemptNo,
+			ChannelID:       channel.Id,
+			Group:           firstAsyncNonEmpty(candidate.Group, task.Group),
+			Model:           execution.Request.Model,
+			Kind:            execution.Request.Kind,
+			Action:          execution.Request.Action,
+			SpecKey:         asyncTaskAttemptSpecKey(execution.Request),
+			Status:          model.AsyncTaskAttemptStatusRunning,
+			Stage:           model.AsyncAttemptStageSubmit,
+			AcceptanceState: model.AsyncAttemptAcceptanceNotAccepted,
+		}
+		if createErr := model.CreateAsyncTaskAttempt(attempt); createErr != nil {
+			finalErr = classifyAsyncAttemptError(createErr, model.AsyncAttemptStageSelect, model.AsyncAttemptAcceptanceNotAccepted)
+			break
+		}
+
+		attemptContext := execution.Context
+		if attemptContext == nil {
+			attemptContext = context.Background()
+		}
+		attemptContext, telemetry := withAsyncAttemptContext(attemptContext, asyncAttemptKey(task.TaskID, attemptNo))
+		attemptExecution := execution
+		attemptExecution.Context = attemptContext
+		attemptExecution.UpstreamModelName = upstreamModel
+		outputs, attemptErr := executeAsyncTaskAttempt(task, channel, attemptExecution)
+		if attemptErr == nil {
+			finishAsyncTaskAttempt(attempt, telemetry, nil)
+			service.RecordAsyncCircuitSuccess(circuitKey, circuitDecision.ProbeToken)
+			outputs, archiveErr := archiveAsyncTaskImageOutputs(attemptContext, task, execution.Request, outputs)
+			if archiveErr != nil {
+				finalErr = classifyAsyncAttemptError(archiveErr, model.AsyncAttemptStageArchive, model.AsyncAttemptAcceptanceAccepted)
+				completeAsyncTaskFailure(task, execution.Request, safeAsyncTaskError(finalErr))
+				return
+			}
+			completeAsyncTaskSuccess(task, execution.Request, outputs)
+			return
+		}
+
+		finalErr = classifyAsyncAttemptError(attemptErr, model.AsyncAttemptStageSubmit, model.AsyncAttemptAcceptanceNotAccepted)
+		finishAsyncTaskAttempt(attempt, telemetry, finalErr)
+		if finalErr.Retryable {
+			service.RecordAsyncCircuitFailure(circuitKey, circuitDecision.ProbeToken, asyncCircuitImmediateOpen(finalErr))
+		}
+		if !setting.Enabled || attemptCount >= setting.MaxAttempts || !asyncAttemptCanFailover(finalErr, channel) {
+			break
+		}
+	}
+	if finalErr == nil {
+		finalErr = classifyAsyncAttemptError(errors.New("no available channel"), model.AsyncAttemptStageSelect, model.AsyncAttemptAcceptanceNotAccepted)
+	}
+	completeAsyncTaskFailure(task, execution.Request, safeAsyncTaskError(finalErr))
+}
+
+func asyncTaskCircuitKey(channelID int, request asyncTaskRequest) service.AsyncCircuitKey {
+	return service.AsyncCircuitKey{
+		ChannelID: channelID,
+		Model:     request.Model,
+		Kind:      request.Kind,
+		Action:    request.Action,
+	}
+}
+
+func asyncCircuitImmediateOpen(err *asyncAttemptError) bool {
+	if err == nil {
+		return false
+	}
+	switch err.FailureClass {
+	case asyncFailureClassAuthentication, asyncFailureClassUpstreamQuota, asyncFailureClassModel:
+		return true
+	default:
+		return false
+	}
+}
+
+func asyncTaskExecutionCandidates(task *model.Task, initialChannelID int, execution asyncTaskExecution) []asyncTaskExecutionCandidate {
+	if len(execution.Candidates) > 0 {
+		return append([]asyncTaskExecutionCandidate(nil), execution.Candidates...)
+	}
+	if task != nil && len(task.PrivateData.CandidateChannelIDs) > 0 {
+		candidates := make([]asyncTaskExecutionCandidate, 0, len(task.PrivateData.CandidateChannelIDs))
+		for _, candidateID := range task.PrivateData.CandidateChannelIDs {
+			candidates = append(candidates, asyncTaskExecutionCandidate{ChannelID: candidateID, Group: task.Group})
+		}
+		return candidates
+	}
+	return []asyncTaskExecutionCandidate{{ChannelID: initialChannelID, Group: task.Group}}
+}
+
+func executeAsyncTaskAttempt(task *model.Task, channel *model.Channel, execution asyncTaskExecution) ([]asyncTaskStoredOutput, error) {
 	switch execution.Request.Kind {
 	case asyncTaskKindImage:
-		outputs, err = executeAsyncImageTask(task, channel, execution)
+		return executeAsyncImageTask(task, channel, execution)
 	case asyncTaskKindVideo:
-		outputs, err = executeAsyncVideoTask(task, channel, execution)
+		return executeAsyncVideoTask(task, channel, execution)
 	default:
-		err = fmt.Errorf("unsupported async task kind %s", execution.Request.Kind)
+		return nil, classifyAsyncAttemptError(
+			fmt.Errorf("unsupported async task kind %s", execution.Request.Kind),
+			model.AsyncAttemptStageSelect,
+			model.AsyncAttemptAcceptanceNotAccepted,
+		)
 	}
-	if err != nil {
-		completeAsyncTaskFailure(task, execution.Request, safeAsyncTaskError(err))
+}
+
+func finishAsyncTaskAttempt(attempt *model.AsyncTaskAttempt, telemetry *asyncAttemptTelemetry, attemptErr *asyncAttemptError) {
+	if attempt == nil {
 		return
 	}
-	outputs, err = archiveAsyncTaskImageOutputs(context.Background(), task, execution.Request, outputs)
-	if err != nil {
-		completeAsyncTaskFailure(task, execution.Request, safeAsyncTaskError(err))
-		return
+	now := time.Now()
+	attempt.CompletedAt = now.Unix()
+	if telemetry != nil {
+		if !telemetry.SubmittedAt.IsZero() {
+			attempt.SubmittedAt = telemetry.SubmittedAt.Unix()
+			attempt.SubmitLatencyMS = telemetry.SubmittedAt.Sub(telemetry.StartedAt).Milliseconds()
+		}
+		attempt.DurationMS = now.Sub(telemetry.StartedAt).Milliseconds()
+		attempt.PollCount = telemetry.PollCount
+		attempt.PollErrorCount = telemetry.PollErrorCount
+		attempt.UpstreamTaskID = telemetry.UpstreamTaskID
 	}
-	completeAsyncTaskSuccess(task, execution.Request, outputs)
+	if attemptErr == nil {
+		attempt.Status = model.AsyncTaskAttemptStatusSucceeded
+		attempt.Stage = model.AsyncAttemptStageDownload
+		attempt.AcceptanceState = model.AsyncAttemptAcceptanceAccepted
+	} else {
+		attempt.Status = model.AsyncTaskAttemptStatusFailed
+		attempt.Stage = attemptErr.Stage
+		attempt.FailureClass = attemptErr.FailureClass
+		attempt.Retryable = attemptErr.Retryable
+		attempt.AcceptanceState = attemptErr.AcceptanceState
+		attempt.HTTPStatus = attemptErr.HTTPStatus
+		attempt.ProviderCode = truncateAsyncProviderCode(attemptErr.ProviderCode)
+	}
+	_ = model.UpdateAsyncTaskAttempt(attempt)
+}
+
+func asyncTaskAttemptSpecKey(request asyncTaskRequest) string {
+	constraint := asyncTaskRouteConstraint(request)
+	if constraint == nil {
+		return ""
+	}
+	return constraint.Resolution
+}
+
+func asyncMappedModelForChannel(channel *model.Channel, originModel string) (string, error) {
+	if channel == nil {
+		return "", errors.New("channel is required")
+	}
+	mapped := strings.TrimSpace(originModel)
+	raw := strings.TrimSpace(channel.GetModelMapping())
+	if raw == "" || raw == "{}" {
+		return mapped, nil
+	}
+	modelMap := make(map[string]string)
+	if err := common.Unmarshal([]byte(raw), &modelMap); err != nil {
+		return "", errors.New("unmarshal_model_mapping_failed")
+	}
+	visited := map[string]struct{}{mapped: {}}
+	for {
+		next := strings.TrimSpace(modelMap[mapped])
+		if next == "" || next == mapped {
+			return mapped, nil
+		}
+		if _, exists := visited[next]; exists {
+			return "", errors.New("model_mapping_contains_cycle")
+		}
+		visited[next] = struct{}{}
+		mapped = next
+	}
 }
 
 func completeAsyncTaskSuccess(task *model.Task, request asyncTaskRequest, outputs []asyncTaskStoredOutput) {
@@ -1452,6 +1697,7 @@ func completeAsyncTaskSuccess(task *model.Task, request asyncTaskRequest, output
 	if err != nil || !won {
 		return
 	}
+	service.AttributeAsyncTaskChannelUsage(task)
 }
 
 func completeAsyncTaskFailure(task *model.Task, request asyncTaskRequest, reason string) {
@@ -1547,11 +1793,30 @@ func SweepAsyncTimedOutTasksForTest(cutoffUnix int64, limit int) {
 func UpdateAsyncTaskBulk() {
 	for {
 		time.Sleep(15 * time.Second)
+		cleanupExpiredAsyncTaskAttempts(time.Now())
 		if constant.TaskTimeoutMinutes <= 0 {
 			continue
 		}
 		cutoff := time.Now().Unix() - int64(constant.TaskTimeoutMinutes)*60
 		sweepAsyncTimedOutTasks(context.Background(), cutoff, constant.TaskQueryLimit)
+	}
+}
+
+func cleanupExpiredAsyncTaskAttempts(now time.Time) {
+	last := asyncTaskAttemptCleanupAt.Load()
+	if last > 0 && now.Unix()-last < 24*60*60 {
+		return
+	}
+	if !asyncTaskAttemptCleanupAt.CompareAndSwap(last, now.Unix()) {
+		return
+	}
+	days := operation_setting.GetAsyncFailoverSetting().AttemptRetentionDays
+	if days <= 0 {
+		return
+	}
+	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour).Unix()
+	if _, err := model.DeleteExpiredAsyncTaskAttempts(cutoff); err != nil {
+		common.SysError("failed to delete expired async task attempts: " + err.Error())
 	}
 }
 
@@ -1640,6 +1905,9 @@ func executeAsyncVideoTask(task *model.Task, channel *model.Channel, execution a
 }
 
 func asyncTaskUpstreamModel(execution asyncTaskExecution) string {
+	if strings.TrimSpace(execution.UpstreamModelName) != "" {
+		return execution.UpstreamModelName
+	}
 	if execution.RelayInfo != nil && strings.TrimSpace(execution.RelayInfo.UpstreamModelName) != "" {
 		return execution.RelayInfo.UpstreamModelName
 	}
@@ -1659,6 +1927,7 @@ func executeAsyncImageGeneration(parentCtx context.Context, channel *model.Chann
 	}
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	applyAsyncAttemptIdempotencyHeader(parentCtx, channel, upstreamReq)
 	return doAsyncImageRequest(upstreamReq, asyncImageOutputMimeType(request.Parameters))
 }
 
@@ -1704,6 +1973,7 @@ func executeAsyncImageEdit(parentCtx context.Context, channel *model.Channel, ex
 	}
 	upstreamReq.Header.Set("Content-Type", writer.FormDataContentType())
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	applyAsyncAttemptIdempotencyHeader(parentCtx, channel, upstreamReq)
 	return doAsyncImageRequest(upstreamReq, asyncImageOutputMimeType(request.Parameters))
 }
 
@@ -1735,6 +2005,7 @@ func executeAsyncGeminiImageEdit(parentCtx context.Context, channel *model.Chann
 	}
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("x-goog-api-key", channel.Key)
+	applyAsyncAttemptIdempotencyHeader(parentCtx, channel, upstreamReq)
 	return doAsyncGeminiImageRequest(upstreamReq)
 }
 
@@ -2006,14 +2277,21 @@ func asyncImageOutputMimeType(parameters map[string]interface{}) string {
 }
 
 func doAsyncImageRequest(request *http.Request, defaultMimeType string) ([]asyncTaskStoredOutput, error) {
+	markAsyncAttemptSubmitted(request.Context())
 	response, err := asyncTaskHTTPClient.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, classifyAsyncAttemptError(err, model.AsyncAttemptStageSubmit, model.AsyncAttemptAcceptanceUnknown)
 	}
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
-		return nil, fmt.Errorf("upstream image task failed: %s", common.LocalLogPreview(string(body)))
+		return nil, newAsyncHTTPAttemptError(
+			model.AsyncAttemptStageSubmit,
+			response.StatusCode,
+			asyncProviderCodeFromBody(body),
+			"upstream image task failed: "+common.LocalLogPreview(string(body)),
+			model.AsyncAttemptAcceptanceNotAccepted,
+		)
 	}
 	var payload struct {
 		Error *struct {
@@ -2137,8 +2415,11 @@ func executeAsyncKieImageTask(parentCtx context.Context, task *model.Task, chann
 		return nil, errors.New("KIE image task returned no task id")
 	}
 	persistAsyncTaskUpstreamTaskID(task, taskID)
+	markAsyncAttemptUpstreamTask(parentCtx, taskID)
 	for {
-		record, err := pollAsyncKieVideoTask(parentCtx, channel, taskID)
+		record, err := asyncPollWithTransientRetry(parentCtx, func() (asyncKieRecordInfoResponse, error) {
+			return pollAsyncKieVideoTask(parentCtx, channel, taskID)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -2151,7 +2432,11 @@ func executeAsyncKieImageTask(parentCtx context.Context, task *model.Task, chann
 			return outputs, nil
 		}
 		if asyncKieTaskFailed(status) {
-			return nil, errors.New(firstAsyncNonEmpty(record.Data.FailReason, record.Data.FailMsg, record.Data.Error, record.Msg, "KIE image task failed"))
+			return nil, classifyAsyncAttemptError(
+				errors.New(firstAsyncNonEmpty(record.Data.FailReason, record.Data.FailMsg, record.Data.Error, record.Msg, "KIE image task failed")),
+				model.AsyncAttemptStagePoll,
+				model.AsyncAttemptAcceptanceAccepted,
+			)
 		}
 		select {
 		case <-parentCtx.Done():
@@ -2170,8 +2455,11 @@ func executeAsyncOpenAIVideoTask(parentCtx context.Context, task *model.Task, ch
 		return nil, errors.New("OpenAI video task returned no task id")
 	}
 	persistAsyncTaskUpstreamTaskID(task, taskID)
+	markAsyncAttemptUpstreamTask(parentCtx, taskID)
 	for {
-		record, err := pollAsyncOpenAIVideoTask(parentCtx, channel, taskID)
+		record, err := asyncPollWithTransientRetry(parentCtx, func() (asyncOpenAIVideoTaskResponse, error) {
+			return pollAsyncOpenAIVideoTask(parentCtx, channel, taskID)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -2183,7 +2471,11 @@ func executeAsyncOpenAIVideoTask(parentCtx context.Context, task *model.Task, ch
 			}}, nil
 		}
 		if asyncOpenAIVideoTaskFailed(status) {
-			return nil, errors.New(firstAsyncNonEmpty(asyncOpenAIVideoErrorMessage(record.Error), record.FailReason, record.Message, "OpenAI video task failed"))
+			return nil, classifyAsyncAttemptError(
+				errors.New(firstAsyncNonEmpty(asyncOpenAIVideoErrorMessage(record.Error), record.FailReason, record.Message, "OpenAI video task failed")),
+				model.AsyncAttemptStagePoll,
+				model.AsyncAttemptAcceptanceAccepted,
+			)
 		}
 		select {
 		case <-parentCtx.Done():
@@ -2206,14 +2498,22 @@ func createAsyncOpenAIVideoTask(parentCtx context.Context, channel *model.Channe
 	}
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	applyAsyncAttemptIdempotencyHeader(parentCtx, channel, upstreamReq)
+	markAsyncAttemptSubmitted(parentCtx)
 	response, err := asyncTaskHTTPClient.Do(upstreamReq)
 	if err != nil {
-		return "", err
+		return "", classifyAsyncAttemptError(err, model.AsyncAttemptStageSubmit, model.AsyncAttemptAcceptanceUnknown)
 	}
 	defer response.Body.Close()
 	responseBody, _ := io.ReadAll(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
-		return "", fmt.Errorf("upstream OpenAI video task failed: %s", common.LocalLogPreview(string(responseBody)))
+		return "", newAsyncHTTPAttemptError(
+			model.AsyncAttemptStageSubmit,
+			response.StatusCode,
+			asyncProviderCodeFromBody(responseBody),
+			"upstream OpenAI video task failed: "+common.LocalLogPreview(string(responseBody)),
+			model.AsyncAttemptAcceptanceNotAccepted,
+		)
 	}
 	var payload asyncOpenAIVideoTaskResponse
 	if err := common.Unmarshal(responseBody, &payload); err != nil {
@@ -2235,12 +2535,20 @@ func pollAsyncOpenAIVideoTask(parentCtx context.Context, channel *model.Channel,
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
 	response, err := asyncTaskHTTPClient.Do(upstreamReq)
 	if err != nil {
-		return asyncOpenAIVideoTaskResponse{}, err
+		markAsyncAttemptPoll(parentCtx, true)
+		return asyncOpenAIVideoTaskResponse{}, classifyAsyncAttemptError(err, model.AsyncAttemptStagePoll, model.AsyncAttemptAcceptanceAccepted)
 	}
+	markAsyncAttemptPoll(parentCtx, false)
 	defer response.Body.Close()
 	responseBody, _ := io.ReadAll(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
-		return asyncOpenAIVideoTaskResponse{}, fmt.Errorf("upstream OpenAI video task poll failed: %s", common.LocalLogPreview(string(responseBody)))
+		return asyncOpenAIVideoTaskResponse{}, newAsyncHTTPAttemptError(
+			model.AsyncAttemptStagePoll,
+			response.StatusCode,
+			asyncProviderCodeFromBody(responseBody),
+			"upstream OpenAI video task poll failed: "+common.LocalLogPreview(string(responseBody)),
+			model.AsyncAttemptAcceptanceAccepted,
+		)
 	}
 	var payload asyncOpenAIVideoTaskResponse
 	if err := common.Unmarshal(responseBody, &payload); err != nil {
@@ -2665,8 +2973,11 @@ func executeAsyncKieSeedanceVideoTask(parentCtx context.Context, task *model.Tas
 		return nil, errors.New("KIE video task returned no task id")
 	}
 	persistAsyncTaskUpstreamTaskID(task, taskID)
+	markAsyncAttemptUpstreamTask(parentCtx, taskID)
 	for {
-		record, err := pollAsyncKieVideoTask(parentCtx, channel, taskID)
+		record, err := asyncPollWithTransientRetry(parentCtx, func() (asyncKieRecordInfoResponse, error) {
+			return pollAsyncKieVideoTask(parentCtx, channel, taskID)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -2679,7 +2990,11 @@ func executeAsyncKieSeedanceVideoTask(parentCtx context.Context, task *model.Tas
 			return outputs, nil
 		}
 		if asyncKieTaskFailed(status) {
-			return nil, errors.New(firstAsyncNonEmpty(record.Data.FailReason, record.Data.Error, record.Msg, "KIE video task failed"))
+			return nil, classifyAsyncAttemptError(
+				errors.New(firstAsyncNonEmpty(record.Data.FailReason, record.Data.Error, record.Msg, "KIE video task failed")),
+				model.AsyncAttemptStagePoll,
+				model.AsyncAttemptAcceptanceAccepted,
+			)
 		}
 		select {
 		case <-parentCtx.Done():
@@ -2710,14 +3025,22 @@ func createAsyncKieTask(parentCtx context.Context, channel *model.Channel, paylo
 	}
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
+	applyAsyncAttemptIdempotencyHeader(parentCtx, channel, upstreamReq)
+	markAsyncAttemptSubmitted(parentCtx)
 	response, err := asyncTaskHTTPClient.Do(upstreamReq)
 	if err != nil {
-		return "", err
+		return "", classifyAsyncAttemptError(err, model.AsyncAttemptStageSubmit, model.AsyncAttemptAcceptanceUnknown)
 	}
 	defer response.Body.Close()
 	responseBody, _ := io.ReadAll(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
-		return "", fmt.Errorf("upstream KIE %s task failed: %s", kind, common.LocalLogPreview(string(responseBody)))
+		return "", newAsyncHTTPAttemptError(
+			model.AsyncAttemptStageSubmit,
+			response.StatusCode,
+			asyncProviderCodeFromBody(responseBody),
+			fmt.Sprintf("upstream KIE %s task failed: %s", kind, common.LocalLogPreview(string(responseBody))),
+			model.AsyncAttemptAcceptanceNotAccepted,
+		)
 	}
 	var responsePayload asyncKieCreateTaskResponse
 	if err := common.Unmarshal(responseBody, &responsePayload); err != nil {
@@ -2740,12 +3063,20 @@ func pollAsyncKieVideoTask(parentCtx context.Context, channel *model.Channel, ta
 	upstreamReq.Header.Set("Authorization", "Bearer "+channel.Key)
 	response, err := asyncTaskHTTPClient.Do(upstreamReq)
 	if err != nil {
-		return asyncKieRecordInfoResponse{}, err
+		markAsyncAttemptPoll(parentCtx, true)
+		return asyncKieRecordInfoResponse{}, classifyAsyncAttemptError(err, model.AsyncAttemptStagePoll, model.AsyncAttemptAcceptanceAccepted)
 	}
+	markAsyncAttemptPoll(parentCtx, false)
 	defer response.Body.Close()
 	responseBody, _ := io.ReadAll(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
-		return asyncKieRecordInfoResponse{}, fmt.Errorf("upstream KIE video task poll failed: %s", common.LocalLogPreview(string(responseBody)))
+		return asyncKieRecordInfoResponse{}, newAsyncHTTPAttemptError(
+			model.AsyncAttemptStagePoll,
+			response.StatusCode,
+			asyncProviderCodeFromBody(responseBody),
+			"upstream KIE video task poll failed: "+common.LocalLogPreview(string(responseBody)),
+			model.AsyncAttemptAcceptanceAccepted,
+		)
 	}
 	var payload asyncKieRecordInfoResponse
 	if err := common.Unmarshal(responseBody, &payload); err != nil {
@@ -3069,18 +3400,28 @@ func persistAsyncTaskUpstreamTaskID(task *model.Task, upstreamTaskID string) {
 	}
 	task.PrivateData.UpstreamTaskID = strings.TrimSpace(upstreamTaskID)
 	task.UpdatedAt = time.Now().Unix()
-	_ = model.DB.Model(task).Select("private_data", "updated_at").Updates(task).Error
+	_ = model.DB.Model(task).
+		Where("status = ?", model.TaskStatusInProgress).
+		Select("private_data", "updated_at").
+		Updates(task).Error
 }
 
 func doAsyncGeminiImageRequest(request *http.Request) ([]asyncTaskStoredOutput, error) {
+	markAsyncAttemptSubmitted(request.Context())
 	response, err := asyncTaskHTTPClient.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, classifyAsyncAttemptError(err, model.AsyncAttemptStageSubmit, model.AsyncAttemptAcceptanceUnknown)
 	}
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
-		return nil, fmt.Errorf("upstream image task failed: %s", common.LocalLogPreview(string(body)))
+		return nil, newAsyncHTTPAttemptError(
+			model.AsyncAttemptStageSubmit,
+			response.StatusCode,
+			asyncProviderCodeFromBody(body),
+			"upstream image task failed: "+common.LocalLogPreview(string(body)),
+			model.AsyncAttemptAcceptanceNotAccepted,
+		)
 	}
 	var payload dto.GeminiChatResponse
 	if err := common.Unmarshal(body, &payload); err != nil {

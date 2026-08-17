@@ -81,8 +81,11 @@ func executeAsyncLsSeedanceVideoTask(parentCtx context.Context, task *model.Task
 		return nil, errors.New("Ls.API Seedance video task returned no task id")
 	}
 	persistAsyncTaskUpstreamTaskID(task, taskID)
+	markAsyncAttemptUpstreamTask(parentCtx, taskID)
 	for {
-		record, err := pollAsyncLsSeedanceVideoTask(parentCtx, channel, taskID)
+		record, err := asyncPollWithTransientRetry(parentCtx, func() (asyncLsSeedanceTaskResponse, error) {
+			return pollAsyncLsSeedanceVideoTask(parentCtx, channel, taskID)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -98,7 +101,11 @@ func executeAsyncLsSeedanceVideoTask(parentCtx context.Context, task *model.Task
 			}}, nil
 		}
 		if asyncLsSeedanceTaskFailed(status) {
-			return nil, errors.New(firstAsyncNonEmpty(record.Data.Fail, record.Data.Error, record.Data.Message, record.Message, record.Error, "Ls.API Seedance video task failed"))
+			return nil, classifyAsyncAttemptError(
+				errors.New(firstAsyncNonEmpty(record.Data.Fail, record.Data.Error, record.Data.Message, record.Message, record.Error, "Ls.API Seedance video task failed")),
+				model.AsyncAttemptStagePoll,
+				model.AsyncAttemptAcceptanceAccepted,
+			)
 		}
 		select {
 		case <-parentCtx.Done():
@@ -312,14 +319,35 @@ func doAsyncLsSeedanceJSON(parentCtx context.Context, channel *model.Channel, me
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	stage := model.AsyncAttemptStageSubmit
+	acceptance := model.AsyncAttemptAcceptanceNotAccepted
+	if method == http.MethodGet {
+		stage = model.AsyncAttemptStagePoll
+		acceptance = model.AsyncAttemptAcceptanceAccepted
+	} else {
+		applyAsyncAttemptIdempotencyHeader(parentCtx, channel, req)
+		markAsyncAttemptSubmitted(parentCtx)
+	}
 	resp, err := asyncTaskHTTPClient.Do(req)
 	if err != nil {
-		return err
+		if method == http.MethodGet {
+			markAsyncAttemptPoll(parentCtx, true)
+		}
+		return classifyAsyncAttemptError(err, stage, acceptance)
+	}
+	if method == http.MethodGet {
+		markAsyncAttemptPoll(parentCtx, false)
 	}
 	defer resp.Body.Close()
 	responseBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= http.StatusBadRequest {
-		return fmt.Errorf("status %d: %s", resp.StatusCode, common.LocalLogPreview(string(responseBody)))
+		return newAsyncHTTPAttemptError(
+			stage,
+			resp.StatusCode,
+			asyncProviderCodeFromBody(responseBody),
+			fmt.Sprintf("status %d: %s", resp.StatusCode, common.LocalLogPreview(string(responseBody))),
+			acceptance,
+		)
 	}
 	if out == nil {
 		return nil

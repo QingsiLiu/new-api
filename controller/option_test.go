@@ -84,6 +84,19 @@ func TestUpdateOptionRejectsInvalidAsyncSpecPricingBeforePersisting(t *testing.T
 	require.Zero(t, count)
 }
 
+func TestUpdateOptionRejectsInvalidAsyncFailoverLimitBeforePersisting(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+
+	response, status := callUpdateOptionForTest(t, `{"key":"AsyncFailoverMaxAttempts","value":"4"}`)
+
+	require.Equal(t, http.StatusOK, status)
+	require.False(t, response.Success)
+	require.Contains(t, response.Message, "between 1 and 3")
+	var count int64
+	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", "AsyncFailoverMaxAttempts").Count(&count).Error)
+	require.Zero(t, count)
+}
+
 func TestUpdateOptionRejectsClassicFrontendTheme(t *testing.T) {
 	db := setupOptionControllerTestDB(t)
 

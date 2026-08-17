@@ -171,6 +171,9 @@ func InitOptionMap() {
 	common.OptionMap["AsyncTaskSpecPricingEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskSpecPricingEnabled)
 	common.OptionMap["AsyncTaskProductRoutesEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskProductRoutesEnabled)
 	common.OptionMap["AsyncTaskServiceUserProxyEnabled"] = strconv.FormatBool(operation_setting.AsyncTaskServiceUserProxyEnabled)
+	for key, value := range operation_setting.AsyncFailoverDefaultOptions() {
+		common.OptionMap[key] = value
+	}
 	common.OptionMap["AsyncSpecPricing"] = operation_setting.AsyncSpecPricing2JSONString()
 	common.OptionMap["QuotaPerCNY"] = strconv.FormatFloat(common.CNYQuotaUnit, 'f', -1, 64)
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(setting.ModelRequestRateLimitEnabled)
@@ -297,6 +300,9 @@ func UpdateOption(key string, value string) error {
 }
 
 func validateOptionBeforePersist(key string, value string) error {
+	if operation_setting.IsAsyncFailoverOption(key) {
+		return operation_setting.ValidateAsyncFailoverOption(key, value)
+	}
 	switch key {
 	case "QuotaPerCNY":
 		quotaPerCNY, parseErr := strconv.ParseFloat(value, 64)
@@ -372,6 +378,9 @@ func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value
+	if operation_setting.IsAsyncFailoverOption(key) {
+		return operation_setting.UpdateAsyncFailoverOption(key, value)
+	}
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
 	if handleConfigUpdate(key, value) {

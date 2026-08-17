@@ -18,6 +18,17 @@ import (
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
 func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
+	logTaskConsumption(c, info, true)
+}
+
+// LogAsyncTaskConsumption records the single user reservation/usage row for a
+// unified async task without attributing quota to the initially selected
+// channel. The winning channel is credited only after the task success CAS.
+func LogAsyncTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
+	logTaskConsumption(c, info, false)
+}
+
+func logTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, attributeChannel bool) {
 	tokenName := c.GetString("token_name")
 	logContent := fmt.Sprintf("操作 %s", info.Action)
 	// 支持任务仅按次计费
@@ -70,7 +81,18 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		Other:     other,
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(info.UserId, info.PriceData.Quota)
-	model.UpdateChannelUsedQuota(info.ChannelId, info.PriceData.Quota)
+	if attributeChannel {
+		model.UpdateChannelUsedQuota(info.ChannelId, info.PriceData.Quota)
+	}
+}
+
+// AttributeAsyncTaskChannelUsage assigns the already charged task quota to the
+// final successful channel. Call only after winning the task success CAS.
+func AttributeAsyncTaskChannelUsage(task *model.Task) {
+	if task == nil || task.ChannelId <= 0 || task.Quota <= 0 {
+		return
+	}
+	model.UpdateChannelUsedQuota(task.ChannelId, task.Quota)
 }
 
 // ---------------------------------------------------------------------------

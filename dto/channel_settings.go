@@ -18,7 +18,22 @@ type ChannelSettings struct {
 	SystemPrompt           string           `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool             `json:"system_prompt_override,omitempty"`
 	AsyncSpecRoutes        []AsyncSpecRoute `json:"async_spec_routes,omitempty"`
+	AsyncFailover          AsyncFailover    `json:"async_failover,omitempty"`
 }
+
+type AsyncFailover struct {
+	// UnknownSubmit controls whether an ambiguous POST timeout may move to a
+	// different channel. Empty/conservative is the safe default. Idempotent
+	// sends a stable Idempotency-Key header. Reconcile is reserved for adapters
+	// that implement provider-side lookup before a future failover decision.
+	UnknownSubmit string `json:"unknown_submit,omitempty"`
+}
+
+const (
+	AsyncFailoverUnknownSubmitConservative = "conservative"
+	AsyncFailoverUnknownSubmitIdempotent   = "idempotent"
+	AsyncFailoverUnknownSubmitReconcile    = "reconcile"
+)
 
 type AsyncSpecRoute struct {
 	Kind        string   `json:"kind,omitempty"`

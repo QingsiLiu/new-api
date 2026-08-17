@@ -29,6 +29,16 @@ type ChannelSelectionFilterResult struct {
 
 type ChannelSelectionFilter func(*Channel) ChannelSelectionFilterResult
 
+// ChannelCandidate is a detached selection snapshot used by the async media
+// failover planner. Channel is copied from the cache (or loaded from the DB), so
+// callers never retain a pointer to the shared channel cache after its lock is
+// released.
+type ChannelCandidate struct {
+	Channel  *Channel
+	Priority int64
+	Weight   int
+}
+
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
@@ -110,6 +120,250 @@ func SyncChannelCache(frequency int) {
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
 	return GetRandomSatisfiedChannelWithSelectionFilter(group, model, retry, requestPath, nil)
+}
+
+// GetSatisfiedChannelCandidatesWithSelectionFilter returns every enabled
+// channel that can serve group/model/requestPath, ordered by descending
+// priority. It intentionally does not randomize candidates; async-only callers
+// perform weighted sampling without replacement after applying request-scoped
+// exclusions and health filters.
+//
+// Exact model abilities take precedence. The normalized model name is consulted
+// only when the exact name has no enabled, path-compatible channels, matching
+// the existing single-channel selection behavior.
+func GetSatisfiedChannelCandidatesWithSelectionFilter(group string, modelName string, requestPath string, filter ChannelSelectionFilter) ([]ChannelCandidate, error) {
+	if !common.MemoryCacheEnabled {
+		return getSatisfiedChannelCandidatesFromDB(group, modelName, requestPath, filter)
+	}
+	return getSatisfiedChannelCandidatesFromCache(group, modelName, requestPath, filter)
+}
+
+func getSatisfiedChannelCandidatesFromCache(group string, modelName string, requestPath string, filter ChannelSelectionFilter) ([]ChannelCandidate, error) {
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	channelIDs := cachedCandidateChannelIDs(group, modelName, requestPath)
+	if len(channelIDs) == 0 {
+		return []ChannelCandidate{}, nil
+	}
+
+	filteredIDs, err := applyChannelSelectionFilter(channelIDs, filter, func(channelID int) (*Channel, bool) {
+		channel, ok := channelsIDM[channelID]
+		return channel, ok
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := make([]ChannelCandidate, 0, len(filteredIDs))
+	seen := make(map[int]struct{}, len(filteredIDs))
+	for _, channelID := range filteredIDs {
+		if _, ok := seen[channelID]; ok {
+			continue
+		}
+		channel, ok := channelsIDM[channelID]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelID)
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		seen[channelID] = struct{}{}
+		channelCopy := cloneChannelForSelection(channel)
+		candidates = append(candidates, ChannelCandidate{
+			Channel:  channelCopy,
+			Priority: channelCopy.GetPriority(),
+			Weight:   channelCopy.GetWeight(),
+		})
+	}
+	orderChannelCandidates(candidates)
+	return candidates, nil
+}
+
+func cachedCandidateChannelIDs(group string, modelName string, requestPath string) []int {
+	if group2model2channels == nil {
+		return nil
+	}
+	channelIDs := filterChannelsByRequestPathAndModel(group2model2channels[group][modelName], requestPath, modelName)
+	if len(channelIDs) > 0 {
+		return channelIDs
+	}
+	normalizedModelName := ratio_setting.FormatMatchingModelName(modelName)
+	if normalizedModelName == "" || normalizedModelName == modelName {
+		return nil
+	}
+	return filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModelName], requestPath, modelName)
+}
+
+func getSatisfiedChannelCandidatesFromDB(group string, modelName string, requestPath string, filter ChannelSelectionFilter) ([]ChannelCandidate, error) {
+	candidates, err := getExactSatisfiedChannelCandidatesFromDB(group, modelName, modelName, requestPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		normalizedModelName := ratio_setting.FormatMatchingModelName(modelName)
+		if normalizedModelName != "" && normalizedModelName != modelName {
+			candidates, err = getExactSatisfiedChannelCandidatesFromDB(group, normalizedModelName, modelName, requestPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return []ChannelCandidate{}, nil
+	}
+
+	channelsByID := make(map[int]*Channel, len(candidates))
+	channelIDs := make([]int, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Channel == nil {
+			continue
+		}
+		channelsByID[candidate.Channel.Id] = candidate.Channel
+		channelIDs = append(channelIDs, candidate.Channel.Id)
+	}
+	filteredIDs, err := applyChannelSelectionFilter(channelIDs, filter, func(channelID int) (*Channel, bool) {
+		channel, ok := channelsByID[channelID]
+		return channel, ok
+	})
+	if err != nil {
+		return nil, err
+	}
+	allowed := make(map[int]struct{}, len(filteredIDs))
+	for _, channelID := range filteredIDs {
+		allowed[channelID] = struct{}{}
+	}
+	filtered := make([]ChannelCandidate, 0, len(filteredIDs))
+	for _, candidate := range candidates {
+		if candidate.Channel == nil {
+			continue
+		}
+		if _, ok := allowed[candidate.Channel.Id]; ok {
+			filtered = append(filtered, candidate)
+		}
+	}
+	orderChannelCandidates(filtered)
+	return filtered, nil
+}
+
+func getExactSatisfiedChannelCandidatesFromDB(group string, abilityModelName string, requestModelName string, requestPath string) ([]ChannelCandidate, error) {
+	abilities := make([]Ability, 0)
+	if err := DB.Find(&abilities, commonGroupCol+" = ? and model = ? and enabled = ?", group, abilityModelName, true).Error; err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		return []ChannelCandidate{}, nil
+	}
+
+	channelIDs := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+	channels := make([]Channel, 0, len(channelIDs))
+	if err := DB.Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+
+	candidates := make([]ChannelCandidate, 0, len(channels))
+	for i := range channels {
+		channel := &channels[i]
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if requestPath != "" && channel.Type == constant.ChannelTypeAdvancedCustom {
+			config := channel.GetOtherSettings().AdvancedCustom
+			if config == nil || !config.SupportsPathForModel(requestPath, requestModelName) {
+				continue
+			}
+		}
+		channelCopy := cloneChannelForSelection(channel)
+		candidates = append(candidates, ChannelCandidate{
+			Channel:  channelCopy,
+			Priority: channelCopy.GetPriority(),
+			Weight:   channelCopy.GetWeight(),
+		})
+	}
+	return candidates, nil
+}
+
+func orderChannelCandidates(candidates []ChannelCandidate) {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].Priority == candidates[j].Priority {
+			return candidates[i].Channel.Id < candidates[j].Channel.Id
+		}
+		return candidates[i].Priority > candidates[j].Priority
+	})
+}
+
+func cloneChannelForSelection(channel *Channel) *Channel {
+	if channel == nil {
+		return nil
+	}
+	cloned := *channel
+	cloned.OpenAIOrganization = cloneSelectionPointer(channel.OpenAIOrganization)
+	cloned.TestModel = cloneSelectionPointer(channel.TestModel)
+	cloned.Weight = cloneSelectionPointer(channel.Weight)
+	cloned.BaseURL = cloneSelectionPointer(channel.BaseURL)
+	cloned.ModelMapping = cloneSelectionPointer(channel.ModelMapping)
+	cloned.StatusCodeMapping = cloneSelectionPointer(channel.StatusCodeMapping)
+	cloned.Priority = cloneSelectionPointer(channel.Priority)
+	cloned.AutoBan = cloneSelectionPointer(channel.AutoBan)
+	cloned.Tag = cloneSelectionPointer(channel.Tag)
+	cloned.Setting = cloneSelectionPointer(channel.Setting)
+	cloned.ParamOverride = cloneSelectionPointer(channel.ParamOverride)
+	cloned.HeaderOverride = cloneSelectionPointer(channel.HeaderOverride)
+	cloned.Remark = cloneSelectionPointer(channel.Remark)
+	cloned.Keys = append([]string(nil), channel.Keys...)
+	cloned.ChannelInfo.MultiKeyStatusList = cloneIntMap(channel.ChannelInfo.MultiKeyStatusList)
+	cloned.ChannelInfo.MultiKeyDisabledReason = cloneStringMap(channel.ChannelInfo.MultiKeyDisabledReason)
+	cloned.ChannelInfo.MultiKeyDisabledTime = cloneInt64Map(channel.ChannelInfo.MultiKeyDisabledTime)
+	return &cloned
+}
+
+func cloneSelectionPointer[T any](source *T) *T {
+	if source == nil {
+		return nil
+	}
+	cloned := *source
+	return &cloned
+}
+
+func cloneIntMap(source map[int]int) map[int]int {
+	if source == nil {
+		return nil
+	}
+	cloned := make(map[int]int, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneStringMap(source map[int]string) map[int]string {
+	if source == nil {
+		return nil
+	}
+	cloned := make(map[int]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneInt64Map(source map[int]int64) map[int]int64 {
+	if source == nil {
+		return nil
+	}
+	cloned := make(map[int]int64, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func GetRandomSatisfiedChannelWithSelectionFilter(group string, model string, retry int, requestPath string, filter ChannelSelectionFilter) (*Channel, error) {

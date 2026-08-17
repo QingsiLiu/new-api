@@ -12,7 +12,9 @@ import (
 	"net/textproto"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -4060,6 +4062,189 @@ func TestAsyncTaskFailureRefundsPreConsumedQuotaOnce(t *testing.T) {
 	require.Len(t, refundLogs, 1)
 }
 
+func TestAsyncTaskFailoverUsesSecondDistinctChannelWithoutDoubleCharge(t *testing.T) {
+	withAsyncFailoverForTest(t, true, 3)
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":{"message":"Upstream service temporarily unavailable","type":"upstream_error"}}`, http.StatusBadGateway)
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"iVBORw0KGgo="}]}`))
+	}))
+	defer second.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, first.URL, "gpt-image-2")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 4001).Update("priority", 10).Error)
+	addAsyncTaskTestChannel(t, 4002, second.URL, 0, "")
+	model.InitChannelCache()
+
+	created := createAsyncTaskForTest(t, engine, token, "fail over once", "failover-success")
+	require.Eventually(t, func() bool {
+		var task model.Task
+		return model.DB.Where("task_id = ?", created.ID).First(&task).Error == nil && task.Status == model.TaskStatusSuccess
+	}, 3*time.Second, 20*time.Millisecond)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	require.Equal(t, 4002, task.ChannelId)
+	attempts, err := model.GetAsyncTaskAttempts(task.TaskID)
+	require.NoError(t, err)
+	require.Len(t, attempts, 2)
+	require.Equal(t, 4001, attempts[0].ChannelID)
+	require.Equal(t, model.AsyncTaskAttemptStatusFailed, attempts[0].Status)
+	require.True(t, attempts[0].Retryable)
+	require.Equal(t, 4002, attempts[1].ChannelID)
+	require.Equal(t, model.AsyncTaskAttemptStatusSucceeded, attempts[1].Status)
+
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000-task.Quota, user.Quota)
+	require.Equal(t, task.Quota, user.UsedQuota)
+	var firstChannel, secondChannel model.Channel
+	require.NoError(t, model.DB.First(&firstChannel, 4001).Error)
+	require.NoError(t, model.DB.First(&secondChannel, 4002).Error)
+	require.Zero(t, firstChannel.UsedQuota)
+	require.Equal(t, int64(task.Quota), secondChannel.UsedQuota)
+	var refunds int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeRefund).Count(&refunds).Error)
+	require.Zero(t, refunds)
+}
+
+func TestAsyncTaskFailoverExhaustionRefundsOnceAfterThreeDistinctChannels(t *testing.T) {
+	withAsyncFailoverForTest(t, true, 3)
+	failed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":{"message":"Upstream service temporarily unavailable","type":"upstream_error"}}`, http.StatusBadGateway)
+	}))
+	defer failed.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, failed.URL, "gpt-image-2")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 4001).Update("priority", 20).Error)
+	addAsyncTaskTestChannel(t, 4002, failed.URL, 10, "")
+	addAsyncTaskTestChannel(t, 4003, failed.URL, 0, "")
+	model.InitChannelCache()
+
+	created := createAsyncTaskForTest(t, engine, token, "all channels fail", "failover-exhausted")
+	require.Eventually(t, func() bool {
+		var task model.Task
+		return model.DB.Where("task_id = ?", created.ID).First(&task).Error == nil && task.Status == model.TaskStatusFailure
+	}, 3*time.Second, 20*time.Millisecond)
+
+	var task model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", created.ID).First(&task).Error)
+	attempts, err := model.GetAsyncTaskAttempts(task.TaskID)
+	require.NoError(t, err)
+	require.Len(t, attempts, 3)
+	require.Equal(t, []int{4001, 4002, 4003}, []int{attempts[0].ChannelID, attempts[1].ChannelID, attempts[2].ChannelID})
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 2001).Error)
+	require.Equal(t, 1000000, user.Quota)
+	var refunds int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeRefund).Count(&refunds).Error)
+	require.EqualValues(t, 1, refunds)
+}
+
+func TestAsyncTaskFailoverDoesNotRetryProviderParameterError(t *testing.T) {
+	withAsyncFailoverForTest(t, true, 3)
+	invalid := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":{"message":"invalid parameter","type":"invalid_request_error"}}`, http.StatusBadRequest)
+	}))
+	defer invalid.Close()
+	unusedCalls := atomic.Int64{}
+	unused := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		unusedCalls.Add(1)
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"iVBORw0KGgo="}]}`))
+	}))
+	defer unused.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, invalid.URL, "gpt-image-2")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 4001).Update("priority", 10).Error)
+	addAsyncTaskTestChannel(t, 4002, unused.URL, 0, "")
+	model.InitChannelCache()
+
+	created := createAsyncTaskForTest(t, engine, token, "invalid provider parameter", "failover-no-retry")
+	require.Eventually(t, func() bool {
+		var task model.Task
+		return model.DB.Where("task_id = ?", created.ID).First(&task).Error == nil && task.Status == model.TaskStatusFailure
+	}, 3*time.Second, 20*time.Millisecond)
+	attempts, err := model.GetAsyncTaskAttempts(created.ID)
+	require.NoError(t, err)
+	require.Len(t, attempts, 1)
+	require.Zero(t, unusedCalls.Load())
+}
+
+func TestAsyncTaskFailoverConservativeUnknownSubmitDoesNotDuplicate(t *testing.T) {
+	withAsyncFailoverForTest(t, true, 3)
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Timeout: 40 * time.Millisecond})
+	defer restoreClient()
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(150 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"iVBORw0KGgo="}]}`))
+	}))
+	defer first.Close()
+	secondCalls := atomic.Int64{}
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		secondCalls.Add(1)
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"iVBORw0KGgo="}]}`))
+	}))
+	defer second.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, first.URL, "gpt-image-2")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 4001).Update("priority", 10).Error)
+	addAsyncTaskTestChannel(t, 4002, second.URL, 0, "")
+	model.InitChannelCache()
+
+	created := createAsyncTaskForTest(t, engine, token, "unknown acceptance", "unknown-conservative")
+	require.Eventually(t, func() bool {
+		var task model.Task
+		return model.DB.Where("task_id = ?", created.ID).First(&task).Error == nil && task.Status == model.TaskStatusFailure
+	}, 3*time.Second, 20*time.Millisecond)
+	attempts, err := model.GetAsyncTaskAttempts(created.ID)
+	require.NoError(t, err)
+	require.Len(t, attempts, 1)
+	require.Equal(t, model.AsyncAttemptAcceptanceUnknown, attempts[0].AcceptanceState)
+	require.Zero(t, secondCalls.Load())
+}
+
+func TestAsyncTaskFailoverIdempotentUnknownSubmitUsesStableKeyAndFallback(t *testing.T) {
+	withAsyncFailoverForTest(t, true, 3)
+	restoreClient := setAsyncTaskHTTPClientForTest(&http.Client{Timeout: 40 * time.Millisecond})
+	defer restoreClient()
+	idempotencyHeader := make(chan string, 1)
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		idempotencyHeader <- r.Header.Get("Idempotency-Key")
+		time.Sleep(150 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"iVBORw0KGgo="}]}`))
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[{"b64_json":"iVBORw0KGgo="}]}`))
+	}))
+	defer second.Close()
+
+	engine, token := setupAsyncTaskRouterTest(t, first.URL, "gpt-image-2")
+	settingJSON := `{"async_failover":{"unknown_submit":"idempotent"}}`
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 4001).Updates(map[string]interface{}{"priority": 10, "setting": settingJSON}).Error)
+	addAsyncTaskTestChannel(t, 4002, second.URL, 0, "")
+	model.InitChannelCache()
+
+	created := createAsyncTaskForTest(t, engine, token, "idempotent failover", "unknown-idempotent")
+	require.Eventually(t, func() bool {
+		var task model.Task
+		return model.DB.Where("task_id = ?", created.ID).First(&task).Error == nil && task.Status == model.TaskStatusSuccess
+	}, 3*time.Second, 20*time.Millisecond)
+	attempts, err := model.GetAsyncTaskAttempts(created.ID)
+	require.NoError(t, err)
+	require.Len(t, attempts, 2)
+	select {
+	case header := <-idempotencyHeader:
+		require.Contains(t, header, created.ID)
+		require.Contains(t, header, "attempt-1")
+	case <-time.After(time.Second):
+		t.Fatal("first channel did not receive an idempotency key")
+	}
+}
+
 func TestAsyncTaskZeroPriceFailureDoesNotRefundOrChangeQuota(t *testing.T) {
 	withAsyncTaskSpecPricingEnabled(t, true)
 	withAsyncSpecPricingForTest(t, `{
@@ -4721,6 +4906,46 @@ func setupAsyncTaskRouterTestWithChannelAndMapping(t *testing.T, upstreamURL str
 	return engine, "sk-cavas"
 }
 
+func withAsyncFailoverForTest(t *testing.T, enabled bool, maxAttempts int) {
+	t.Helper()
+	previous := operation_setting.GetAsyncFailoverSetting()
+	require.NoError(t, operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncFailoverEnabledOption, strconv.FormatBool(enabled)))
+	require.NoError(t, operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncFailoverMaxAttemptsOption, strconv.Itoa(maxAttempts)))
+	require.NoError(t, operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncCircuitEnabledOption, "false"))
+	t.Cleanup(func() {
+		_ = operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncFailoverEnabledOption, strconv.FormatBool(previous.Enabled))
+		_ = operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncFailoverMaxAttemptsOption, strconv.Itoa(previous.MaxAttempts))
+		_ = operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncCircuitEnabledOption, strconv.FormatBool(previous.CircuitEnabled))
+	})
+}
+
+func addAsyncTaskTestChannel(t *testing.T, channelID int, upstreamURL string, priority int64, settingJSON string) {
+	t.Helper()
+	channel := &model.Channel{
+		Id:       channelID,
+		Type:     constant.ChannelTypeOpenAI,
+		Key:      "sk-upstream",
+		Status:   common.ChannelStatusEnabled,
+		Name:     fmt.Sprintf("async-failover-%d", channelID),
+		BaseURL:  &upstreamURL,
+		Models:   "gpt-image-2",
+		Group:    "default",
+		Priority: &priority,
+	}
+	if settingJSON != "" {
+		channel.Setting = &settingJSON
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "default",
+		Model:     "gpt-image-2",
+		ChannelId: channelID,
+		Enabled:   true,
+		Priority:  &priority,
+		Weight:    1,
+	}).Error)
+}
+
 func setupAsyncTaskProductRouterTest(t *testing.T, upstreamURL string, modelName string, channelType int, modelMapping string) (*gin.Engine, string) {
 	t.Helper()
 	db := setupAsyncTaskTestDB(t)
@@ -4921,7 +5146,7 @@ func setupAsyncTaskTestDB(t *testing.T) *gorm.DB {
 		waitAsyncTaskSchedulerIdleForTest()
 		resetAsyncTaskSchedulerForTest()
 	})
-	require.NoError(t, db.AutoMigrate(&model.Token{}, &model.Task{}, &model.Log{}, &model.TopUp{}, &model.UserSubscription{}))
+	require.NoError(t, db.AutoMigrate(&model.Token{}, &model.Task{}, &model.AsyncTaskAttempt{}, &model.Log{}, &model.TopUp{}, &model.UserSubscription{}))
 	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"gpt-image-2":0.01}`))
 	t.Cleanup(func() {
 		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -21,6 +22,27 @@ func TestInitOptionMapIncludesAsyncTaskSpecPricingEnabled(t *testing.T) {
 	require.True(t, imageResult.Matched)
 	require.Equal(t, "2k", imageResult.SpecKey)
 	require.NotEmpty(t, common.OptionMap["QuotaPerCNY"])
+}
+
+func TestInitOptionMapIncludesAsyncFailoverDefaults(t *testing.T) {
+	InitOptionMap()
+	require.Equal(t, "false", common.OptionMap[operation_setting.AsyncFailoverEnabledOption])
+	require.Equal(t, "3", common.OptionMap[operation_setting.AsyncFailoverMaxAttemptsOption])
+	require.Equal(t, "false", common.OptionMap[operation_setting.AsyncCircuitEnabledOption])
+}
+
+func TestUpdateOptionMapUpdatesAsyncFailoverSnapshot(t *testing.T) {
+	original := operation_setting.GetAsyncFailoverSetting()
+	t.Cleanup(func() {
+		_ = operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncFailoverEnabledOption, strconv.FormatBool(original.Enabled))
+		_ = operation_setting.UpdateAsyncFailoverOption(operation_setting.AsyncFailoverMaxAttemptsOption, strconv.Itoa(original.MaxAttempts))
+	})
+
+	require.NoError(t, updateOptionMap(operation_setting.AsyncFailoverEnabledOption, "true"))
+	require.NoError(t, updateOptionMap(operation_setting.AsyncFailoverMaxAttemptsOption, "2"))
+	snapshot := operation_setting.GetAsyncFailoverSetting()
+	require.True(t, snapshot.Enabled)
+	require.Equal(t, 2, snapshot.MaxAttempts)
 }
 
 func TestInitOptionMapSeedsAsyncSpecPricingOptionWhenMissing(t *testing.T) {

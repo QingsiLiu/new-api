@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"time"
 
@@ -101,15 +102,40 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	Key                 string `json:"key,omitempty"`
+	UpstreamTaskID      string `json:"upstream_task_id,omitempty"`      // 当前/最终尝试的上游真实 task ID
+	ResultURL           string `json:"result_url,omitempty"`            // 任务成功后的结果 URL（视频地址等）
+	CandidateChannelIDs []int  `json:"candidate_channel_ids,omitempty"` // 创建任务时冻结的无重复候选渠道
+	AttemptCount        int    `json:"attempt_count,omitempty"`         // 已开始的尝试次数
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	NodeName       string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+}
+
+// UpdateAttemptRoute conditionally advances an in-progress task to a new
+// channel attempt without allowing a stale worker to overwrite a cancel,
+// timeout, or terminal result.
+func (t *Task) UpdateAttemptRoute(fromStatus TaskStatus, channelID int, upstreamModelName string, attemptCount int) (bool, error) {
+	if t == nil || t.ID == 0 {
+		return false, gorm.ErrRecordNotFound
+	}
+	t.ChannelId = channelID
+	t.Properties.UpstreamModelName = upstreamModelName
+	t.PrivateData.AttemptCount = attemptCount
+	t.PrivateData.UpstreamTaskID = ""
+	t.UpdatedAt = common.GetTimestamp()
+	result := DB.Model(&Task{}).
+		Where("id = ? AND status = ?", t.ID, fromStatus).
+		Updates(map[string]interface{}{
+			"channel_id":   t.ChannelId,
+			"properties":   t.Properties,
+			"private_data": t.PrivateData,
+			"updated_at":   t.UpdatedAt,
+		})
+	return result.RowsAffected == 1, result.Error
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
@@ -173,7 +199,7 @@ func (p *TaskPrivateData) Scan(val interface{}) error {
 }
 
 func (p TaskPrivateData) Value() (driver.Value, error) {
-	if (p == TaskPrivateData{}) {
+	if reflect.DeepEqual(p, TaskPrivateData{}) {
 		return nil, nil
 	}
 	return common.Marshal(p)
@@ -527,6 +553,23 @@ func TaskBulkUpdateByID(ids []int64, params map[string]any) error {
 type TaskQuotaUsage struct {
 	Mode  string  `json:"mode"`
 	Count float64 `json:"count"`
+}
+
+type TaskStatusFact struct {
+	TaskID string     `json:"task_id"`
+	Status TaskStatus `json:"status"`
+}
+
+func GetTaskStatusFacts(taskIDs []string) ([]TaskStatusFact, error) {
+	facts := make([]TaskStatusFact, 0)
+	if len(taskIDs) == 0 {
+		return facts, nil
+	}
+	err := DB.Model(&Task{}).
+		Select("task_id, status").
+		Where("task_id IN ?", taskIDs).
+		Find(&facts).Error
+	return facts, err
 }
 
 // TaskCountAllTasks returns total tasks that match the given query params (admin usage)
