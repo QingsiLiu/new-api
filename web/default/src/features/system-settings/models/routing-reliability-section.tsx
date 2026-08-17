@@ -75,6 +75,17 @@ const routingReliabilitySchema = z
     AutomaticDisableKeywords: z.string(),
     AutomaticDisableStatusCodes: z.string(),
     AutomaticRetryStatusCodes: z.string(),
+    AsyncFailoverEnabled: z.boolean(),
+    AsyncFailoverMaxAttempts: z.coerce.number().int().min(1).max(3),
+    AsyncPollTransientRetries: z.coerce.number().int().min(0).max(10),
+    AsyncCircuitEnabled: z.boolean(),
+    AsyncCircuitFailureThreshold: z.coerce.number().int().min(1).max(100),
+    AsyncCircuitWindowSeconds: z.coerce.number().int().min(10).max(3600),
+    AsyncCircuitMinimumSamples: z.coerce.number().int().min(1).max(10000),
+    AsyncCircuitSuccessRateThreshold: z.coerce.number().int().min(1).max(100),
+    AsyncCircuitInitialOpenSeconds: z.coerce.number().int().min(1).max(900),
+    AsyncCircuitProbeLeaseSeconds: z.coerce.number().int().min(1).max(300),
+    AsyncTaskAttemptRetentionDays: z.coerce.number().int().min(1).max(730),
     monitor_setting: z.object({
       auto_test_channel_enabled: z.boolean(),
       auto_test_channel_minutes: z.coerce
@@ -124,6 +135,17 @@ type RoutingReliabilitySectionProps = {
     AutomaticDisableKeywords: string
     AutomaticDisableStatusCodes: string
     AutomaticRetryStatusCodes: string
+    AsyncFailoverEnabled: boolean
+    AsyncFailoverMaxAttempts: number
+    AsyncPollTransientRetries: number
+    AsyncCircuitEnabled: boolean
+    AsyncCircuitFailureThreshold: number
+    AsyncCircuitWindowSeconds: number
+    AsyncCircuitMinimumSamples: number
+    AsyncCircuitSuccessRateThreshold: number
+    AsyncCircuitInitialOpenSeconds: number
+    AsyncCircuitProbeLeaseSeconds: number
+    AsyncTaskAttemptRetentionDays: number
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
     'monitor_setting.channel_test_mode': ChannelTestMode
@@ -142,6 +164,17 @@ type NormalizedRoutingReliabilityValues = {
   AutomaticDisableKeywords: string
   AutomaticDisableStatusCodes: string
   AutomaticRetryStatusCodes: string
+  AsyncFailoverEnabled: boolean
+  AsyncFailoverMaxAttempts: number
+  AsyncPollTransientRetries: number
+  AsyncCircuitEnabled: boolean
+  AsyncCircuitFailureThreshold: number
+  AsyncCircuitWindowSeconds: number
+  AsyncCircuitMinimumSamples: number
+  AsyncCircuitSuccessRateThreshold: number
+  AsyncCircuitInitialOpenSeconds: number
+  AsyncCircuitProbeLeaseSeconds: number
+  AsyncTaskAttemptRetentionDays: number
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_mode': ChannelTestMode
@@ -163,6 +196,18 @@ const buildFormDefaults = (
   ),
   AutomaticDisableStatusCodes: defaults.AutomaticDisableStatusCodes ?? '',
   AutomaticRetryStatusCodes: defaults.AutomaticRetryStatusCodes ?? '',
+  AsyncFailoverEnabled: defaults.AsyncFailoverEnabled ?? false,
+  AsyncFailoverMaxAttempts: defaults.AsyncFailoverMaxAttempts ?? 3,
+  AsyncPollTransientRetries: defaults.AsyncPollTransientRetries ?? 3,
+  AsyncCircuitEnabled: defaults.AsyncCircuitEnabled ?? false,
+  AsyncCircuitFailureThreshold: defaults.AsyncCircuitFailureThreshold ?? 3,
+  AsyncCircuitWindowSeconds: defaults.AsyncCircuitWindowSeconds ?? 300,
+  AsyncCircuitMinimumSamples: defaults.AsyncCircuitMinimumSamples ?? 10,
+  AsyncCircuitSuccessRateThreshold:
+    defaults.AsyncCircuitSuccessRateThreshold ?? 40,
+  AsyncCircuitInitialOpenSeconds: defaults.AsyncCircuitInitialOpenSeconds ?? 60,
+  AsyncCircuitProbeLeaseSeconds: defaults.AsyncCircuitProbeLeaseSeconds ?? 30,
+  AsyncTaskAttemptRetentionDays: defaults.AsyncTaskAttemptRetentionDays ?? 180,
   monitor_setting: {
     auto_test_channel_enabled:
       defaults['monitor_setting.auto_test_channel_enabled'],
@@ -190,6 +235,18 @@ const normalizeDefaults = (
   AutomaticRetryStatusCodes: parseHttpStatusCodeRules(
     defaults.AutomaticRetryStatusCodes ?? ''
   ).normalized,
+  AsyncFailoverEnabled: defaults.AsyncFailoverEnabled ?? false,
+  AsyncFailoverMaxAttempts: defaults.AsyncFailoverMaxAttempts ?? 3,
+  AsyncPollTransientRetries: defaults.AsyncPollTransientRetries ?? 3,
+  AsyncCircuitEnabled: defaults.AsyncCircuitEnabled ?? false,
+  AsyncCircuitFailureThreshold: defaults.AsyncCircuitFailureThreshold ?? 3,
+  AsyncCircuitWindowSeconds: defaults.AsyncCircuitWindowSeconds ?? 300,
+  AsyncCircuitMinimumSamples: defaults.AsyncCircuitMinimumSamples ?? 10,
+  AsyncCircuitSuccessRateThreshold:
+    defaults.AsyncCircuitSuccessRateThreshold ?? 40,
+  AsyncCircuitInitialOpenSeconds: defaults.AsyncCircuitInitialOpenSeconds ?? 60,
+  AsyncCircuitProbeLeaseSeconds: defaults.AsyncCircuitProbeLeaseSeconds ?? 30,
+  AsyncTaskAttemptRetentionDays: defaults.AsyncTaskAttemptRetentionDays ?? 180,
   'monitor_setting.auto_test_channel_enabled':
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
@@ -215,6 +272,17 @@ const normalizeFormValues = (
   AutomaticRetryStatusCodes: parseHttpStatusCodeRules(
     values.AutomaticRetryStatusCodes
   ).normalized,
+  AsyncFailoverEnabled: values.AsyncFailoverEnabled,
+  AsyncFailoverMaxAttempts: values.AsyncFailoverMaxAttempts,
+  AsyncPollTransientRetries: values.AsyncPollTransientRetries,
+  AsyncCircuitEnabled: values.AsyncCircuitEnabled,
+  AsyncCircuitFailureThreshold: values.AsyncCircuitFailureThreshold,
+  AsyncCircuitWindowSeconds: values.AsyncCircuitWindowSeconds,
+  AsyncCircuitMinimumSamples: values.AsyncCircuitMinimumSamples,
+  AsyncCircuitSuccessRateThreshold: values.AsyncCircuitSuccessRateThreshold,
+  AsyncCircuitInitialOpenSeconds: values.AsyncCircuitInitialOpenSeconds,
+  AsyncCircuitProbeLeaseSeconds: values.AsyncCircuitProbeLeaseSeconds,
+  AsyncTaskAttemptRetentionDays: values.AsyncTaskAttemptRetentionDays,
   'monitor_setting.auto_test_channel_enabled':
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
@@ -341,6 +409,252 @@ export function RoutingReliabilitySection({
                             {t('Normalized:')} {autoRetryParsed.normalized}
                           </span>
                         )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className='flex min-w-0 flex-col gap-4'>
+            <div className='flex flex-col gap-1'>
+              <h4 className='text-sm font-medium'>
+                {t('Async media failover')}
+              </h4>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Retry image and video tasks on distinct channels without charging the user twice.'
+                )}
+              </p>
+            </div>
+            <div className='grid min-w-0 gap-6 lg:grid-cols-2 xl:grid-cols-3'>
+              <FormField
+                control={form.control}
+                name='AsyncFailoverEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Enable async failover')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Disabled by default for observation-first rollout.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncFailoverMaxAttempts'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Maximum distinct channels')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='1'
+                        max='3'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Total attempts, including the first channel.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncPollTransientRetries'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Poll transient retries')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='0'
+                        max='10'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Retry polling on the same accepted upstream task.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncCircuitEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Enforce temporary circuit breaker')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t('Temporarily skip unhealthy channel-model routes.')}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncCircuitFailureThreshold'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Consecutive failure threshold')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='1'
+                        max='100'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncCircuitMinimumSamples'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Minimum rolling samples')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='1'
+                        max='10000'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncCircuitSuccessRateThreshold'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Minimum success rate (%)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='1'
+                        max='100'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncCircuitWindowSeconds'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Rolling window (seconds)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='10'
+                        max='3600'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncCircuitInitialOpenSeconds'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Initial open duration (seconds)')}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='1'
+                        max='900'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncCircuitProbeLeaseSeconds'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Half-open probe lease (seconds)')}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='1'
+                        max='300'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AsyncTaskAttemptRetentionDays'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Attempt retention (days)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='1'
+                        max='730'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Raw provider-safe attempt audit retention.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

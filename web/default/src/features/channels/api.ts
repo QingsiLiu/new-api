@@ -21,6 +21,7 @@ import { api, type ApiRequestConfig } from '@/lib/api'
 
 import type {
   AddChannelRequest,
+  AsyncChannelHealthResponse,
   BatchDeleteParams,
   BatchSetTagParams,
   Channel,
@@ -110,6 +111,26 @@ export async function getChannel(id: number): Promise<GetChannelResponse> {
  */
 export async function getChannelOps(): Promise<ChannelOpsResponse> {
   const res = await api.get('/api/channel/ops', channelActionConfig())
+  return res.data
+}
+
+export async function getAsyncChannelHealth(
+  hours = 24
+): Promise<AsyncChannelHealthResponse> {
+  const res = await api.get('/api/channel/async-health', {
+    params: { hours },
+  })
+  return res.data
+}
+
+export async function resetAsyncChannelCircuit(
+  channelId: number
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.post(
+    `/api/channel/${channelId}/async-circuit/reset`,
+    undefined,
+    channelActionConfig()
+  )
   return res.data
 }
 

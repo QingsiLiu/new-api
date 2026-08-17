@@ -528,14 +528,22 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj: Record<string, unknown> = {
+  let settingObj: Record<string, unknown> = {}
+  if (formData.setting && formData.setting !== '{}') {
+    try {
+      settingObj = JSON.parse(formData.setting)
+    } catch {
+      settingObj = {}
+    }
+  }
+  Object.assign(settingObj, {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
-  }
+  })
   const parsedRoutes = parseOptionalJson(formData.async_spec_routes)
   if (Array.isArray(parsedRoutes) && parsedRoutes.length > 0) {
     settingObj.async_spec_routes = parsedRoutes

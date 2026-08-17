@@ -78,6 +78,19 @@ const MODELS_SECTIONS = [
           AutomaticDisableKeywords: settings.AutomaticDisableKeywords,
           AutomaticDisableStatusCodes: settings.AutomaticDisableStatusCodes,
           AutomaticRetryStatusCodes: settings.AutomaticRetryStatusCodes,
+          AsyncFailoverEnabled: settings.AsyncFailoverEnabled,
+          AsyncFailoverMaxAttempts: settings.AsyncFailoverMaxAttempts,
+          AsyncPollTransientRetries: settings.AsyncPollTransientRetries,
+          AsyncCircuitEnabled: settings.AsyncCircuitEnabled,
+          AsyncCircuitFailureThreshold: settings.AsyncCircuitFailureThreshold,
+          AsyncCircuitWindowSeconds: settings.AsyncCircuitWindowSeconds,
+          AsyncCircuitMinimumSamples: settings.AsyncCircuitMinimumSamples,
+          AsyncCircuitSuccessRateThreshold:
+            settings.AsyncCircuitSuccessRateThreshold,
+          AsyncCircuitInitialOpenSeconds:
+            settings.AsyncCircuitInitialOpenSeconds,
+          AsyncCircuitProbeLeaseSeconds: settings.AsyncCircuitProbeLeaseSeconds,
+          AsyncTaskAttemptRetentionDays: settings.AsyncTaskAttemptRetentionDays,
           'monitor_setting.auto_test_channel_enabled':
             settings['monitor_setting.auto_test_channel_enabled'],
           'monitor_setting.auto_test_channel_minutes':

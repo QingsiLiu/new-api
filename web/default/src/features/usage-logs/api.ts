@@ -110,3 +110,8 @@ export const getAllTaskLogs = (params: GetTaskLogsParams) =>
 
 export const getUserTaskLogs = (params: GetTaskLogsParams) =>
   fetchLogs('/api/task', params, false)
+
+export const getAdminTaskAttempts = async (taskId: string) => {
+  const res = await api.get(`/api/task/${encodeURIComponent(taskId)}/attempts`)
+  return res.data
+}

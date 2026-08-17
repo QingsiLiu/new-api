@@ -296,6 +296,30 @@ export interface TaskLog {
   updated_at?: number
 }
 
+export interface AsyncTaskAttemptLog {
+  id: number
+  task_id: string
+  attempt_no: number
+  channel_id: number
+  group: string
+  model: string
+  kind: string
+  action: string
+  spec_key?: string
+  status: string
+  stage?: string
+  failure_class?: string
+  retryable: boolean
+  acceptance_state: string
+  http_status?: number
+  provider_code?: string
+  started_at: number
+  completed_at?: number
+  duration_ms?: number
+  poll_count?: number
+  poll_error_count?: number
+}
+
 // ============================================================================
 // Common Log Types
 // ============================================================================

@@ -75,7 +75,7 @@ import {
   type TagRow,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
-import type { Channel } from '../types'
+import type { Channel, ChannelAsyncHealthAggregate } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { useChannels } from './channels-provider'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -148,6 +148,16 @@ function UpstreamUpdateTags({ channel }: { channel: Channel }) {
       )}
     </div>
   )
+}
+
+function getAsyncHealthVariant(
+  health: ChannelAsyncHealthAggregate
+): StatusBadgeProps['variant'] {
+  if (health.circuitState === 'open') return 'red'
+  if (health.circuitState === 'half_open') return 'yellow'
+  if (health.successRate >= 90) return 'green'
+  if (health.successRate >= 60) return 'yellow'
+  return 'red'
 }
 
 /**
@@ -497,11 +507,13 @@ function BalanceCell({ channel }: { channel: Channel }) {
 export function useChannelsColumns(
   options: {
     enableSelection?: boolean
+    asyncHealthByChannel?: Map<number, ChannelAsyncHealthAggregate>
   } = {}
 ): ColumnDef<Channel>[] {
   const { t, i18n } = useTranslation()
   const { sensitiveVisible } = useChannels()
   const enableSelection = options.enableSelection ?? true
+  const asyncHealthByChannel = options.asyncHealthByChannel
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   // The column definitions only depend on the translation function, the active
   // locale, and sensitive-data visibility. Memoizing keeps the array (and every
@@ -1018,6 +1030,53 @@ export function useChannelsColumns(
         size: 110,
       },
 
+      {
+        id: 'async_health',
+        header: t('Async Health'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => {
+          if (isTagAggregateRow(row.original)) return null
+          const health = asyncHealthByChannel?.get(row.original.id)
+          if (!health || health.attempts === 0) {
+            return <span className='text-muted-foreground text-xs'>-</span>
+          }
+          const variant = getAsyncHealthVariant(health)
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <StatusBadge
+                      label={`${health.successRate.toFixed(1)}% · ${health.attempts}`}
+                      variant={variant}
+                      size='sm'
+                      copyable={false}
+                      className='-ml-1.5'
+                    />
+                  }
+                />
+                <TooltipContent side='top' className='max-w-xs'>
+                  <div className='space-y-1 text-xs'>
+                    <p>{t('24-hour provider attempt success rate')}</p>
+                    <p>P95: {health.p95LatencyMs} ms</p>
+                    <p>
+                      {t('Circuit')}: {health.circuitState}
+                    </p>
+                    {health.lastFailure && (
+                      <p>
+                        {t('Last error')}: {health.lastFailure}
+                      </p>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        size: 145,
+        enableSorting: false,
+      },
+
       // Test Time column
       {
         accessorKey: 'test_time',
@@ -1084,6 +1143,6 @@ export function useChannelsColumns(
         meta: { pinned: 'right' as const },
       },
     ],
-    [enableSelection, t, locale, sensitiveVisible]
+    [asyncHealthByChannel, enableSelection, t, locale, sensitiveVisible]
   )
 }

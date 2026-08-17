@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type {
@@ -43,11 +24,35 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { normalizeGroupRegistryItems } from '@/features/groups/utils'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import { getChannels, searchChannels, getGroups } from '../api'
+import {
+  getAsyncChannelHealth,
+  getChannels,
+  searchChannels,
+  getGroups,
+} from '../api'
 import {
   DEFAULT_PAGE_SIZE,
   CHANNEL_STATUS,
@@ -60,7 +65,11 @@ import {
   getChannelTypeIcon,
   getChannelTypeLabel,
 } from '../lib'
-import type { Channel, ChannelSortBy } from '../types'
+import type {
+  Channel,
+  ChannelAsyncHealthAggregate,
+  ChannelSortBy,
+} from '../types'
 import { ChannelCard } from './channel-card'
 import { useChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
@@ -290,6 +299,52 @@ export function ChannelsTable() {
     placeholderData: (previousData) => previousData,
   })
 
+  const { data: asyncHealthData } = useQuery({
+    queryKey: [...channelsQueryKeys.all, 'async-health', 24],
+    queryFn: () => getAsyncChannelHealth(24),
+    refetchInterval: 60_000,
+  })
+
+  const asyncHealthByChannel = useMemo(() => {
+    const aggregates = new Map<number, ChannelAsyncHealthAggregate>()
+    for (const item of asyncHealthData?.data?.items ?? []) {
+      const current = aggregates.get(item.channel_id) ?? {
+        attempts: 0,
+        scoredAttempts: 0,
+        successes: 0,
+        successRate: 0,
+        p95LatencyMs: 0,
+        circuitState: 'closed' as const,
+      }
+      current.attempts += item.attempts
+      current.scoredAttempts += item.scored_attempts
+      current.successes += item.successes
+      current.p95LatencyMs = Math.max(current.p95LatencyMs, item.p95_latency_ms)
+      if (item.last_failure) {
+        current.lastFailure = item.last_failure
+      }
+      if (item.circuit.state === 'open') {
+        current.circuitState = 'open'
+      } else if (
+        item.circuit.state === 'half_open' &&
+        current.circuitState !== 'open'
+      ) {
+        current.circuitState = 'half_open'
+      } else if (
+        item.circuit.state === 'unknown' &&
+        current.circuitState === 'closed'
+      ) {
+        current.circuitState = 'unknown'
+      }
+      current.successRate = current.scoredAttempts
+        ? Math.round((current.successes / current.scoredAttempts) * 10_000) /
+          100
+        : 0
+      aggregates.set(item.channel_id, current)
+    }
+    return aggregates
+  }, [asyncHealthData])
+
   // Apply tag aggregation if tag mode is enabled
   const channels = useMemo(() => {
     const rawChannels = data?.data?.items || []
@@ -305,7 +360,10 @@ export function ChannelsTable() {
   const typeCounts = data?.data?.type_counts
 
   // Columns configuration
-  const columns = useChannelsColumns({ enableSelection: batchMode })
+  const columns = useChannelsColumns({
+    enableSelection: batchMode,
+    asyncHealthByChannel,
+  })
 
   // React Table instance
   const { table } = useDataTable({

@@ -36,6 +36,7 @@ import {
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+import { TaskAttemptsDialog } from '../dialogs/task-attempts-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
@@ -85,6 +86,31 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         open={open}
         onOpenChange={setOpen}
         clips={clips as AudioClip[]}
+      />
+    </>
+  )
+}
+
+function TaskAttemptsCell({ log }: { log: TaskLog }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  if (log.platform !== 'openai-async') return null
+  return (
+    <>
+      <button
+        type='button'
+        className='text-muted-foreground text-left text-[11px] hover:underline'
+        onClick={(event) => {
+          event.stopPropagation()
+          setOpen(true)
+        }}
+      >
+        {t('View attempts')}
+      </button>
+      <TaskAttemptsDialog
+        taskId={log.task_id}
+        open={open}
+        onOpenChange={setOpen}
       />
     </>
   )
@@ -184,6 +210,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             <span className='text-muted-foreground/60 truncate text-[11px]'>
               {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
             </span>
+            {isAdmin && <TaskAttemptsCell log={log} />}
           </div>
         )
       },

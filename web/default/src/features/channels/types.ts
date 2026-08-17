@@ -91,6 +91,9 @@ export interface ChannelSettings {
     models?: string[]
     resolutions?: string[]
   }>
+  async_failover?: {
+    unknown_submit?: 'conservative' | 'idempotent' | 'reconcile'
+  }
 }
 
 export interface ChannelOtherSettings {
@@ -182,6 +185,68 @@ export interface ChannelOpsResponse {
   data?: {
     retry_times: number
   }
+}
+
+export interface AsyncCircuitHealth {
+  enabled: boolean
+  state: 'closed' | 'open' | 'half_open' | 'unknown'
+  degraded?: boolean
+  probe_active?: boolean
+  retry_after_seconds?: number
+  consecutive_failures: number
+  window_samples: number
+  window_failures: number
+  backoff_level: number
+}
+
+export interface AsyncChannelHealthItem {
+  channel_id: number
+  channel_name: string
+  model: string
+  kind: string
+  action: string
+  attempts: number
+  scored_attempts: number
+  successes: number
+  failures: number
+  success_rate: number
+  p95_latency_ms: number
+  last_failure?: string
+  last_failure_at?: number
+  last_http_status?: number
+  circuit: AsyncCircuitHealth
+}
+
+export interface AsyncChannelHealthResponse {
+  success: boolean
+  message?: string
+  data?: {
+    hours: number
+    generated_at: number
+    summary: {
+      tasks: number
+      successful_tasks: number
+      failed_tasks: number
+      recovered_tasks: number
+      task_success_rate: number
+      failover_recovery_rate: number
+      average_attempts: number
+      provider_attempts: number
+      scored_attempts: number
+      successful_attempts: number
+    }
+    items: AsyncChannelHealthItem[]
+  }
+}
+
+export interface ChannelAsyncHealthAggregate {
+  attempts: number
+  scoredAttempts: number
+  successes: number
+  successRate: number
+  p95LatencyMs: number
+  circuitState: AsyncCircuitHealth['state']
+  lastFailure?: string
 }
 
 export interface ChannelTestResponse {
