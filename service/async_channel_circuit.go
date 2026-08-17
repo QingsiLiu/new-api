@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -177,6 +179,7 @@ var (
 	asyncCircuitEventSequence    atomic.Uint64
 	asyncCircuitRedisErrorLogMu  sync.Mutex
 	asyncCircuitRedisErrorLogged time.Time
+	asyncCircuitNotifyTransition = defaultAsyncCircuitNotifyTransition
 )
 
 // AcquireAsyncCircuit returns whether an async attempt may use this
@@ -247,7 +250,7 @@ func RecordAsyncCircuitSuccess(key AsyncCircuitKey, probeToken string) AsyncCirc
 	eventTTLMillis := windowMillis * 2
 	ctx, cancel := asyncCircuitRedisContext()
 	defer cancel()
-	_, err := common.RDB.Eval(ctx, asyncCircuitSuccessScript, keys.all(),
+	result, err := common.RDB.Eval(ctx, asyncCircuitSuccessScript, keys.all(),
 		nowMillis,
 		asyncCircuitEventMember(nowMillis),
 		windowMillis,
@@ -257,6 +260,9 @@ func RecordAsyncCircuitSuccess(key AsyncCircuitKey, probeToken string) AsyncCirc
 	if err != nil {
 		logAsyncCircuitRedisError("success", err)
 		return degradedAsyncCircuitStatus(true)
+	}
+	if asyncCircuitResultInt64(result) == 1 {
+		asyncCircuitNotifyTransition(key, AsyncCircuitStateClosed)
 	}
 	return GetAsyncCircuitStatus(key)
 }
@@ -286,7 +292,7 @@ func RecordAsyncCircuitFailure(key AsyncCircuitKey, probeToken string, immediate
 	}
 	ctx, cancel := asyncCircuitRedisContext()
 	defer cancel()
-	_, err := common.RDB.Eval(ctx, asyncCircuitFailureScript, keys.all(),
+	result, err := common.RDB.Eval(ctx, asyncCircuitFailureScript, keys.all(),
 		nowMillis,
 		asyncCircuitEventMember(nowMillis),
 		windowMillis,
@@ -304,7 +310,39 @@ func RecordAsyncCircuitFailure(key AsyncCircuitKey, probeToken string, immediate
 		logAsyncCircuitRedisError("failure", err)
 		return degradedAsyncCircuitStatus(true)
 	}
+	if values, ok := result.([]interface{}); ok && len(values) > 0 && asyncCircuitResultInt64(values[0]) == 1 {
+		asyncCircuitNotifyTransition(key, AsyncCircuitStateOpen)
+	}
 	return GetAsyncCircuitStatus(key)
+}
+
+func defaultAsyncCircuitNotifyTransition(key AsyncCircuitKey, state AsyncCircuitState) {
+	channelName := fmt.Sprintf("#%d", key.ChannelID)
+	if model.DB != nil {
+		if channel, err := model.CacheGetChannel(key.ChannelID); err == nil && channel != nil && strings.TrimSpace(channel.Name) != "" {
+			channelName = fmt.Sprintf("%s (#%d)", channel.Name, key.ChannelID)
+		}
+	}
+	notifyType := fmt.Sprintf("async_circuit_%s_%d_%s", state, key.ChannelID, asyncCircuitDimensionHash(key))
+	var subject, content string
+	switch state {
+	case AsyncCircuitStateOpen:
+		subject = fmt.Sprintf("异步渠道临时熔断：%s", channelName)
+		content = fmt.Sprintf("渠道 %s 的 %s / %s / %s 路由已进入临时熔断；系统将自动使用其他候选并在冷却后半开探测。", channelName, key.Model, key.Kind, key.Action)
+	case AsyncCircuitStateClosed:
+		subject = fmt.Sprintf("异步渠道已恢复：%s", channelName)
+		content = fmt.Sprintf("渠道 %s 的 %s / %s / %s 半开探测成功，临时熔断已关闭。", channelName, key.Model, key.Kind, key.Action)
+	default:
+		return
+	}
+	gopool.Go(func() {
+		NotifyRootUser(notifyType, subject, content)
+	})
+}
+
+func asyncCircuitDimensionHash(key AsyncCircuitKey) string {
+	digest := sha256.Sum256([]byte(strings.Join([]string{key.Model, key.Kind, key.Action}, "\x00")))
+	return hex.EncodeToString(digest[:6])
 }
 
 // GetAsyncCircuitStatus reads the hot circuit state without changing it.

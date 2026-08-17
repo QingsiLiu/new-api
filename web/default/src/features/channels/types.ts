@@ -236,6 +236,11 @@ export interface AsyncChannelHealthResponse {
       successful_attempts: number
     }
     items: AsyncChannelHealthItem[]
+    coverage: Array<{
+      group: string
+      model: string
+      channel_count: number
+    }>
   }
 }
 

@@ -3,6 +3,7 @@ package model
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -58,4 +59,26 @@ func TestAsyncTaskAttemptNumberIsUniquePerTask(t *testing.T) {
 	second := &AsyncTaskAttempt{TaskID: "task_unique", AttemptNo: 1, ChannelID: 2, Status: AsyncTaskAttemptStatusRunning}
 	require.NoError(t, CreateAsyncTaskAttempt(first))
 	require.Error(t, CreateAsyncTaskAttempt(second))
+}
+
+func TestAsyncMediaChannelCoverageCountsDistinctEnabledChannels(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:async-media-coverage?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}, &ModelRegistry{}))
+
+	previous := DB
+	DB = db
+	t.Cleanup(func() { DB = previous })
+
+	require.NoError(t, db.Create(&ModelRegistry{ModelName: "gpt-image-2", Slug: "gpt-image-2", Modality: "image", Enabled: true}).Error)
+	require.NoError(t, db.Create(&ModelRegistry{ModelName: "text-only", Slug: "text-only", Modality: "text", Enabled: true}).Error)
+	for _, channelID := range []int{1, 2} {
+		require.NoError(t, db.Create(&Channel{Id: channelID, Key: "test-key", Status: common.ChannelStatusEnabled, Group: "default"}).Error)
+		require.NoError(t, db.Create(&Ability{Group: "default", Model: "gpt-image-2", ChannelId: channelID, Enabled: true}).Error)
+	}
+	require.NoError(t, db.Create(&Ability{Group: "default", Model: "text-only", ChannelId: 1, Enabled: true}).Error)
+
+	coverage, err := GetAsyncMediaChannelCoverage()
+	require.NoError(t, err)
+	require.Equal(t, []AsyncMediaChannelCoverage{{Group: "default", Model: "gpt-image-2", ChannelCount: 2}}, coverage)
 }

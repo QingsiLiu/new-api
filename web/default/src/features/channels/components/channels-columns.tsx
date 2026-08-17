@@ -508,12 +508,14 @@ export function useChannelsColumns(
   options: {
     enableSelection?: boolean
     asyncHealthByChannel?: Map<number, ChannelAsyncHealthAggregate>
+    asyncCoverageByModel?: Map<string, number>
   } = {}
 ): ColumnDef<Channel>[] {
   const { t, i18n } = useTranslation()
   const { sensitiveVisible } = useChannels()
   const enableSelection = options.enableSelection ?? true
   const asyncHealthByChannel = options.asyncHealthByChannel
+  const asyncCoverageByModel = options.asyncCoverageByModel
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   // The column definitions only depend on the translation function, the active
   // locale, and sensitive-data visibility. Memoizing keeps the array (and every
@@ -1037,7 +1039,32 @@ export function useChannelsColumns(
         cell: ({ row }) => {
           if (isTagAggregateRow(row.original)) return null
           const health = asyncHealthByChannel?.get(row.original.id)
+          const singleChannelModels = parseModelsList(
+            row.original.models
+          ).filter((modelName) => asyncCoverageByModel?.get(modelName) === 1)
           if (!health || health.attempts === 0) {
+            if (singleChannelModels.length > 0) {
+              return (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <StatusBadge
+                          label={t('No fallback')}
+                          variant='yellow'
+                          size='sm'
+                          copyable={false}
+                          className='-ml-1.5'
+                        />
+                      }
+                    />
+                    <TooltipContent side='top' className='max-w-xs'>
+                      {singleChannelModels.join(', ')}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )
+            }
             return <span className='text-muted-foreground text-xs'>-</span>
           }
           const variant = getAsyncHealthVariant(health)
@@ -1062,6 +1089,11 @@ export function useChannelsColumns(
                     <p>
                       {t('Circuit')}: {health.circuitState}
                     </p>
+                    {singleChannelModels.length > 0 && (
+                      <p>
+                        {t('No fallback')}: {singleChannelModels.join(', ')}
+                      </p>
+                    )}
                     {health.lastFailure && (
                       <p>
                         {t('Last error')}: {health.lastFailure}
@@ -1143,6 +1175,13 @@ export function useChannelsColumns(
         meta: { pinned: 'right' as const },
       },
     ],
-    [asyncHealthByChannel, enableSelection, t, locale, sensitiveVisible]
+    [
+      asyncCoverageByModel,
+      asyncHealthByChannel,
+      enableSelection,
+      t,
+      locale,
+      sensitiveVisible,
+    ]
   )
 }

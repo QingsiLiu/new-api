@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sort"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -115,6 +116,50 @@ type AsyncTaskAttemptQuery struct {
 	Model         string
 	Kind          string
 	Action        string
+}
+
+type AsyncMediaChannelCoverage struct {
+	Group        string `json:"group"`
+	Model        string `json:"model"`
+	ChannelCount int    `json:"channel_count"`
+}
+
+func GetAsyncMediaChannelCoverage() ([]AsyncMediaChannelCoverage, error) {
+	type coverageRow struct {
+		Group     string `gorm:"column:group_code"`
+		Model     string
+		ChannelID int
+	}
+	rows := make([]coverageRow, 0)
+	err := DB.Table("abilities").
+		Select("abilities."+commonGroupCol+" AS group_code, abilities.model, abilities.channel_id").
+		Joins("JOIN channels ON channels.id = abilities.channel_id").
+		Joins("JOIN model_registry ON model_registry.model_name = abilities.model").
+		Where("abilities.enabled = ? AND channels.status = ? AND model_registry.enabled = ? AND model_registry.modality IN ?", true, common.ChannelStatusEnabled, true, []string{"image", "video"}).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	type coverageKey struct{ group, model string }
+	channelSets := make(map[coverageKey]map[int]struct{})
+	for _, row := range rows {
+		key := coverageKey{group: row.Group, model: row.Model}
+		if channelSets[key] == nil {
+			channelSets[key] = make(map[int]struct{})
+		}
+		channelSets[key][row.ChannelID] = struct{}{}
+	}
+	coverage := make([]AsyncMediaChannelCoverage, 0, len(channelSets))
+	for key, channels := range channelSets {
+		coverage = append(coverage, AsyncMediaChannelCoverage{Group: key.group, Model: key.model, ChannelCount: len(channels)})
+	}
+	sort.Slice(coverage, func(i, j int) bool {
+		if coverage[i].Group == coverage[j].Group {
+			return coverage[i].Model < coverage[j].Model
+		}
+		return coverage[i].Group < coverage[j].Group
+	})
+	return coverage, nil
 }
 
 func QueryAsyncTaskAttempts(query AsyncTaskAttemptQuery) ([]AsyncTaskAttempt, error) {

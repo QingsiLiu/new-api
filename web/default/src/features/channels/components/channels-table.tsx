@@ -345,6 +345,17 @@ export function ChannelsTable() {
     return aggregates
   }, [asyncHealthData])
 
+  const asyncCoverageByModel = useMemo(() => {
+    const coverage = new Map<string, number>()
+    for (const item of asyncHealthData?.data?.coverage ?? []) {
+      const current = coverage.get(item.model)
+      if (current === undefined || item.channel_count < current) {
+        coverage.set(item.model, item.channel_count)
+      }
+    }
+    return coverage
+  }, [asyncHealthData])
+
   // Apply tag aggregation if tag mode is enabled
   const channels = useMemo(() => {
     const rawChannels = data?.data?.items || []
@@ -363,6 +374,7 @@ export function ChannelsTable() {
   const columns = useChannelsColumns({
     enableSelection: batchMode,
     asyncHealthByChannel,
+    asyncCoverageByModel,
   })
 
   // React Table instance

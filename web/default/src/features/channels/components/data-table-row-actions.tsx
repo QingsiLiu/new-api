@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,7 @@ import {
 } from '@/lib/admin-permissions'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { resetAsyncChannelCircuit } from '../api'
 import { MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   channelsQueryKeys,
@@ -87,6 +89,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+  const [isResettingCircuit, setIsResettingCircuit] = useState(false)
 
   const isEnabled = isChannelEnabled(channel)
   const isMultiKey = isMultiKeyChannel(channel)
@@ -94,6 +97,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
+  const canOperate = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
   )
 
   const handleEdit = () => {
@@ -141,6 +149,25 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const handleManageKeys = () => {
     setCurrentRow(channel)
     setOpen('multi-key-manage')
+  }
+
+  const handleResetAsyncCircuit = async () => {
+    setIsResettingCircuit(true)
+    try {
+      const response = await resetAsyncChannelCircuit(channel.id)
+      if (!response.success) {
+        toast.error(response.message || t('Failed to reset async circuit'))
+        return
+      }
+      toast.success(t('Async circuit reset'))
+      await queryClient.invalidateQueries({
+        queryKey: [...channelsQueryKeys.all, 'async-health'],
+      })
+    } catch {
+      toast.error(t('Failed to reset async circuit'))
+    } finally {
+      setIsResettingCircuit(false)
+    }
   }
 
   const handleToggleStatus = async (
@@ -333,6 +360,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               </DropdownMenuShortcut>
             </DropdownMenuItem>
           )}
+
+          <DropdownMenuItem
+            disabled={!canOperate || isResettingCircuit}
+            onClick={handleResetAsyncCircuit}
+          >
+            {t('Reset async circuit')}
+            <DropdownMenuShortcut>
+              {isResettingCircuit ? (
+                <Loader2 size={16} className='animate-spin' />
+              ) : (
+                <RefreshCw size={16} />
+              )}
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 

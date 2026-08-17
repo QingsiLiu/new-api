@@ -77,6 +77,11 @@ func GetAsyncChannelHealth(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	coverage, err := model.GetAsyncMediaChannelCoverage()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -84,6 +89,7 @@ func GetAsyncChannelHealth(c *gin.Context) {
 			"generated_at": now,
 			"summary":      summary,
 			"items":        items,
+			"coverage":     coverage,
 		},
 	})
 }

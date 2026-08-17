@@ -198,6 +198,27 @@ func TestAsyncCircuitKeysHashModelAndOperation(t *testing.T) {
 	require.Contains(t, keys.base, asyncCircuitChannelPrefix(7108))
 }
 
+func TestAsyncCircuitNotifiesOnlyOpenAndRecoveryTransitions(t *testing.T) {
+	setupAsyncCircuitRedisTest(t)
+	configureAsyncCircuitTest(t, 1, 100, 40, 10, 30)
+	_, advance := setAsyncCircuitTestClock(t)
+	states := make([]AsyncCircuitState, 0, 2)
+	previousNotify := asyncCircuitNotifyTransition
+	asyncCircuitNotifyTransition = func(_ AsyncCircuitKey, state AsyncCircuitState) {
+		states = append(states, state)
+	}
+	t.Cleanup(func() { asyncCircuitNotifyTransition = previousNotify })
+	key := AsyncCircuitKey{ChannelID: 7109, Model: "notify-model", Kind: "image", Action: "generate"}
+
+	require.Equal(t, AsyncCircuitStateOpen, RecordAsyncCircuitFailure(key, "", false).State)
+	_ = RecordAsyncCircuitFailure(key, "", false)
+	advance(11 * time.Second)
+	probe := AcquireAsyncCircuit(key)
+	require.True(t, probe.Allowed)
+	require.Equal(t, AsyncCircuitStateClosed, RecordAsyncCircuitSuccess(key, probe.ProbeToken).State)
+	require.Equal(t, []AsyncCircuitState{AsyncCircuitStateOpen, AsyncCircuitStateClosed}, states)
+}
+
 func setupAsyncCircuitRedisTest(t *testing.T) *miniredis.Miniredis {
 	t.Helper()
 	server := miniredis.RunT(t)
@@ -206,10 +227,13 @@ func setupAsyncCircuitRedisTest(t *testing.T) *miniredis.Miniredis {
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	common.RDB = client
 	common.RedisEnabled = true
+	previousNotify := asyncCircuitNotifyTransition
+	asyncCircuitNotifyTransition = func(AsyncCircuitKey, AsyncCircuitState) {}
 	t.Cleanup(func() {
 		_ = client.Close()
 		common.RDB = previousRedis
 		common.RedisEnabled = previousEnabled
+		asyncCircuitNotifyTransition = previousNotify
 	})
 	return server
 }
