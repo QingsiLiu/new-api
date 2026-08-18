@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -60,7 +61,7 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 	// oidc.redirect_uri 为空则回落 ServerAddress 拼接（上游原行为）。
 	redirectUri := strings.TrimSpace(settings.RedirectUri)
 	if redirectUri == "" {
-		redirectUri = fmt.Sprintf("%s/oauth/oidc", system_setting.ServerAddress)
+		redirectUri = fmt.Sprintf("%s/oauth/oidc", common.OAuthRedirectBaseURL())
 	}
 	values := url.Values{}
 	values.Set("client_id", settings.ClientId)

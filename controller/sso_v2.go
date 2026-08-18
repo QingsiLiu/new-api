@@ -2,6 +2,7 @@ package controller
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -20,6 +21,8 @@ import (
 const (
 	ssoV2EnabledEnv      = "SSO_V2_ENABLED"
 	ssoStudioAudience    = "studio"
+	ssoPortalAudience    = "portal"
+	domainMigrationEnv   = "GEILI_DOMAIN_MIGRATION_SECRET"
 	ssoTicketRedisPrefix = "sso_ticket_v2:"
 	ssoTicketTTL         = 60 * time.Second
 )
@@ -62,7 +65,7 @@ func SSORedirectV2(c *gin.Context) {
 		return
 	}
 	audience := strings.TrimSpace(c.Query("audience"))
-	if audience != ssoStudioAudience {
+	if audience != ssoStudioAudience && audience != ssoPortalAudience {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "audience is not supported"})
 		return
 	}
@@ -125,6 +128,51 @@ func SSORedirectV2(c *gin.Context) {
 	c.Redirect(http.StatusFound, redirectURI.String())
 }
 
+// SSOMigrateV2 consumes a portal migration ticket and creates a normal New API
+// session. It is server-to-server only; the shared secret never reaches a
+// browser and the ticket remains single-use in Redis.
+func SSOMigrateV2(c *gin.Context) {
+	if !ssoV2Enabled() {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "SSO v2 is not enabled"})
+		return
+	}
+	expected := strings.TrimSpace(os.Getenv(domainMigrationEnv))
+	provided := strings.TrimSpace(c.GetHeader("X-Geili-Domain-Migration"))
+	if expected == "" || subtle.ConstantTimeCompare([]byte(expected), []byte(provided)) != 1 {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "migration authorization required"})
+		return
+	}
+	var req SSOExchangeV2Request
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Audience) != ssoPortalAudience {
+		c.JSON(http.StatusBadRequest, SSOExchangeV2Response{Success: false, Message: "ticket and portal audience are required"})
+		return
+	}
+	req.Ticket = strings.TrimSpace(req.Ticket)
+	if len(req.Ticket) < 16 || len(req.Ticket) > 512 || common.RDB == nil || !common.RedisEnabled {
+		c.JSON(http.StatusUnauthorized, SSOExchangeV2Response{Success: false, Message: "invalid or expired ticket"})
+		return
+	}
+	payloadJSON, err := common.RedisGetDel(ssoTicketRedisPrefix + req.Ticket)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, SSOExchangeV2Response{Success: false, Message: "invalid or expired ticket"})
+		return
+	}
+	var payload ssoTicketPayloadV2
+	if err := common.Unmarshal([]byte(payloadJSON), &payload); err != nil || !validSSOV2Payload(payload, ssoPortalAudience) {
+		logSSOV2Event("rejected", req.Ticket, req.Audience, payload.UserID)
+		c.JSON(http.StatusUnauthorized, SSOExchangeV2Response{Success: false, Message: "invalid or expired ticket"})
+		return
+	}
+	user, err := model.GetUserById(payload.UserID, true)
+	if err != nil || user.Status != common.UserStatusEnabled {
+		logSSOV2Event("inactive_user", req.Ticket, payload.Audience, payload.UserID)
+		c.JSON(http.StatusUnauthorized, SSOExchangeV2Response{Success: false, Message: "invalid or expired ticket"})
+		return
+	}
+	logSSOV2Event("migrated", req.Ticket, payload.Audience, payload.UserID)
+	setupLogin(user, c)
+}
+
 // SSOExchangeV2 atomically consumes a ticket and returns only the New API user
 // id. A mismatched audience intentionally burns the ticket to prevent probing.
 func SSOExchangeV2(c *gin.Context) {
@@ -181,7 +229,8 @@ func SSOExchangeV2(c *gin.Context) {
 }
 
 func validSSOV2Payload(payload ssoTicketPayloadV2, requestedAudience string) bool {
-	return payload.UserID > 0 && payload.Audience == ssoStudioAudience && payload.Audience == requestedAudience && payload.Nonce != "" && payload.ExpiresAt > time.Now().Unix()
+	validAudience := payload.Audience == ssoStudioAudience || payload.Audience == ssoPortalAudience
+	return payload.UserID > 0 && validAudience && payload.Audience == requestedAudience && payload.Nonce != "" && payload.ExpiresAt > time.Now().Unix()
 }
 
 func validateSSOV2RedirectURI(raw string) (*url.URL, error) {
@@ -193,7 +242,7 @@ func validateSSOV2RedirectURI(raw string) (*url.URL, error) {
 		return nil, errors.New("invalid redirect_uri")
 	}
 	host := strings.ToLower(parsed.Hostname())
-	allowed := host == "studio.geiliapi.com" || host == "localhost"
+	allowed := host == "studio.geiliapi.com" || host == "studio.auapi.ai" || host == "geiliapi.com" || host == "auapi.ai" || host == "localhost"
 	if extra := strings.TrimSpace(os.Getenv("SSO_ALLOWED_HOSTS")); extra != "" {
 		for _, item := range strings.Split(extra, ",") {
 			if strings.EqualFold(strings.TrimSpace(item), host) {
@@ -207,6 +256,15 @@ func validateSSOV2RedirectURI(raw string) (*url.URL, error) {
 	}
 	if host != "localhost" && !strings.EqualFold(parsed.Scheme, "https") {
 		return nil, errors.New("remote redirect must use https")
+	}
+	if host == "auapi.ai" || host == "geiliapi.com" {
+		if parsed.Path != "/sso/consume" {
+			return nil, errors.New("portal redirect path is invalid")
+		}
+	} else if host == "studio.auapi.ai" || host == "studio.geiliapi.com" {
+		if parsed.Path != "/auth/sso-callback" {
+			return nil, errors.New("studio redirect path is invalid")
+		}
 	}
 	if host == "localhost" && !strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https") {
 		return nil, errors.New("localhost redirect scheme is invalid")

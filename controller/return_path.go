@@ -1,13 +1,8 @@
 package controller
 
-import (
-	"strings"
-
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/system_setting"
-)
+import "github.com/QuantumNous/new-api/common"
 
 func paymentReturnPath(suffix string) string {
-	base := strings.TrimRight(system_setting.ServerAddress, "/")
+	base := common.PaymentReturnBaseURL()
 	return base + common.ThemeAwarePath(suffix)
 }

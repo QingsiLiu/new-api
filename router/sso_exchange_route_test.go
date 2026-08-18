@@ -35,4 +35,7 @@ func TestSSOV2RoutesKeepOptionalUserIssueAndAdminExchangeBoundaries(t *testing.T
 	if strings.Contains(text, `userRoute.POST("/sso/v2/exchange", middleware.TokenAuth()`) {
 		t.Fatal("SSO v2 exchange must not accept user API keys")
 	}
+	if !strings.Contains(text, `userRoute.POST("/sso/v2/migrate", controller.SSOMigrateV2)`) {
+		t.Fatal("domain migration route must be wired")
+	}
 }

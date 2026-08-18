@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -53,7 +54,7 @@ func (p *DiscordProvider) ExchangeToken(ctx context.Context, code string, c *gin
 	logOAuthSecurityEvent(ctx, oauthLogDebug, "discord", "token_exchange_started", oauthSecurityFields{AuthorizationCode: code})
 
 	settings := system_setting.GetDiscordSettings()
-	redirectUri := fmt.Sprintf("%s/oauth/discord", system_setting.ServerAddress)
+	redirectUri := fmt.Sprintf("%s/oauth/discord", common.OAuthRedirectBaseURL())
 	values := url.Values{}
 	values.Set("client_id", settings.ClientId)
 	values.Set("client_secret", settings.ClientSecret)

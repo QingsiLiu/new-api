@@ -27,7 +27,7 @@ func TestPasswordResetLinkFallsBackToTrimmedServerAddress(t *testing.T) {
 	t.Cleanup(func() { system_setting.ServerAddress = previous })
 
 	got := passwordResetLink("user@example.com", "token")
-	want := "https://all.geiliapi.com/user/reset?email=user%40example.com&token=token"
+	want := "https://auapi.ai/user/reset?email=user%40example.com&token=token"
 	if got != want {
 		t.Fatalf("passwordResetLink() = %q, want %q", got, want)
 	}
@@ -43,7 +43,7 @@ func TestPasswordResetLinkRejectsInvalidConfiguredURL(t *testing.T) {
 		t.Run(configured, func(t *testing.T) {
 			t.Setenv("GEILI_PASSWORD_RESET_URL", configured)
 			got := passwordResetLink("user@example.com", "token")
-			want := "https://all.geiliapi.com/user/reset?email=user%40example.com&token=token"
+			want := "https://auapi.ai/user/reset?email=user%40example.com&token=token"
 			if got != want {
 				t.Fatalf("passwordResetLink() = %q, want safe fallback %q", got, want)
 			}

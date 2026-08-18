@@ -64,10 +64,7 @@ func isGeiliAdminPublicPath(path string) bool {
 // 翻转属终局典礼动作（建造目标 §2 冻结面）。
 func geiliAdminOnlyUIGuard() gin.HandlerFunc {
 	enabled := strings.EqualFold(os.Getenv("GEILI_ADMIN_ONLY_UI"), "true")
-	portal := os.Getenv("GEILI_PORTAL_URL")
-	if portal == "" {
-		portal = "https://geiliapi.com"
-	}
+	portal := common.PortalURL()
 	return func(c *gin.Context) {
 		if !enabled {
 			c.Next()

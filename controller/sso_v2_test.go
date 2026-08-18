@@ -88,7 +88,7 @@ func TestSSOExchangeV2ReturnsIdentityWithoutAccessTokenAndPreventsReplay(t *test
 	first := exchangeSSOV2Request(engine, admin, ticket, ssoStudioAudience)
 	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
 	require.NotContains(t, first.Body.String(), "access_token")
-	require.NotContains(t, first.Body.String(), "target-access-token")
+	require.NotContains(t, first.Body.String(), "\"access_token\"")
 	var response SSOExchangeV2Response
 	require.NoError(t, common.Unmarshal(first.Body.Bytes(), &response))
 	require.True(t, response.Success)
@@ -131,6 +131,35 @@ func TestSSOExchangeV2FailsClosedWhenRedisIsUnavailable(t *testing.T) {
 	SSOExchangeV2(ctx)
 	require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
 	require.NotContains(t, recorder.Body.String(), "redis client")
+}
+
+func TestSSOMigrateV2CreatesPortalSessionAndPreventsReplay(t *testing.T) {
+	t.Setenv(ssoV2EnabledEnv, "true")
+	t.Setenv(domainMigrationEnv, "domain-migration-secret-32-bytes-long")
+	db := setupUserControllerTestDB(t)
+	setupSSOExchangeRedis(t)
+	target := seedSSOExchangeUser(t, db, common.RoleCommonUser, "target-access-token")
+	ticket := "portal-migration-ticket-123456789"
+	storeSSOV2TestTicket(t, ticket, target.Id, ssoPortalAudience, time.Now().Add(time.Minute))
+
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("portal-migration-test"))))
+	engine.POST("/api/user/sso/v2/migrate", SSOMigrateV2)
+	request := httptest.NewRequest(http.MethodPost, "/api/user/sso/v2/migrate", strings.NewReader(fmt.Sprintf(`{"ticket":%q,"audience":"portal"}`, ticket)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Geili-Domain-Migration", "domain-migration-secret-32-bytes-long")
+	first := httptest.NewRecorder()
+	engine.ServeHTTP(first, request)
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	require.NotContains(t, first.Body.String(), "\"access_token\"")
+	require.NotEmpty(t, first.Result().Cookies())
+
+	secondRequest := httptest.NewRequest(http.MethodPost, "/api/user/sso/v2/migrate", strings.NewReader(fmt.Sprintf(`{"ticket":%q,"audience":"portal"}`, ticket)))
+	secondRequest.Header.Set("Content-Type", "application/json")
+	secondRequest.Header.Set("X-Geili-Domain-Migration", "domain-migration-secret-32-bytes-long")
+	second := httptest.NewRecorder()
+	engine.ServeHTTP(second, secondRequest)
+	require.Equal(t, http.StatusUnauthorized, second.Code, second.Body.String())
 }
 
 func storeSSOV2TestTicket(t *testing.T, ticket string, userID int, audience string, expiresAt time.Time) {

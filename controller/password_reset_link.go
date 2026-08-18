@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/common"
 )
 
 const geiliPasswordResetURLEnv = "GEILI_PASSWORD_RESET_URL"
@@ -21,7 +21,7 @@ func validPasswordResetURL(raw string) (*url.URL, bool) {
 func passwordResetLink(email string, token string) string {
 	base, ok := validPasswordResetURL(os.Getenv(geiliPasswordResetURLEnv))
 	if !ok {
-		fallback := strings.TrimRight(strings.TrimSpace(system_setting.ServerAddress), "/") + "/user/reset"
+		fallback := common.PortalURL() + "/user/reset"
 		base, ok = validPasswordResetURL(fallback)
 	}
 	if !ok {
