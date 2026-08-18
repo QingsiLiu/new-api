@@ -23,7 +23,7 @@ var (
 type PasskeyCredential struct {
 	ID              int            `json:"id" gorm:"primaryKey"`
 	UserID          int            `json:"user_id" gorm:"index:idx_passkey_credentials_user_id;not null"`
-	RPID            string         `json:"rp_id" gorm:"type:varchar(255)"`
+	RPID            string         `json:"rp_id" gorm:"column:rp_id;type:varchar(255)"`
 	Origin          string         `json:"origin" gorm:"type:varchar(512)"`
 	CredentialID    string         `json:"credential_id" gorm:"type:varchar(512);uniqueIndex;not null"` // base64 encoded
 	PublicKey       string         `json:"public_key" gorm:"type:text;not null"`                        // base64 encoded
@@ -175,6 +175,24 @@ func GetPasskeysByUserID(userID int) ([]PasskeyCredential, error) {
 	return credentials, nil
 }
 
+// GetPasskeyByUserIDAndRPID returns the credential registered for the current
+// WebAuthn relying party. A user may have one credential on the legacy domain
+// and another on AUAPI during the migration window.
+func GetPasskeyByUserIDAndRPID(userID int, rpID string) (*PasskeyCredential, error) {
+	if userID == 0 || strings.TrimSpace(rpID) == "" {
+		return nil, ErrPasskeyNotFound
+	}
+	var credential PasskeyCredential
+	if err := DB.Where("user_id = ? AND rp_id = ?", userID, strings.ToLower(strings.TrimSpace(rpID))).First(&credential).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPasskeyNotFound
+		}
+		common.SysLog(fmt.Sprintf("GetPasskeyByUserIDAndRPID: database error for user %d", userID))
+		return nil, ErrFriendlyPasskeyNotFound
+	}
+	return &credential, nil
+}
+
 func GetPasskeyByCredentialID(credentialID []byte) (*PasskeyCredential, error) {
 	if len(credentialID) == 0 {
 		common.SysLog("GetPasskeyByCredentialID: empty credential ID")
@@ -200,9 +218,14 @@ func UpsertPasskeyCredential(credential *PasskeyCredential) error {
 		common.SysLog("UpsertPasskeyCredential: nil credential provided")
 		return fmt.Errorf("Passkey 保存失败，请重试")
 	}
+	credential.RPID = strings.ToLower(strings.TrimSpace(credential.RPID))
+	credential.Origin = strings.TrimSpace(credential.Origin)
+	if credential.RPID == "" || credential.Origin == "" {
+		return fmt.Errorf("Passkey 保存失败，请重试")
+	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var existing PasskeyCredential
-		err := tx.Where("credential_id = ?", credential.CredentialID).First(&existing).Error
+		err := tx.Where("user_id = ? AND rp_id = ?", credential.UserID, credential.RPID).First(&existing).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return tx.Create(credential).Error
 		}

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -438,13 +439,40 @@ func migrateDBFast() error {
 }
 
 func migratePasskeyCredentialUserIndex() error {
-	const indexName = "idx_passkey_credentials_user_id"
-	if DB.Migrator().HasIndex(&PasskeyCredential{}, indexName) {
-		if err := DB.Migrator().DropIndex(&PasskeyCredential{}, indexName); err != nil {
+	const (
+		doneKey       = "GeiliPasskeyMultiRPV1"
+		userIndexName = "idx_passkey_credentials_user_id"
+		rpIndexName   = "idx_passkey_user_rp"
+	)
+	var marker Option
+	markerErr := DB.Where("key = ?", doneKey).First(&marker).Error
+	if markerErr == nil && DB.Migrator().HasIndex(&PasskeyCredential{}, userIndexName) && DB.Migrator().HasIndex(&PasskeyCredential{}, rpIndexName) {
+		return nil
+	}
+	if markerErr != nil && !errors.Is(markerErr, gorm.ErrRecordNotFound) {
+		return markerErr
+	}
+	if err := DB.Model(&PasskeyCredential{}).
+		Where("rp_id = '' OR rp_id IS NULL").
+		Updates(map[string]any{"rp_id": "geiliapi.com", "origin": "https://geiliapi.com"}).Error; err != nil {
+		return err
+	}
+	if DB.Migrator().HasIndex(&PasskeyCredential{}, userIndexName) {
+		if err := DB.Migrator().DropIndex(&PasskeyCredential{}, userIndexName); err != nil {
 			return err
 		}
 	}
-	return DB.Migrator().CreateIndex(&PasskeyCredential{}, indexName)
+	if err := DB.Migrator().CreateIndex(&PasskeyCredential{}, userIndexName); err != nil {
+		return err
+	}
+	if !DB.Migrator().HasIndex(&PasskeyCredential{}, rpIndexName) {
+		// Keep the composite index out of the runtime model tags so AutoMigrate
+		// cannot create it before legacy blank RP rows have been backfilled.
+		if err := DB.Exec("CREATE UNIQUE INDEX idx_passkey_user_rp ON passkey_credentials (user_id, rp_id)").Error; err != nil {
+			return err
+		}
+	}
+	return DB.FirstOrCreate(&Option{Key: doneKey, Value: "true"}, Option{Key: doneKey}).Error
 }
 
 func migrateLOGDB() error {

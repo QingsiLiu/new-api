@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
@@ -69,7 +70,7 @@ func UniversalVerify(c *gin.Context) {
 	twoFA, _ := model.GetTwoFAByUserId(userId)
 	has2FA := twoFA != nil && twoFA.IsEnabled
 
-	passkey, passkeyErr := model.GetPasskeyByUserID(userId)
+	passkey, passkeyErr := model.GetPasskeyByUserIDAndRPID(userId, passkeysvc.RPIDForRequest(c.Request))
 	hasPasskey := passkeyErr == nil && passkey != nil
 
 	if !has2FA && !hasPasskey {

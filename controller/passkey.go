@@ -40,13 +40,13 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		return
 	}
 
-	credentials, err := model.GetPasskeysByUserID(user.Id)
+	credential, err := model.GetPasskeyByUserIDAndRPID(user.Id, passkeysvc.RPIDForRequest(c.Request))
 	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
 		common.ApiError(c, err)
 		return
 	}
 	if errors.Is(err, model.ErrPasskeyNotFound) {
-		credentials = nil
+		credential = nil
 	}
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
@@ -55,14 +55,12 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, passkeyCredentialPointers(credentials)...)
+	waUser := passkeysvc.NewWebAuthnUser(user, credential)
 	var options []webauthnlib.RegistrationOption
-	if len(credentials) > 0 {
-		descriptors := make([]protocol.CredentialDescriptor, 0, len(credentials))
-		for index := range credentials {
-			descriptors = append(descriptors, credentials[index].ToWebAuthnCredential().Descriptor())
-		}
-		options = append(options, webauthnlib.WithExclusions(descriptors))
+	if credential != nil {
+		options = append(options, webauthnlib.WithExclusions([]protocol.CredentialDescriptor{
+			credential.ToWebAuthnCredential().Descriptor(),
+		}))
 	}
 
 	creation, sessionData, err := wa.BeginRegistration(waUser, options...)
@@ -113,13 +111,13 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	credentials, err := model.GetPasskeysByUserID(user.Id)
+	existingCredential, err := model.GetPasskeyByUserIDAndRPID(user.Id, passkeysvc.RPIDForRequest(c.Request))
 	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
 		common.ApiError(c, err)
 		return
 	}
 	if errors.Is(err, model.ErrPasskeyNotFound) {
-		credentials = nil
+		existingCredential = nil
 	}
 
 	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.RegistrationSessionKey)
@@ -128,7 +126,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, passkeyCredentialPointers(credentials)...)
+	waUser := passkeysvc.NewWebAuthnUser(user, existingCredential)
 	credential, err := wa.FinishRegistration(waUser, *sessionData, c.Request)
 	if err != nil {
 		common.ApiError(c, err)
@@ -191,7 +189,7 @@ func PasskeyStatus(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
+	credential, err := model.GetPasskeyByUserIDAndRPID(user.Id, passkeysvc.RPIDForRequest(c.Request))
 	if errors.Is(err, model.ErrPasskeyNotFound) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
@@ -281,6 +279,10 @@ func PasskeyLoginFinish(c *gin.Context) {
 		if err != nil {
 			return nil, fmt.Errorf("未找到 Passkey 凭证: %w", err)
 		}
+		requestRPID := passkeysvc.RPIDForRequest(c.Request)
+		if requestRPID == "" || credential.RPID != requestRPID {
+			return nil, errors.New("Passkey 凭证与当前域名不匹配")
+		}
 
 		// 通过凭证获取用户
 		user := &model.User{Id: credential.UserID}
@@ -346,14 +348,6 @@ func PasskeyLoginFinish(c *gin.Context) {
 	setupLogin(modelUser, c)
 }
 
-func passkeyCredentialPointers(credentials []model.PasskeyCredential) []*model.PasskeyCredential {
-	result := make([]*model.PasskeyCredential, len(credentials))
-	for index := range credentials {
-		result[index] = &credentials[index]
-	}
-	return result
-}
-
 func AdminResetPasskey(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -417,7 +411,7 @@ func PasskeyVerifyBegin(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
+	credential, err := model.GetPasskeyByUserIDAndRPID(user.Id, passkeysvc.RPIDForRequest(c.Request))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -477,7 +471,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
+	credential, err := model.GetPasskeyByUserIDAndRPID(user.Id, passkeysvc.RPIDForRequest(c.Request))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -493,15 +487,18 @@ func PasskeyVerifyFinish(c *gin.Context) {
 	}
 
 	waUser := passkeysvc.NewWebAuthnUser(user, credential)
-	_, err = wa.FinishLogin(waUser, *sessionData, c.Request)
+	validatedCredential, err := wa.FinishLogin(waUser, *sessionData, c.Request)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
 	// 更新凭证的最后使用时间
+	credential.ApplyValidatedCredential(validatedCredential)
 	now := time.Now()
 	credential.LastUsedAt = &now
+	credential.RPID = passkeysvc.RPIDForRequest(c.Request)
+	credential.Origin = passkeysvc.OriginForRequest(c.Request)
 	if err := model.UpsertPasskeyCredential(credential); err != nil {
 		common.ApiError(c, err)
 		return
@@ -565,7 +562,7 @@ func requirePasskeyDeleteVerification(c *gin.Context, userID int) bool {
 		return requireSecureVerificationMethod(c, secureVerificationMethod2FA)
 	}
 
-	_, err = model.GetPasskeyByUserID(userID)
+	_, err = model.GetPasskeyByUserIDAndRPID(userID, passkeysvc.RPIDForRequest(c.Request))
 	if err != nil {
 		if errors.Is(err, model.ErrPasskeyNotFound) {
 			c.JSON(http.StatusOK, gin.H{

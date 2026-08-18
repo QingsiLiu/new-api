@@ -83,18 +83,26 @@ func requestPasskeyProfile(r *http.Request) (string, string) {
 	if r == nil {
 		return "", ""
 	}
-	host := strings.ToLower(strings.TrimSpace(r.Host))
-	if parsed, err := url.Parse("https://" + host); err == nil {
-		host = parsed.Hostname()
+	// A direct public request has a recognized Host. Requests from the
+	// geili-web bridge reach the engine over its container hostname, so the
+	// bridge supplies an exact, allowlisted X-Forwarded-Host instead. Prefer a
+	// recognized direct Host and never accept arbitrary forwarded domains.
+	for _, candidate := range []string{r.Host, r.Header.Get("X-Forwarded-Host")} {
+		if strings.Contains(candidate, ",") {
+			continue
+		}
+		host := strings.ToLower(strings.TrimSpace(candidate))
+		if parsed, err := url.Parse("https://" + host); err == nil {
+			host = parsed.Hostname()
+		}
+		switch host {
+		case "auapi.ai", "admin.auapi.ai", "next.auapi.ai":
+			return "auapi.ai", "https://" + host
+		case "geiliapi.com", "admin.geiliapi.com", "next.geiliapi.com":
+			return "geiliapi.com", "https://" + host
+		}
 	}
-	switch host {
-	case "auapi.ai", "admin.auapi.ai":
-		return "auapi.ai", "https://" + host
-	case "geiliapi.com", "admin.geiliapi.com":
-		return "geiliapi.com", "https://" + host
-	default:
-		return "", ""
-	}
+	return "", ""
 }
 
 func RPIDForRequest(r *http.Request) string {
