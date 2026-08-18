@@ -167,7 +167,7 @@ func PasskeyDelete(c *gin.Context) {
 		return
 	}
 
-	if err := model.DeletePasskeyByUserID(user.Id); err != nil {
+	if err := model.DeletePasskeyByUserIDAndRPID(user.Id, passkeysvc.RPIDForRequest(c.Request)); err != nil {
 		common.ApiError(c, err)
 		return
 	}

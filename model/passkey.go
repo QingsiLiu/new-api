@@ -250,3 +250,19 @@ func DeletePasskeyByUserID(userID int) error {
 	}
 	return nil
 }
+
+// DeletePasskeyByUserIDAndRPID removes only the credential for the current
+// relying party. The legacy-domain credential must remain available during
+// the migration window; administrator reset intentionally uses the all-RP
+// DeletePasskeyByUserID function above.
+func DeletePasskeyByUserIDAndRPID(userID int, rpID string) error {
+	rpID = strings.ToLower(strings.TrimSpace(rpID))
+	if userID == 0 || rpID == "" {
+		return fmt.Errorf("删除失败，请重试")
+	}
+	if err := DB.Unscoped().Where("user_id = ? AND rp_id = ?", userID, rpID).Delete(&PasskeyCredential{}).Error; err != nil {
+		common.SysLog(fmt.Sprintf("DeletePasskeyByUserIDAndRPID: failed to delete credential for user %d", userID))
+		return fmt.Errorf("删除失败，请重试")
+	}
+	return nil
+}

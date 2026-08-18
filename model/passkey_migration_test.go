@@ -103,4 +103,11 @@ func TestUpsertPasskeyCredentialAllowsOneCredentialPerUserAndRP(t *testing.T) {
 	require.Equal(t, "old", legacy.CredentialID)
 	_, err = GetPasskeyByUserIDAndRPID(9, "missing.example")
 	require.ErrorIs(t, err, ErrPasskeyNotFound)
+
+	require.NoError(t, DeletePasskeyByUserIDAndRPID(9, "auapi.ai"))
+	_, err = GetPasskeyByUserIDAndRPID(9, "auapi.ai")
+	require.ErrorIs(t, err, ErrPasskeyNotFound)
+	legacy, err = GetPasskeyByUserIDAndRPID(9, "geiliapi.com")
+	require.NoError(t, err)
+	require.Equal(t, "old", legacy.CredentialID)
 }
