@@ -39,6 +39,7 @@ type FunnelEventInput struct {
 	Locale       string
 	ModelSlug    string
 	FailureCode  string
+	SourceHost   string
 	UserID       int
 	ReceivedAt   int64
 }
@@ -75,6 +76,7 @@ type FunnelEvent struct {
 	Locale       string `json:"-" gorm:"type:varchar(2)"`
 	ModelSlug    string `json:"-" gorm:"type:varchar(96);index:idx_funnel_event_model_time,priority:2"`
 	FailureCode  string `json:"-" gorm:"type:varchar(32)"`
+	SourceHost   string `json:"-" gorm:"type:varchar(253);index:idx_funnel_event_source_time,priority:1"`
 }
 
 type FunnelActivityDay struct {
@@ -189,6 +191,7 @@ func IngestFunnelEventRecord(ctx context.Context, input FunnelEventInput) (Funne
 			Locale:       input.Locale,
 			ModelSlug:    input.ModelSlug,
 			FailureCode:  input.FailureCode,
+			SourceHost:   input.SourceHost,
 		}
 		created := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&event)
 		if created.Error != nil {

@@ -59,14 +59,14 @@ func SSORedirectV2(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "SSO v2 is not enabled"})
 		return
 	}
-	redirectURI, err := validateSSOV2RedirectURI(strings.TrimSpace(c.Query("redirect_uri")))
-	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "redirect_uri not allowed"})
-		return
-	}
 	audience := strings.TrimSpace(c.Query("audience"))
 	if audience != ssoStudioAudience && audience != ssoPortalAudience {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "audience is not supported"})
+		return
+	}
+	redirectURI, err := validateSSOV2RedirectURI(strings.TrimSpace(c.Query("redirect_uri")), audience)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "redirect_uri not allowed"})
 		return
 	}
 
@@ -233,7 +233,7 @@ func validSSOV2Payload(payload ssoTicketPayloadV2, requestedAudience string) boo
 	return payload.UserID > 0 && validAudience && payload.Audience == requestedAudience && payload.Nonce != "" && payload.ExpiresAt > time.Now().Unix()
 }
 
-func validateSSOV2RedirectURI(raw string) (*url.URL, error) {
+func validateSSOV2RedirectURI(raw string, audience string) (*url.URL, error) {
 	if raw == "" {
 		return nil, errors.New("redirect_uri is required")
 	}
@@ -257,14 +257,16 @@ func validateSSOV2RedirectURI(raw string) (*url.URL, error) {
 	if host != "localhost" && !strings.EqualFold(parsed.Scheme, "https") {
 		return nil, errors.New("remote redirect must use https")
 	}
-	if host == "auapi.ai" || host == "geiliapi.com" {
+	if audience == ssoPortalAudience && (host == "auapi.ai" || host == "geiliapi.com") {
 		if parsed.Path != "/sso/consume" {
 			return nil, errors.New("portal redirect path is invalid")
 		}
-	} else if host == "studio.auapi.ai" || host == "studio.geiliapi.com" {
+	} else if audience == ssoStudioAudience && (host == "studio.auapi.ai" || host == "studio.geiliapi.com") {
 		if parsed.Path != "/auth/sso-callback" {
 			return nil, errors.New("studio redirect path is invalid")
 		}
+	} else if host != "localhost" {
+		return nil, errors.New("redirect host does not match audience")
 	}
 	if host == "localhost" && !strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https") {
 		return nil, errors.New("localhost redirect scheme is invalid")

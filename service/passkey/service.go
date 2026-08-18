@@ -79,7 +79,38 @@ func BuildWebAuthn(r *http.Request) (*webauthn.WebAuthn, error) {
 	return webauthn.New(config)
 }
 
+func requestPasskeyProfile(r *http.Request) (string, string) {
+	if r == nil {
+		return "", ""
+	}
+	host := strings.ToLower(strings.TrimSpace(r.Host))
+	if parsed, err := url.Parse("https://" + host); err == nil {
+		host = parsed.Hostname()
+	}
+	switch host {
+	case "auapi.ai", "admin.auapi.ai":
+		return "auapi.ai", "https://" + host
+	case "geiliapi.com", "admin.geiliapi.com":
+		return "geiliapi.com", "https://" + host
+	default:
+		return "", ""
+	}
+}
+
+func RPIDForRequest(r *http.Request) string {
+	rpID, _ := requestPasskeyProfile(r)
+	return rpID
+}
+
+func OriginForRequest(r *http.Request) string {
+	_, origin := requestPasskeyProfile(r)
+	return origin
+}
+
 func resolveOrigins(r *http.Request, settings *system_setting.PasskeySettings) ([]string, error) {
+	if _, origin := requestPasskeyProfile(r); origin != "" {
+		return []string{origin}, nil
+	}
 	originsStr := strings.TrimSpace(settings.Origins)
 	if originsStr != "" {
 		originList := strings.Split(originsStr, ",")
@@ -129,6 +160,9 @@ autoDetect:
 }
 
 func resolveRPID(r *http.Request, settings *system_setting.PasskeySettings, origins []string) (string, error) {
+	if rpID, _ := requestPasskeyProfile(r); rpID != "" {
+		return rpID, nil
+	}
 	rpID := strings.TrimSpace(settings.RPID)
 	if rpID != "" {
 		return hostWithoutPort(rpID), nil

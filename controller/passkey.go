@@ -40,13 +40,13 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
+	credentials, err := model.GetPasskeysByUserID(user.Id)
 	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
 		common.ApiError(c, err)
 		return
 	}
 	if errors.Is(err, model.ErrPasskeyNotFound) {
-		credential = nil
+		credentials = nil
 	}
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
@@ -55,11 +55,14 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, credential)
+	waUser := passkeysvc.NewWebAuthnUser(user, passkeyCredentialPointers(credentials)...)
 	var options []webauthnlib.RegistrationOption
-	if credential != nil {
-		descriptor := credential.ToWebAuthnCredential().Descriptor()
-		options = append(options, webauthnlib.WithExclusions([]protocol.CredentialDescriptor{descriptor}))
+	if len(credentials) > 0 {
+		descriptors := make([]protocol.CredentialDescriptor, 0, len(credentials))
+		for index := range credentials {
+			descriptors = append(descriptors, credentials[index].ToWebAuthnCredential().Descriptor())
+		}
+		options = append(options, webauthnlib.WithExclusions(descriptors))
 	}
 
 	creation, sessionData, err := wa.BeginRegistration(waUser, options...)
@@ -110,13 +113,13 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	credentialRecord, err := model.GetPasskeyByUserID(user.Id)
+	credentials, err := model.GetPasskeysByUserID(user.Id)
 	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
 		common.ApiError(c, err)
 		return
 	}
 	if errors.Is(err, model.ErrPasskeyNotFound) {
-		credentialRecord = nil
+		credentials = nil
 	}
 
 	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.RegistrationSessionKey)
@@ -125,7 +128,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, credentialRecord)
+	waUser := passkeysvc.NewWebAuthnUser(user, passkeyCredentialPointers(credentials)...)
 	credential, err := wa.FinishRegistration(waUser, *sessionData, c.Request)
 	if err != nil {
 		common.ApiError(c, err)
@@ -137,6 +140,8 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		common.ApiErrorMsg(c, "无法创建 Passkey 凭证")
 		return
 	}
+	passkeyCredential.RPID = passkeysvc.RPIDForRequest(c.Request)
+	passkeyCredential.Origin = passkeysvc.OriginForRequest(c.Request)
 
 	if err := model.UpsertPasskeyCredential(passkeyCredential); err != nil {
 		common.ApiError(c, err)
@@ -329,6 +334,8 @@ func PasskeyLoginFinish(c *gin.Context) {
 		common.ApiErrorMsg(c, "Passkey 凭证更新失败")
 		return
 	}
+	updatedCredential.RPID = passkeysvc.RPIDForRequest(c.Request)
+	updatedCredential.Origin = passkeysvc.OriginForRequest(c.Request)
 	now := time.Now()
 	updatedCredential.LastUsedAt = &now
 	if err := model.UpsertPasskeyCredential(updatedCredential); err != nil {
@@ -337,6 +344,14 @@ func PasskeyLoginFinish(c *gin.Context) {
 	}
 
 	setupLogin(modelUser, c)
+}
+
+func passkeyCredentialPointers(credentials []model.PasskeyCredential) []*model.PasskeyCredential {
+	result := make([]*model.PasskeyCredential, len(credentials))
+	for index := range credentials {
+		result[index] = &credentials[index]
+	}
+	return result
 }
 
 func AdminResetPasskey(c *gin.Context) {

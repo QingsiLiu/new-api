@@ -92,7 +92,7 @@ func (p *GenericOAuthProvider) ExchangeToken(ctx context.Context, code string, c
 
 	logOAuthSecurityEvent(ctx, oauthLogDebug, p.config.Slug, "token_exchange_started", oauthSecurityFields{AuthorizationCode: code})
 
-	redirectUri := fmt.Sprintf("%s/oauth/%s", common.OAuthRedirectBaseURL(), p.config.Slug)
+	redirectUri := CallbackURLForRequest(c, "/oauth/"+p.config.Slug, "")
 	values := url.Values{}
 	values.Set("grant_type", "authorization_code")
 	values.Set("code", code)

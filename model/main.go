@@ -314,6 +314,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := migratePasskeyCredentialUserIndex(); err != nil {
+		return err
+	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -427,8 +430,21 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := migratePasskeyCredentialUserIndex(); err != nil {
+		return err
+	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+func migratePasskeyCredentialUserIndex() error {
+	const indexName = "idx_passkey_credentials_user_id"
+	if DB.Migrator().HasIndex(&PasskeyCredential{}, indexName) {
+		if err := DB.Migrator().DropIndex(&PasskeyCredential{}, indexName); err != nil {
+			return err
+		}
+	}
+	return DB.Migrator().CreateIndex(&PasskeyCredential{}, indexName)
 }
 
 func migrateLOGDB() error {

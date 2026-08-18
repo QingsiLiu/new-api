@@ -458,6 +458,25 @@ func TestSSORedirectStoresOneTimeCodeForSixtySeconds(t *testing.T) {
 	require.LessOrEqual(t, ttl, 60*time.Second)
 }
 
+func TestSSORedirectAllowsAUAPIStudio(t *testing.T) {
+	db := setupUserControllerTestDB(t)
+	setupSSOExchangeRedis(t)
+	user := seedSSOExchangeUser(t, db, common.RoleCommonUser, "")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/sso?redirect_uri=https%3A%2F%2Fstudio.auapi.ai%2Fauth%2Fsso-callback", nil)
+	ctx.Set("id", user.Id)
+
+	SSORedirect(ctx)
+
+	require.Equal(t, http.StatusFound, recorder.Code, recorder.Body.String())
+	parsed, err := url.Parse(recorder.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "studio.auapi.ai", parsed.Hostname())
+	require.NotEmpty(t, parsed.Query().Get("code"))
+}
+
 func setupSSOExchangeRedis(t *testing.T) *miniredis.Miniredis {
 	t.Helper()
 

@@ -10,7 +10,6 @@ import (
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -63,13 +62,12 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		}
 	}
 
-	callBackAddress := service.GetCallbackAddress()
-	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
+	returnUrl, err := url.Parse(common.PaymentReturnBaseURL() + "/api/subscription/epay/return")
 	if err != nil {
 		common.ApiErrorMsg(c, "回调地址配置错误")
 		return
 	}
-	notifyUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/notify")
+	notifyUrl, err := url.Parse(common.PaymentCallbackBaseURL() + "/api/subscription/epay/notify")
 	if err != nil {
 		common.ApiErrorMsg(c, "回调地址配置错误")
 		return

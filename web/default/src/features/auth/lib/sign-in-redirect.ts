@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { ROLE } from '@/lib/roles'
 
-const GEILI_ADMIN_HOSTNAME = 'admin.geiliapi.com'
+const ADMIN_HOSTNAMES = new Set(['admin.geiliapi.com', 'admin.auapi.ai'])
 
 export function isGeiliAdminHostname(hostname: string): boolean {
-  return hostname.trim().toLowerCase() === GEILI_ADMIN_HOSTNAME
+  return ADMIN_HOSTNAMES.has(hostname.trim().toLowerCase())
 }
 
 export function getAuthenticatedSignInRedirect(

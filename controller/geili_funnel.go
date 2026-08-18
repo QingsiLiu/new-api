@@ -19,7 +19,7 @@ var geiliFunnelCurrentTime = time.Now
 
 var geiliFunnelEventKeys = map[string]struct{}{
 	"event_id": {}, "event": {}, "version": {}, "environment": {}, "visitor_hmac": {},
-	"locale": {}, "model": {}, "failure_code": {}, "user_id": {},
+	"locale": {}, "model": {}, "failure_code": {}, "source_host": {}, "user_id": {},
 }
 
 func IngestGeiliFunnelEvent(c *gin.Context) {
@@ -65,6 +65,7 @@ func IngestGeiliFunnelEvent(c *gin.Context) {
 		Locale:       request.Locale,
 		ModelSlug:    request.Model,
 		FailureCode:  request.FailureCode,
+		SourceHost:   request.SourceHost,
 		UserID:       request.UserID,
 		ReceivedAt:   common.GetTimestamp(),
 	})

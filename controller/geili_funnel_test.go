@@ -120,6 +120,22 @@ func TestGeiliFunnelIngestStrictMatrix(t *testing.T) {
 	require.Equal(t, "private, no-store", largeResponse.Header().Get("Cache-Control"))
 }
 
+func TestGeiliFunnelStoresSourceHostWithoutUserIdentifiers(t *testing.T) {
+	setupFunnelControllerTestDB(t)
+	secret := strings.Repeat("s", 32)
+	router := funnelControllerRouter(t, secret)
+	body := strings.Replace(
+		validFunnelEventBody,
+		`"model":"gpt-image-2"`,
+		`"model":"gpt-image-2","source_host":"geiliapi.com"`,
+		1,
+	)
+	require.Equal(t, http.StatusNoContent, postFunnelController(router, secret, body).Code)
+	var event model.FunnelEvent
+	require.NoError(t, model.DB.First(&event).Error)
+	require.Equal(t, "geiliapi.com", event.SourceHost)
+}
+
 func TestGeiliFunnelIngestRejectsInvalidEnabledConfig(t *testing.T) {
 	setupFunnelControllerTestDB(t)
 	router := funnelControllerRouter(t, "short")

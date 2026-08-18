@@ -64,6 +64,8 @@ func TestSSORedirectV2RejectsUnsafeRedirectAndAudience(t *testing.T) {
 		"/api/user/sso/v2?audience=studio&redirect_uri=http%3A%2F%2Fstudio.geiliapi.com%2Fcallback",
 		"/api/user/sso/v2?audience=studio&redirect_uri=https%3A%2F%2Fevil.example%2Fcallback",
 		"/api/user/sso/v2?audience=admin&redirect_uri=https%3A%2F%2Fstudio.geiliapi.com%2Fcallback",
+		"/api/user/sso/v2?audience=portal&redirect_uri=https%3A%2F%2Fstudio.auapi.ai%2Fauth%2Fsso-callback",
+		"/api/user/sso/v2?audience=studio&redirect_uri=https%3A%2F%2Fauapi.ai%2Fsso%2Fconsume",
 	} {
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
@@ -73,6 +75,25 @@ func TestSSORedirectV2RejectsUnsafeRedirectAndAudience(t *testing.T) {
 		require.Contains(t, []int{http.StatusBadRequest, http.StatusForbidden}, recorder.Code, rawURL)
 		require.Empty(t, recorder.Header().Get("Location"), rawURL)
 	}
+}
+
+func TestSSORedirectV2AcceptsAUAPIStudioCallback(t *testing.T) {
+	t.Setenv(ssoV2EnabledEnv, "true")
+	db := setupUserControllerTestDB(t)
+	setupSSOExchangeRedis(t)
+	user := seedSSOExchangeUser(t, db, common.RoleCommonUser, "auapi-sso-user")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/sso/v2?audience=studio&redirect_uri=https%3A%2F%2Fstudio.auapi.ai%2Fauth%2Fsso-callback", nil)
+	ctx.Set("id", user.Id)
+	SSORedirectV2(ctx)
+
+	require.Equal(t, http.StatusFound, recorder.Code, recorder.Body.String())
+	location, err := url.Parse(recorder.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "studio.auapi.ai", location.Hostname())
+	require.NotEmpty(t, location.Query().Get("ticket"))
 }
 
 func TestSSOExchangeV2ReturnsIdentityWithoutAccessTokenAndPreventsReplay(t *testing.T) {

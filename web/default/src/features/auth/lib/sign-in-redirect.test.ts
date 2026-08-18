@@ -27,6 +27,8 @@ import {
 describe('getAuthenticatedSignInRedirect', () => {
   test('recognizes the production admin hostname case-insensitively', () => {
     assert.equal(isGeiliAdminHostname('admin.geiliapi.com'), true)
+    assert.equal(isGeiliAdminHostname('admin.auapi.ai'), true)
+    assert.equal(isGeiliAdminHostname(' ADMIN.AUAPI.AI '), true)
     assert.equal(isGeiliAdminHostname(' ADMIN.GEILIAPI.COM '), true)
     assert.equal(isGeiliAdminHostname('geiliapi.com'), false)
   })

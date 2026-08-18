@@ -3,13 +3,11 @@ package oauth
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -59,10 +57,7 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 	// 门面(登录页)域名与 ServerAddress 分离部署时，换 token 的 redirect_uri 必须与
 	// 授权跳转、IdP 后台登记值完全一致（Google 等严格校验），否则 invalid_grant。
 	// oidc.redirect_uri 为空则回落 ServerAddress 拼接（上游原行为）。
-	redirectUri := strings.TrimSpace(settings.RedirectUri)
-	if redirectUri == "" {
-		redirectUri = fmt.Sprintf("%s/oauth/oidc", common.OAuthRedirectBaseURL())
-	}
+	redirectUri := CallbackURLForRequest(c, "/oauth/oidc", strings.TrimSpace(settings.RedirectUri))
 	values := url.Values{}
 	values.Set("client_id", settings.ClientId)
 	values.Set("client_secret", settings.ClientSecret)

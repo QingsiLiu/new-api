@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"regexp"
+	"strings"
 	"sync/atomic"
 
 	"github.com/QuantumNous/new-api/common"
@@ -105,6 +106,11 @@ func validateFunnelInput(input model.FunnelEventInput) error {
 	}
 	if input.ReceivedAt <= 0 {
 		return funnelInputError(400, "invalid_received_at")
+	}
+	if input.SourceHost != "" {
+		if len(input.SourceHost) > 253 || strings.ContainsAny(input.SourceHost, "/?:#@ \t\r\n\\") {
+			return funnelInputError(400, "invalid_source_host")
+		}
 	}
 	if _, ok := funnelEvents[input.EventName]; !ok {
 		return funnelInputError(422, "unsupported_event")

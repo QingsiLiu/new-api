@@ -35,3 +35,21 @@ func TestPublicURLRejectsInvalidOverrides(t *testing.T) {
 		t.Fatalf("invalid API override = %q", got)
 	}
 }
+
+func TestPublicURLRejectsNonOriginOverrides(t *testing.T) {
+	for _, value := range []string{
+		"https://auapi.ai/path",
+		"https://auapi.ai/?next=/console",
+		"https://user:pass@auapi.ai",
+		"https://auapi.ai#fragment",
+	} {
+		t.Setenv(portalURLEnv, value)
+		if got := PortalURL(); got != "https://auapi.ai" {
+			t.Fatalf("PortalURL(%q) = %q", value, got)
+		}
+	}
+	t.Setenv(portalURLEnv, "https://auapi.ai/")
+	if got := PortalURL(); got != "https://auapi.ai" {
+		t.Fatalf("trailing slash should normalize, got %q", got)
+	}
+}

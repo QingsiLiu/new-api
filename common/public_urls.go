@@ -17,15 +17,15 @@ const (
 )
 
 func configuredPublicURL(envName string, fallback string) string {
-	raw := strings.TrimRight(strings.TrimSpace(os.Getenv(envName)), "/")
+	raw := strings.TrimSpace(os.Getenv(envName))
 	if raw == "" {
 		raw = fallback
 	}
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" {
+	if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != "" && parsed.Path != "/" {
 		return fallback
 	}
-	return raw
+	return strings.TrimRight(parsed.Scheme+"://"+parsed.Host, "/")
 }
 
 // PortalURL is the customer-facing AUAPI web origin.

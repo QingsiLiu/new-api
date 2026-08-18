@@ -443,7 +443,7 @@ func SSORedirect(c *gin.Context) {
 		return
 	}
 	// Allow-list: only redirect to configured studio domain(s).
-	allowedHosts := []string{"studio.geiliapi.com", "localhost"}
+	allowedHosts := []string{"studio.geiliapi.com", "studio.auapi.ai", "localhost"}
 	if extra := strings.TrimSpace(os.Getenv("SSO_ALLOWED_HOSTS")); extra != "" {
 		for _, h := range strings.Split(extra, ",") {
 			if h = strings.TrimSpace(h); h != "" {

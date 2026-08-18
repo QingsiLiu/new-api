@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -53,12 +52,8 @@ func (p *LinuxDOProvider) ExchangeToken(ctx context.Context, code string, c *gin
 	credentials := common.LinuxDOClientId + ":" + common.LinuxDOClientSecret
 	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
 
-	// Get redirect URI from request
-	scheme := "http"
-	if c.Request.TLS != nil {
-		scheme = "https"
-	}
-	redirectURI := fmt.Sprintf("%s://%s/api/oauth/linuxdo", scheme, c.Request.Host)
+	// Bind the exchange to the trusted callback host that received the code.
+	redirectURI := CallbackURLForRequest(c, "/api/oauth/linuxdo", "")
 
 	logOAuthSecurityEvent(ctx, oauthLogDebug, "linuxdo", "token_request_prepared", oauthSecurityFields{
 		Endpoint: tokenEndpoint, RedirectURI: redirectURI,

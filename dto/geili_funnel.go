@@ -9,6 +9,7 @@ type GeiliFunnelEventRequest struct {
 	Locale      string `json:"locale,omitempty"`
 	Model       string `json:"model,omitempty"`
 	FailureCode string `json:"failure_code,omitempty"`
+	SourceHost  string `json:"source_host,omitempty"`
 	UserID      int    `json:"user_id,omitempty"`
 }
 
