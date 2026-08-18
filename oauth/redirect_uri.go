@@ -23,7 +23,14 @@ func requestHost(c *gin.Context) string {
 	if c == nil || c.Request == nil {
 		return ""
 	}
-	host := strings.ToLower(strings.TrimSpace(c.Request.Host))
+	host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = strings.TrimSpace(c.Request.Host)
+	}
+	if comma := strings.IndexByte(host, ','); comma >= 0 {
+		host = strings.TrimSpace(host[:comma])
+	}
+	host = strings.ToLower(host)
 	if parsed, err := url.Parse("https://" + host); err == nil {
 		host = parsed.Hostname()
 	}
@@ -41,8 +48,16 @@ func CallbackURLForRequest(c *gin.Context, path string, configured string) strin
 	host := requestHost(c)
 	if host != "" {
 		scheme := "https"
-		if host == "localhost" && c != nil && c.Request != nil && c.Request.TLS == nil {
-			scheme = "http"
+		if c != nil && c.Request != nil {
+			forwardedProto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
+			if comma := strings.IndexByte(forwardedProto, ','); comma >= 0 {
+				forwardedProto = strings.TrimSpace(forwardedProto[:comma])
+			}
+			if forwardedProto == "http" || forwardedProto == "https" {
+				scheme = forwardedProto
+			} else if host == "localhost" && c.Request.TLS == nil {
+				scheme = "http"
+			}
 		}
 		return fmt.Sprintf("%s://%s%s", scheme, host, path)
 	}
