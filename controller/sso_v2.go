@@ -138,7 +138,7 @@ func SSOMigrateV2(c *gin.Context) {
 	}
 	expected := strings.TrimSpace(os.Getenv(domainMigrationEnv))
 	provided := strings.TrimSpace(c.GetHeader("X-Geili-Domain-Migration"))
-	if expected == "" || subtle.ConstantTimeCompare([]byte(expected), []byte(provided)) != 1 {
+	if len([]byte(expected)) < 32 || subtle.ConstantTimeCompare([]byte(expected), []byte(provided)) != 1 {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "migration authorization required"})
 		return
 	}

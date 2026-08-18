@@ -183,6 +183,29 @@ func TestSSOMigrateV2CreatesPortalSessionAndPreventsReplay(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, second.Code, second.Body.String())
 }
 
+func TestSSOMigrateV2RejectsWeakSharedSecretWithoutConsumingTicket(t *testing.T) {
+	t.Setenv(ssoV2EnabledEnv, "true")
+	t.Setenv(domainMigrationEnv, "short-secret")
+	db := setupUserControllerTestDB(t)
+	setupSSOExchangeRedis(t)
+	target := seedSSOExchangeUser(t, db, common.RoleCommonUser, "target-access-token")
+	ticket := "portal-weak-secret-ticket-123456"
+	storeSSOV2TestTicket(t, ticket, target.Id, ssoPortalAudience, time.Now().Add(time.Minute))
+
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("portal-migration-test"))))
+	engine.POST("/api/user/sso/v2/migrate", SSOMigrateV2)
+	request := httptest.NewRequest(http.MethodPost, "/api/user/sso/v2/migrate", strings.NewReader(fmt.Sprintf(`{"ticket":%q,"audience":"portal"}`, ticket)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Geili-Domain-Migration", "short-secret")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusUnauthorized, recorder.Code, recorder.Body.String())
+	_, err := common.RedisGet(ssoTicketRedisPrefix + ticket)
+	require.NoError(t, err, "configuration rejection must not burn a valid ticket")
+}
+
 func storeSSOV2TestTicket(t *testing.T, ticket string, userID int, audience string, expiresAt time.Time) {
 	t.Helper()
 	payload, err := common.Marshal(ssoTicketPayloadV2{
