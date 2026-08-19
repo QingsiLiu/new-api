@@ -120,16 +120,20 @@ func GetStatus(c *gin.Context) {
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
 		"oidc_authorization_endpoint": system_setting.GetOIDCSettings().AuthorizationEndpoint,
-		"passkey_login":               passkeySetting.Enabled,
-		"passkey_display_name":        passkeySetting.RPDisplayName,
-		"passkey_rp_id":               passkeySetting.RPID,
-		"passkey_origins":             passkeySetting.Origins,
-		"passkey_allow_insecure":      passkeySetting.AllowInsecureOrigin,
-		"passkey_user_verification":   passkeySetting.UserVerification,
-		"passkey_attachment":          passkeySetting.AttachmentPreference,
-		"setup":                       constant.Setup,
-		"user_agreement_enabled":      legalSetting.UserAgreement != "",
-		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
+		// Public, non-secret callback metadata lets the AUAPI migration verifier
+		// confirm option hot-reload without exposing OIDC credentials.
+		"oidc_redirect_uri":         system_setting.GetOIDCSettings().RedirectUri,
+		"waffo_pancake_return_url":  setting.WaffoPancakeReturnURL,
+		"passkey_login":             passkeySetting.Enabled,
+		"passkey_display_name":      passkeySetting.RPDisplayName,
+		"passkey_rp_id":             passkeySetting.RPID,
+		"passkey_origins":           passkeySetting.Origins,
+		"passkey_allow_insecure":    passkeySetting.AllowInsecureOrigin,
+		"passkey_user_verification": passkeySetting.UserVerification,
+		"passkey_attachment":        passkeySetting.AttachmentPreference,
+		"setup":                     constant.Setup,
+		"user_agreement_enabled":    legalSetting.UserAgreement != "",
+		"privacy_policy_enabled":    legalSetting.PrivacyPolicy != "",
 	}
 
 	// 根据启用状态注入可选内容
