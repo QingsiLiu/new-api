@@ -18,7 +18,7 @@ describe('resolveVersionedPreferenceDefault', () => {
     assert.equal(LAYOUT_DEFAULTS_VERSION, 'floating-v1')
   })
 
-  test('keeps theme drawer defaults aligned to the Geili compact document-like preset', () => {
+  test('keeps theme drawer defaults aligned to the AUAPI compact document-like preset', () => {
     assert.equal(DEFAULT_THEME_CUSTOMIZATION.scale, 'sm')
     assert.equal(DEFAULT_THEME_CUSTOMIZATION.contentLayout, 'full')
   })

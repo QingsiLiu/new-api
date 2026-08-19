@@ -26,21 +26,21 @@ For commercial licensing, please contact support@quantumnous.com
 export const THEME_PRESETS = [
   {
     value: 'geili-minimal',
-    name: '极简 / Geili Minimal',
+    name: '极简 / AUAPI Minimal',
     description:
       'Radically minimal: pure white canvas, #F5F5F5 cards, black as the only accent. No shadows.',
     swatches: ['#FFFFFF', '#F5F5F5', '#000000'],
   },
   {
     value: 'geili-modern',
-    name: '现代精致 / Geili Modern',
+    name: '现代精致 / AUAPI Modern',
     description:
       'Neutral chrome, vivid data color, and a crisp cinnabar accent.',
     swatches: ['#F6F6F8', '#CF4520', '#5B5BD6'],
   },
   {
     value: 'geili-editorial',
-    name: 'Geili Editorial',
+    name: 'AUAPI Editorial',
     swatches: ['#F4F1E8', '#C8432A', '#15130D'],
   },
   {
@@ -107,12 +107,12 @@ export type ContentLayout = 'full' | 'centered'
  * Font axis for the theme.
  *
  * - `default` — resolve at runtime from the active preset
- *   (see `PRESET_DEFAULT_FONT`). Geili Editorial resolves to sans for
+ *   (see `PRESET_DEFAULT_FONT`). AUAPI Editorial resolves to sans for
  *   UI text; Anthropic resolves to the legacy serif option for saved
  *   preferences, which is rendered with Inter in the consolidated system.
  *   Other named color presets fall back to sans. Mirrors how
  *   `radius: 'default'` defers to a per-preset hint.
- * - `sans` — Inter, the project's Geili Editorial UI face.
+ * - `sans` — Inter, the project's AUAPI Editorial UI face.
  * - `serif` — legacy saved value retained for compatibility; renders with
  *   Inter in the consolidated system.
  */
