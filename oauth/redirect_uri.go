@@ -61,8 +61,16 @@ func CallbackURLForRequest(c *gin.Context, path string, configured string) strin
 		}
 		return fmt.Sprintf("%s://%s%s", scheme, host, path)
 	}
-	if strings.TrimSpace(configured) != "" {
-		return strings.TrimRight(strings.TrimSpace(configured), "/") + path
+	if configured = strings.TrimSpace(configured); configured != "" {
+		// The OIDC setting UI documents this field as an exact redirect URI,
+		// while older deployments stored only an origin. Preserve both forms:
+		// a configured path is already complete; an origin still receives the
+		// provider callback path. This avoids producing /oauth/oidc/oauth/oidc
+		// from the legacy production value during the AUAPI migration.
+		if parsed, err := url.Parse(configured); err == nil && parsed.Host != "" && parsed.Path != "" && parsed.Path != "/" {
+			return configured
+		}
+		return strings.TrimRight(configured, "/") + path
 	}
 	return strings.TrimRight(common.OAuthRedirectBaseURL(), "/") + path
 }

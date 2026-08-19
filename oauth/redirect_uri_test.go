@@ -45,3 +45,18 @@ func TestCallbackURLForRequestRejectsUntrustedHost(t *testing.T) {
 		t.Fatalf("untrusted host selected callback %q", got)
 	}
 }
+
+func TestCallbackURLForRequestUsesExactConfiguredURIWithoutDuplicatingPath(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest("GET", "https://evil.example/oauth/oidc", nil)
+
+	for _, configured := range []string{
+		"https://geiliapi.com/oauth/oidc",
+		"https://auapi.ai/oauth/oidc",
+	} {
+		if got := CallbackURLForRequest(ctx, "/oauth/oidc", configured); got != configured {
+			t.Fatalf("exact configured redirect URI changed: got=%q want=%q", got, configured)
+		}
+	}
+}
