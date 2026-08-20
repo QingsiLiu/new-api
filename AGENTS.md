@@ -73,7 +73,7 @@ This checkout is used for GeiliAPI private changes. Treat the local branch plus 
 - Do not push private async-gateway changes to the upstream open-source remote `https://github.com/Calcium-Ion/new-api.git`.
 - The upstream `Calcium-Ion/new-api` remote is read-only reference material unless the user explicitly asks for an upstream contribution.
 - Production release order is: local change -> local verification -> commit -> push private remote -> sync source snapshot to `ctbuk` -> build fixed-tag Docker image -> update compose image -> `docker compose config --quiet` -> recreate `relay-new-api` -> verify production behavior.
-- Do not claim production is deployed based only on container health. Verify image tag, container creation time, relevant route or binary behavior, and the public `https://all.geiliapi.com` entrypoint.
+- Do not claim production is deployed based only on container health. Verify image tag, container creation time, relevant route or binary behavior, `https://geiliapi.com/api/status`, and the legacy-compatible `https://geiliapi.com/v1` entrypoint. `all.geiliapi.com` is retired and must not be restored.
 - Never print `.env`, service tokens, database passwords, API keys, or New API tokens while inspecting deployment state.
 
 ### Rule 1: JSON Package — Use `common/json.go`

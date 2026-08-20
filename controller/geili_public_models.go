@@ -52,7 +52,7 @@ type publicModelDetail struct {
 // ---- 公开端点进程内响应缓存 ----
 // 注册表与规格价均为低频变更数据，60s 内允许陈旧；管理端写操作主动失效。
 // 与 GlobalAPIRateLimit 互补：限流挡刷量，缓存把命中期内的 DB 查询降为零。
-// （CF 侧 all.geiliapi.com 无 API 缓存规则且 CF 配置属用户人工项，故缓存放进程内。）
+// （CF 侧 API 缓存规则属用户人工项，故缓存放进程内，避免依赖边缘配置。）
 
 const geiliPublicModelCacheTTL = 60 * time.Second
 
